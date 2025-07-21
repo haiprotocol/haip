@@ -95,7 +95,7 @@ describe("HAIPCLIUtils", () => {
       
       expect(result.protocol).toBe("ws:");
       expect(result.host).toBe("localhost");
-      expect(result.port).toBe(80);
+      expect(result.port).toBe(8080);
       expect(result.path).toBe("/haip");
     });
 

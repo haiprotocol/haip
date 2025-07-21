@@ -135,8 +135,30 @@ describe("HAIPClient", () => {
     test("should connect successfully", async () => {
       const connectPromise = client.connect();
       
-      // Simulate transport connection
-      await mockTransport.connect();
+      // Wait for the handshake message to be sent
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Simulate handshake response
+      const handshakeResponse: HAIPMessage = {
+        id: HAIPUtils.generateUUID(),
+        session: "test-session",
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          version: "1.1.2",
+          server_capabilities: {
+            binary_frames: true,
+            flow_control: {
+              initial_credit_messages: 10,
+              initial_credit_bytes: 1024 * 1024
+            }
+          }
+        }
+      };
+      
+      mockTransport.simulateMessage(handshakeResponse);
       
       await connectPromise;
       
@@ -144,7 +166,34 @@ describe("HAIPClient", () => {
     });
 
     test("should handle disconnection", async () => {
-      await client.connect();
+      // First establish a proper connection
+      const connectPromise = client.connect();
+      
+      // Wait for handshake to be sent
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Simulate handshake response
+      const handshakeResponse: HAIPMessage = {
+        id: HAIPUtils.generateUUID(),
+        session: "test-session",
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          version: "1.1.2",
+          server_capabilities: {
+            binary_frames: true,
+            flow_control: {
+              initial_credit_messages: 10,
+              initial_credit_bytes: 1024 * 1024
+            }
+          }
+        }
+      };
+      
+      mockTransport.simulateMessage(handshakeResponse);
+      await connectPromise;
       
       const disconnectPromise = new Promise<void>((resolve) => {
         client.on("disconnect", () => resolve());
@@ -257,10 +306,48 @@ describe("HAIPClient", () => {
     });
 
     test("should handle run finished event", async () => {
-      await client.connect();
+      // First establish a proper connection
+      const connectPromise = client.connect();
+      
+      // Wait for handshake to be sent
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Simulate handshake response
+      const handshakeResponse: HAIPMessage = {
+        id: HAIPUtils.generateUUID(),
+        session: "test-session",
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          version: "1.1.2",
+          server_capabilities: {
+            binary_frames: true,
+            flow_control: {
+              initial_credit_messages: 10,
+              initial_credit_bytes: 1024 * 1024
+            }
+          }
+        }
+      };
+      
+      mockTransport.simulateMessage(handshakeResponse);
+      await connectPromise;
       
       const runId = HAIPUtils.generateUUID();
-      await client.startRun();
+      
+      // First simulate run started to track the run
+      const runStartedMessage = HAIPUtils.createRunStartedMessage(
+        "test-session",
+        runId,
+        "test-thread",
+        { test: "metadata" }
+      );
+      mockTransport.simulateMessage(runStartedMessage);
+      
+      // Wait a bit for run to be registered
+      await new Promise(resolve => setTimeout(resolve, 10));
       
       const runFinishedPromise = new Promise<any>((resolve) => {
         client.on("runFinished", (payload) => resolve(payload));
@@ -526,21 +613,34 @@ describe("HAIPClient", () => {
 
   describe("Heartbeat", () => {
     test("should send heartbeat", async () => {
-      await client.connect();
+      // First establish a proper connection
+      const connectPromise = client.connect();
       
-      // Simulate handshake completion to start heartbeat
-      const handshakeResponse = HAIPUtils.createMessage(
-        "test-session",
-        "SYSTEM",
-        "HAI",
-        {
-          haip_version: "1.1.2",
-          accept_major: [1],
-          accept_events: ["HAI"]
+      // Wait for handshake to be sent
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Simulate handshake response
+      const handshakeResponse: HAIPMessage = {
+        id: HAIPUtils.generateUUID(),
+        session: "test-session",
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          version: "1.1.2",
+          server_capabilities: {
+            binary_frames: true,
+            flow_control: {
+              initial_credit_messages: 10,
+              initial_credit_bytes: 1024 * 1024
+            }
+          }
         }
-      );
-
+      };
+      
       mockTransport.simulateMessage(handshakeResponse);
+      await connectPromise;
       
       // Wait for heartbeat
       await new Promise(resolve => setTimeout(resolve, 100));

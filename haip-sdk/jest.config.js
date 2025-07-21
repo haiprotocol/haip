@@ -17,12 +17,7 @@ module.exports = {
   coverageReporters: ["text", "lcov", "html"],
   setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
   testTimeout: 10000,
-  globals: {
-    "ts-jest": {
-      tsconfig: "tsconfig.test.json"
-    }
-  },
-  moduleNameMapping: {
+  moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1"
   }
 }; 
