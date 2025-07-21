@@ -1,0 +1,380 @@
+---
+title: "Installation"
+description: "Install and set up the HAIP Server"
+---
+
+# Installation
+
+The HAIP Server can be installed and deployed in multiple ways. Choose the method that best fits your environment and requirements.
+
+## Prerequisites
+
+<CardGroup cols={3}>
+  <Card title="Node.js" icon="code">
+    Version 18.0.0 or higher
+  </Card>
+  <Card title="npm" icon="box">
+    Version 8.0.0 or higher
+  </Card>
+  <Card title="Git" icon="code-branch">
+    For cloning the repository
+  </Card>
+</CardGroup>
+
+## Method 1: From Source
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/haiprotocol/haip-server
+    cd haip-server
+    ```
+  </Step>
+  <Step title="Install Dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+  <Step title="Build the Project">
+    ```bash
+    npm run build
+    ```
+  </Step>
+  <Step title="Start the Server">
+    ```bash
+    # Development mode
+    npm run dev
+    
+    # Production mode
+    npm start
+    ```
+  </Step>
+</Steps>
+
+## Method 2: Docker
+
+### Pull the Image
+
+```bash
+docker pull haip-protocol/server:latest
+```
+
+### Run the Container
+
+```bash
+docker run -p 8080:8080 haip-protocol/server:latest
+```
+
+### Using Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  haip-server:
+    image: haip-protocol/server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT_SECRET=your-secret-key
+      - PORT=8080
+      - NODE_ENV=production
+    restart: unless-stopped
+```
+
+Run with:
+
+```bash
+docker-compose up -d
+```
+
+## Method 3: NPM Package
+
+<Note>
+  **Coming Soon**: The HAIP Server will be available on npm as `@haip-protocol/server` in the near future.
+</Note>
+
+```bash
+npm install @haip-protocol/server
+```
+
+```typescript
+import { HAIPServer } from '@haip-protocol/server';
+
+const server = new HAIPServer();
+server.start();
+```
+
+## Environment Configuration
+
+The server can be configured using environment variables:
+
+### Required Environment Variables
+
+```bash
+# JWT secret for token validation
+JWT_SECRET=your-secret-key-here
+
+# Server port (default: 8080)
+PORT=8080
+
+# Server host (default: 0.0.0.0)
+HOST=0.0.0.0
+```
+
+### Optional Environment Variables
+
+```bash
+# JWT expiration time (default: 24h)
+JWT_EXPIRES_IN=24h
+
+# Maximum connections (default: 1000)
+MAX_CONNECTIONS=1000
+
+# Heartbeat interval in ms (default: 30000)
+HEARTBEAT_INTERVAL=30000
+
+# Heartbeat timeout in ms (default: 5000)
+HEARTBEAT_TIMEOUT=5000
+
+# Enable CORS (default: true)
+ENABLE_CORS=true
+
+# Enable compression (default: true)
+ENABLE_COMPRESSION=true
+
+# Enable logging (default: true)
+ENABLE_LOGGING=true
+
+# Node environment (default: development)
+NODE_ENV=production
+```
+
+### Flow Control Configuration
+
+```bash
+# Enable flow control (default: true)
+FLOW_CONTROL_ENABLED=true
+
+# Initial message credits (default: 1000)
+FLOW_CONTROL_INITIAL_CREDITS=1000
+
+# Minimum credits (default: 100)
+FLOW_CONTROL_MIN_CREDITS=100
+
+# Maximum credits (default: 10000)
+FLOW_CONTROL_MAX_CREDITS=10000
+
+# Credit threshold (default: 200)
+FLOW_CONTROL_CREDIT_THRESHOLD=200
+
+# Back-pressure threshold (default: 0.8)
+FLOW_CONTROL_BACK_PRESSURE_THRESHOLD=0.8
+
+# Adaptive adjustment (default: true)
+FLOW_CONTROL_ADAPTIVE_ADJUSTMENT=true
+
+# Initial credit bytes (default: 1048576)
+FLOW_CONTROL_INITIAL_CREDIT_BYTES=1048576
+```
+
+## Development Setup
+
+### Install Development Dependencies
+
+```bash
+npm install --include=dev
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Run specific test suites
+npm run test:unit
+npm run test:integration
+npm run test:websocket
+
+# Run tests with open handle detection
+npm run test:detect-open-handles
+```
+
+### Development Scripts
+
+```bash
+# Start in development mode with hot reload
+npm run dev
+
+# Build the project
+npm run build
+
+# Lint the code
+npm run lint
+
+# Format the code
+npm run format
+
+# Type check
+npm run type-check
+```
+
+## Production Setup
+
+### Security Considerations
+
+1. **JWT Secret**: Use a strong, unique secret key
+2. **Environment**: Set `NODE_ENV=production`
+3. **HTTPS**: Use HTTPS in production with proper certificates
+4. **Firewall**: Configure firewall rules appropriately
+5. **Rate Limiting**: Consider additional rate limiting for production
+
+### Example Production Configuration
+
+```bash
+# Production environment variables
+NODE_ENV=production
+JWT_SECRET=your-very-secure-secret-key-here
+PORT=8080
+HOST=0.0.0.0
+MAX_CONNECTIONS=1000
+ENABLE_CORS=false
+ENABLE_COMPRESSION=true
+ENABLE_LOGGING=true
+FLOW_CONTROL_ENABLED=true
+```
+
+### Docker Production Setup
+
+```yaml
+version: '3.8'
+services:
+  haip-server:
+    image: haip-protocol/server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=8080
+      - MAX_CONNECTIONS=1000
+      - ENABLE_CORS=false
+      - ENABLE_COMPRESSION=true
+      - ENABLE_LOGGING=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./logs:/app/logs
+```
+
+## Verification
+
+After installation, verify the server is running correctly:
+
+### Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+Expected response:
+```json
+{
+  "status": "ok",
+  "uptime": 12345,
+  "activeConnections": 0,
+  "totalConnections": 0
+}
+```
+
+### Statistics
+
+```bash
+curl http://localhost:8080/stats
+```
+
+Expected response:
+```json
+{
+  "totalConnections": 0,
+  "activeConnections": 0,
+  "totalMessages": 0,
+  "messagesPerSecond": 0,
+  "averageLatency": 0,
+  "errorRate": 0,
+  "uptime": 12345
+}
+```
+
+### WebSocket Connection
+
+```bash
+# Test WebSocket connection
+wscat -c "ws://localhost:8080/haip/websocket?token=your-jwt-token"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Port Already in Use**
+   ```bash
+   # Check what's using the port
+   lsof -i :8080
+   
+   # Kill the process or change the port
+   PORT=8081 npm start
+   ```
+
+2. **JWT Secret Not Set**
+   ```bash
+   # Set the JWT secret
+   export JWT_SECRET=your-secret-key
+   npm start
+   ```
+
+3. **Permission Denied**
+   ```bash
+   # Fix permissions
+   sudo chown -R $USER:$USER .
+   ```
+
+4. **Docker Issues**
+   ```bash
+   # Check Docker logs
+   docker logs haip-server
+   
+   # Restart the container
+   docker-compose restart
+   ```
+
+### Logs
+
+Check the server logs for debugging:
+
+```bash
+# Development logs
+npm run dev
+
+# Docker logs
+docker logs haip-server
+
+# Production logs
+tail -f logs/haip-server.log
+```
+
+## Next Steps
+
+- [Quick Start](/server/quickstart) - Get up and running quickly
+- [Configuration](/server/configuration) - Configure the server
+- [Deployment](/server/deployment) - Deploy to production
+- [API Reference](/server/api-reference) - Complete API documentation 

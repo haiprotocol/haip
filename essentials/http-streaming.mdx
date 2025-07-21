@@ -1,0 +1,868 @@
+---
+title: "HTTP Streaming"
+description: "Implement HAIP over HTTP streaming for maximum compatibility"
+---
+
+## Overview
+
+HTTP streaming provides a universal way to implement HAIP that works with any HTTP client. This approach is ideal for environments with strict firewall policies, proxy servers, or when you need maximum compatibility.
+
+## HTTP Streaming Implementation
+
+### Client-Side Implementation
+
+```typescript
+class HAIPHTTPStreamClient {
+  private sessionId: string;
+  private seqCounter = 1;
+  private abortController: AbortController | null = null;
+  private isStreaming = false;
+  
+  constructor() {
+    this.sessionId = this.generateUUID();
+  }
+  
+  async startStream(url: string, token: string): Promise<void> {
+    if (this.isStreaming) {
+      throw new Error('Stream already active');
+    }
+    
+    this.isStreaming = true;
+    this.abortController = new AbortController();
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({
+          id: this.generateUUID(),
+          session: this.sessionId,
+          seq: "1",
+          ts: Date.now().toString(),
+          channel: "SYSTEM",
+          type: "HAI",
+          payload: {
+            haip_version: "1.1.2",
+            accept_major: [1],
+            accept_events: [
+              "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
+              "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
+              "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+              "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
+              "PAUSE_CHANNEL", "RESUME_CHANNEL"
+            ]
+          }
+        }),
+        signal: this.abortController.signal
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('No response body');
+      }
+      
+      await this.processStream(response.body);
+      
+    } catch (error) {
+      this.isStreaming = false;
+      if (error.name === 'AbortError') {
+        console.log('Stream aborted');
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  private async processStream(body: ReadableStream): Promise<void> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+        
+        // Decode chunk and add to buffer
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        
+        for (const line of lines) {
+          if (line.trim()) {
+            await this.processLine(line);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  
+  private async processLine(line: string): Promise<void> {
+    // Handle different line formats
+    if (line.startsWith('data: ')) {
+      const data = line.slice(6);
+      if (data.trim()) {
+        try {
+          const message = JSON.parse(data);
+          this.handleMessage(message);
+        } catch (error) {
+          console.error('Failed to parse message:', error);
+        }
+      }
+    } else if (line.startsWith('event: ')) {
+      const eventType = line.slice(7);
+      this.emit('event', eventType);
+    } else if (line.startsWith('id: ')) {
+      const id = line.slice(4);
+      this.emit('id', id);
+    } else if (line.startsWith('retry: ')) {
+      const retryMs = parseInt(line.slice(7));
+      this.emit('retry', retryMs);
+    }
+  }
+  
+  async sendMessage(text: string): Promise<void> {
+    const messageId = this.generateUUID();
+    
+    // Send message via separate HTTP request
+    await this.sendHttpRequest('/haip/message', {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "TEXT_MESSAGE_START",
+      payload: {
+        message_id: messageId,
+        author: "USER",
+        text: text
+      }
+    });
+    
+    // Send message end
+    await this.sendHttpRequest('/haip/message', {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "TEXT_MESSAGE_END",
+      payload: {
+        message_id: messageId
+      }
+    });
+  }
+  
+  private async sendHttpRequest(endpoint: string, message: any): Promise<void> {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`
+      },
+      body: JSON.stringify(message)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP request failed: ${response.status} ${response.statusText}`);
+    }
+  }
+  
+  stopStream(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    this.isStreaming = false;
+  }
+  
+  private handleMessage(message: any): void {
+    // Handle different message types
+    switch (message.type) {
+      case 'TEXT_MESSAGE_START':
+        this.emit('message_start', message);
+        break;
+      case 'TEXT_MESSAGE_PART':
+        this.emit('message_part', message);
+        break;
+      case 'TEXT_MESSAGE_END':
+        this.emit('message_end', message);
+        break;
+      case 'TOOL_CALL':
+        this.emit('tool_call', message);
+        break;
+      case 'TOOL_UPDATE':
+        this.emit('tool_update', message);
+        break;
+      case 'TOOL_DONE':
+        this.emit('tool_done', message);
+        break;
+      case 'ERROR':
+        this.emit('error', message);
+        break;
+      default:
+        this.emit('message', message);
+    }
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+}
+```
+
+### Server-Side Implementation
+
+```typescript
+import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+
+class HAIPHTTPStreamServer {
+  private app: express.Application;
+  private sessions = new Map<string, HAIPStreamSession>();
+  private tokenValidator: TokenValidator;
+  
+  constructor(tokenValidator: TokenValidator) {
+    this.app = express();
+    this.tokenValidator = tokenValidator;
+    this.setupRoutes();
+  }
+  
+  private setupRoutes() {
+    // HTTP streaming endpoint
+    this.app.post('/haip/stream', async (req, res) => {
+      try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+          res.status(401).json({ error: 'Missing token' });
+          return;
+        }
+        
+        // Validate token
+        const user = await this.tokenValidator.validateToken(token);
+        if (!user) {
+          res.status(401).json({ error: 'Invalid token' });
+          return;
+        }
+        
+        // Set streaming headers
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Cache-Control, Authorization',
+          'X-Accel-Buffering': 'no' // Disable nginx buffering
+        });
+        
+        // Create session
+        const sessionId = uuidv4();
+        const session = new HAIPStreamSession(sessionId, res, user);
+        this.sessions.set(sessionId, session);
+        
+        // Process handshake from request body
+        const handshake = req.body;
+        if (handshake.type === 'HAI') {
+          this.handleHandshake(session, handshake);
+        }
+        
+        // Send initial connection message
+        this.sendStreamMessage(session, {
+          id: uuidv4(),
+          session: sessionId,
+          seq: session.getNextSeq(),
+          ts: Date.now().toString(),
+          channel: "SYSTEM",
+          type: "CONNECTION_ESTABLISHED",
+          payload: {
+            session_id: sessionId
+          }
+        });
+        
+        // Handle client disconnect
+        req.on('close', () => {
+          console.log(`HTTP stream session ${sessionId} closed`);
+          this.cleanupSession(sessionId);
+        });
+        
+        // Keep connection alive with periodic messages
+        const keepAliveInterval = setInterval(() => {
+          if (res.writableEnded) {
+            clearInterval(keepAliveInterval);
+            return;
+          }
+          
+          this.sendStreamMessage(session, {
+            id: uuidv4(),
+            session: sessionId,
+            seq: session.getNextSeq(),
+            ts: Date.now().toString(),
+            channel: "SYSTEM",
+            type: "PING",
+            payload: {
+              nonce: uuidv4()
+            }
+          });
+        }, 30000);
+        
+      } catch (error) {
+        console.error('HTTP stream error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+    
+    // Message endpoint for client-to-server communication
+    this.app.post('/haip/message', async (req, res) => {
+      try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+          res.status(401).json({ error: 'Missing token' });
+          return;
+        }
+        
+        const user = await this.tokenValidator.validateToken(token);
+        if (!user) {
+          res.status(401).json({ error: 'Invalid token' });
+          return;
+        }
+        
+        const message = req.body;
+        const sessionId = message.session;
+        const session = this.sessions.get(sessionId);
+        
+        if (!session) {
+          res.status(404).json({ error: 'Session not found' });
+          return;
+        }
+        
+        // Process message
+        this.handleMessage(session, message);
+        
+        res.json({ status: 'ok' });
+        
+      } catch (error) {
+        console.error('Message error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+  }
+  
+  private handleHandshake(session: HAIPStreamSession, handshake: any) {
+    const { haip_version, accept_major, accept_events, capabilities } = handshake.payload;
+    
+    // Validate version compatibility
+    if (!accept_major.includes(1)) {
+      this.sendError(session, 'VERSION_INCOMPATIBLE', 'No compatible major version');
+      return;
+    }
+    
+    // Store session capabilities
+    session.capabilities = capabilities;
+    session.acceptedEvents = accept_events;
+    
+    // Send handshake response
+    const response = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
+          "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
+          "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+          "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
+          "PAUSE_CHANNEL", "RESUME_CHANNEL"
+        ],
+        capabilities: {
+          flow_control: {
+            initial_credit_messages: 32,
+            initial_credit_bytes: 262144
+          }
+        }
+      }
+    };
+    
+    this.sendStreamMessage(session, response);
+  }
+  
+  private handleMessage(session: HAIPStreamSession, message: any) {
+    // Validate message structure
+    const validation = this.validateMessage(message);
+    if (!validation.isValid) {
+      this.sendError(session, 'PROTOCOL_VIOLATION', validation.errors.join(', '));
+      return;
+    }
+    
+    // Handle different message types
+    switch (message.type) {
+      case 'TEXT_MESSAGE_START':
+      case 'TEXT_MESSAGE_PART':
+      case 'TEXT_MESSAGE_END':
+        this.handleTextMessage(session, message);
+        break;
+      case 'TOOL_CALL':
+        this.handleToolCall(session, message);
+        break;
+      case 'PING':
+        this.handlePing(session, message);
+        break;
+      default:
+        this.sendError(session, 'UNSUPPORTED_TYPE', `Unknown message type: ${message.type}`);
+    }
+  }
+  
+  private handleTextMessage(session: HAIPStreamSession, message: any) {
+    // Process text message and generate response
+    const response = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TEXT_MESSAGE_START",
+      payload: {
+        message_id: uuidv4(),
+        author: "AGENT",
+        text: "I received your message: " + message.payload.text
+      }
+    };
+    
+    this.sendStreamMessage(session, response);
+    
+    // Send message end
+    const endMessage = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TEXT_MESSAGE_END",
+      payload: {
+        message_id: response.payload.message_id
+      }
+    };
+    
+    this.sendStreamMessage(session, endMessage);
+  }
+  
+  private handlePing(session: HAIPStreamSession, message: any) {
+    // Send pong response
+    const pong = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "PONG",
+      payload: {
+        nonce: message.payload.nonce
+      }
+    };
+    
+    this.sendStreamMessage(session, pong);
+  }
+  
+  private sendStreamMessage(session: HAIPStreamSession, message: any) {
+    if (session.response.writableEnded) {
+      return; // Connection closed
+    }
+    
+    const sseData = `data: ${JSON.stringify(message)}\n\n`;
+    session.response.write(sseData);
+  }
+  
+  private sendError(session: HAIPStreamSession, code: string, message: string) {
+    const error = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "ERROR",
+      payload: {
+        code,
+        message
+      }
+    };
+    
+    this.sendStreamMessage(session, error);
+  }
+  
+  private cleanupSession(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.cleanup();
+      this.sessions.delete(sessionId);
+    }
+  }
+  
+  // Method to send messages to all connected clients
+  broadcastMessage(message: any) {
+    for (const session of this.sessions.values()) {
+      this.sendStreamMessage(session, message);
+    }
+  }
+  
+  // Method to send message to specific session
+  sendToSession(sessionId: string, message: any) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      this.sendStreamMessage(session, message);
+    }
+  }
+}
+
+class HAIPStreamSession {
+  public capabilities: any = {};
+  public acceptedEvents: string[] = [];
+  private seqCounter = 1;
+  
+  constructor(
+    public id: string,
+    public response: express.Response,
+    public user: any
+  ) {}
+  
+  getNextSeq(): string {
+    return this.seqCounter++.toString();
+  }
+  
+  cleanup() {
+    // Clean up any resources associated with this session
+  }
+}
+```
+
+## Chunked Transfer Encoding
+
+### Alternative Implementation
+
+```typescript
+class HAIPChunkedStreamClient {
+  private sessionId: string;
+  private seqCounter = 1;
+  
+  constructor() {
+    this.sessionId = this.generateUUID();
+  }
+  
+  async startChunkedStream(url: string, token: string): Promise<void> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Transfer-Encoding': 'chunked'
+      },
+      body: JSON.stringify({
+        id: this.generateUUID(),
+        session: this.sessionId,
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          haip_version: "1.1.2",
+          accept_major: [1],
+          accept_events: [
+            "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
+            "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
+            "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+            "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
+            "PAUSE_CHANNEL", "RESUME_CHANNEL"
+          ]
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP request failed: ${response.status} ${response.statusText}`);
+    }
+    
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+    
+    await this.processChunkedStream(response.body);
+  }
+  
+  private async processChunkedStream(body: ReadableStream): Promise<void> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+        
+        // Decode chunk
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        
+        // Process complete JSON objects
+        const messages = this.extractJSONMessages(buffer);
+        buffer = messages.remaining;
+        
+        for (const message of messages.complete) {
+          this.handleMessage(message);
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  
+  private extractJSONMessages(buffer: string): { complete: any[], remaining: string } {
+    const complete: any[] = [];
+    let remaining = buffer;
+    
+    // Try to extract complete JSON objects
+    let braceCount = 0;
+    let startIndex = -1;
+    
+    for (let i = 0; i < buffer.length; i++) {
+      const char = buffer[i];
+      
+      if (char === '{') {
+        if (braceCount === 0) {
+          startIndex = i;
+        }
+        braceCount++;
+      } else if (char === '}') {
+        braceCount--;
+        
+        if (braceCount === 0 && startIndex !== -1) {
+          try {
+            const jsonStr = buffer.substring(startIndex, i + 1);
+            const message = JSON.parse(jsonStr);
+            complete.push(message);
+            remaining = buffer.substring(i + 1);
+          } catch (error) {
+            // Invalid JSON, continue searching
+          }
+          startIndex = -1;
+        }
+      }
+    }
+    
+    return { complete, remaining };
+  }
+  
+  private handleMessage(message: any): void {
+    // Handle different message types
+    switch (message.type) {
+      case 'TEXT_MESSAGE_START':
+        this.emit('message_start', message);
+        break;
+      case 'TEXT_MESSAGE_PART':
+        this.emit('message_part', message);
+        break;
+      case 'TEXT_MESSAGE_END':
+        this.emit('message_end', message);
+        break;
+      case 'ERROR':
+        this.emit('error', message);
+        break;
+      default:
+        this.emit('message', message);
+    }
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+}
+```
+
+## HTTP Streaming Best Practices
+
+### Connection Management
+
+```typescript
+class HAIPHTTPStreamManager {
+  private streamClient: HAIPHTTPStreamClient | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private isConnected = false;
+  
+  async connect(url: string, token: string): Promise<void> {
+    try {
+      this.streamClient = new HAIPHTTPStreamClient();
+      
+      // Set up event handlers
+      this.streamClient.on('message_start', (message) => {
+        this.emit('message_start', message);
+      });
+      
+      this.streamClient.on('message_part', (message) => {
+        this.emit('message_part', message);
+      });
+      
+      this.streamClient.on('message_end', (message) => {
+        this.emit('message_end', message);
+      });
+      
+      this.streamClient.on('error', (error) => {
+        this.emit('error', error);
+        this.handleReconnection(url, token);
+      });
+      
+      // Start streaming
+      await this.streamClient.startStream(url, token);
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+      
+    } catch (error) {
+      console.error('HTTP stream connection failed:', error);
+      this.handleReconnection(url, token);
+    }
+  }
+  
+  private async handleReconnection(url: string, token: string): Promise<void> {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max HTTP stream reconnection attempts exceeded');
+      this.emit('max_reconnect_attempts_exceeded');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    
+    console.log(`Scheduling HTTP stream reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    
+    setTimeout(async () => {
+      try {
+        await this.connect(url, token);
+      } catch (error) {
+        console.error('HTTP stream reconnection failed:', error);
+        this.handleReconnection(url, token);
+      }
+    }, delay);
+  }
+  
+  async sendMessage(text: string): Promise<void> {
+    if (!this.streamClient || !this.isConnected) {
+      throw new Error('Not connected');
+    }
+    
+    await this.streamClient.sendMessage(text);
+  }
+  
+  disconnect(): void {
+    if (this.streamClient) {
+      this.streamClient.stopStream();
+      this.streamClient = null;
+    }
+    this.isConnected = false;
+  }
+}
+```
+
+### Message Buffering
+
+```typescript
+class HAIPHTTPStreamBuffer {
+  private messageBuffer = new Map<string, any[]>();
+  private maxBufferSize = 1000;
+  private bufferTimeout = 30000; // 30 seconds
+  
+  addMessage(messageId: string, message: any): void {
+    if (!this.messageBuffer.has(messageId)) {
+      this.messageBuffer.set(messageId, []);
+      
+      // Set timeout to clean up old messages
+      setTimeout(() => {
+        this.messageBuffer.delete(messageId);
+      }, this.bufferTimeout);
+    }
+    
+    const buffer = this.messageBuffer.get(messageId)!;
+    buffer.push(message);
+    
+    // Limit buffer size
+    if (buffer.length > this.maxBufferSize) {
+      buffer.shift();
+    }
+  }
+  
+  getMessage(messageId: string): any[] {
+    return this.messageBuffer.get(messageId) || [];
+  }
+  
+  clearMessage(messageId: string): void {
+    this.messageBuffer.delete(messageId);
+  }
+  
+  clearAll(): void {
+    this.messageBuffer.clear();
+  }
+  
+  getBufferSize(): number {
+    return this.messageBuffer.size;
+  }
+}
+```
+
+## HTTP Streaming vs Other Transports
+
+| Feature | HTTP Streaming | WebSocket | SSE |
+|---------|----------------|-----------|-----|
+| **Protocol** | HTTP | WebSocket | HTTP |
+| **Direction** | One-way (server to client) | Bidirectional | One-way (server to client) |
+| **Browser Support** | Excellent | Excellent | Good |
+| **Proxy Support** | Excellent | Good | Excellent |
+| **Firewall Friendly** | Yes | Sometimes | Yes |
+| **Complexity** | Low | Moderate | Low |
+| **Reconnection** | Manual | Manual | Automatic |
+| **Use Case** | Universal compatibility | Real-time bidirectional | Notifications |
+
+## Best Practices
+
+<CardGroup cols={2}>
+
+<Card title="Connection Monitoring" icon="network-wired">
+  Monitor connection health and implement automatic reconnection with exponential backoff.
+</Card>
+
+<Card title="Message Buffering" icon="database">
+  Buffer messages on the client side to handle temporary disconnections and out-of-order delivery.
+</Card>
+
+<Card title="Error Handling" icon="exclamation">
+  Comprehensive error handling for HTTP streaming connections.
+</Card>
+
+<Card title="Resource Management" icon="trash">
+  Clean up resources properly when connections are closed or errors occur.
+</Card>
+
+</CardGroup> 

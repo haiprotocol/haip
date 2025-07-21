@@ -1,0 +1,542 @@
+---
+title: "API Reference"
+description: "Technical API reference for the HAIP CLI"
+---
+
+This page provides the technical API reference for the HAIP CLI, including TypeScript interfaces, classes, and implementation details.
+
+## TypeScript Interfaces
+
+### Core Configuration
+
+```typescript
+interface HAIPCLIConfig {
+    url?: string;
+    token?: string;
+    transport?: "websocket" | "sse" | "http-streaming";
+    verbose?: boolean;
+    timeout?: number;
+    reconnectAttempts?: number;
+    reconnectDelay?: number;
+    heartbeatInterval?: number;
+    heartbeatTimeout?: number;
+}
+```
+
+### Connection State
+
+```typescript
+interface HAIPConnectionState {
+    connected: boolean;
+    connecting: boolean;
+    reconnecting: boolean;
+    disconnected: boolean;
+    error?: Error;
+    lastConnected?: Date;
+    reconnectAttempts: number;
+    messageCount: number;
+    bytesReceived: number;
+    bytesSent: number;
+}
+```
+
+### Message Types
+
+```typescript
+interface HAIPMessage {
+    id: string;
+    type: string;
+    timestamp: string;
+    sequence?: number;
+    payload?: any;
+    metadata?: Record<string, any>;
+}
+
+interface HAIPTextMessage extends HAIPMessage {
+    type: "TEXT_MESSAGE_START" | "TEXT_MESSAGE_PART" | "TEXT_MESSAGE_END";
+    payload: {
+        channel: "USER" | "AGENT" | "SYSTEM";
+        author?: string;
+        content: string;
+        runId?: string;
+        threadId?: string;
+    };
+}
+
+interface HAIPToolCall extends HAIPMessage {
+    type: "TOOL_CALL";
+    payload: {
+        tool: string;
+        parameters: Record<string, any>;
+        runId?: string;
+        threadId?: string;
+    };
+}
+
+interface HAIPRunStarted extends HAIPMessage {
+    type: "RUN_STARTED";
+    payload: {
+        runId: string;
+        threadId?: string;
+        metadata?: Record<string, any>;
+    };
+}
+```
+
+### Test Options
+
+```typescript
+interface HAIPCLITestOptions {
+    messageCount: number;
+    messageSize: number;
+    delay: number;
+    timeout: number;
+    validateResponses: boolean;
+}
+
+interface HAIPCLITestResults {
+    connectionTime: number;
+    totalMessages: number;
+    successfulMessages: number;
+    failedMessages: number;
+    totalBytes: number;
+    averageLatency: number;
+    messagesPerSecond: number;
+    successRate: number;
+    totalDuration: number;
+    errors: Error[];
+}
+```
+
+### Monitor Options
+
+```typescript
+interface HAIPCLIMonitorOptions {
+    showTimestamps: boolean;
+    showMetadata: boolean;
+    filterTypes?: string[];
+    filterChannels?: string[];
+    maxLines?: number;
+    follow: boolean;
+}
+```
+
+## Classes
+
+### HAIPConnection
+
+The main connection class that manages HAIP server connections.
+
+```typescript
+class HAIPConnection {
+    constructor(config: HAIPCLIConfig);
+    
+    // Connection management
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    reconnect(): Promise<void>;
+    
+    // Message sending
+    sendTextMessage(channel: string, content: string, author?: string, runId?: string, threadId?: string): Promise<void>;
+    sendToolCall(tool: string, parameters: Record<string, any>, runId?: string, threadId?: string): Promise<void>;
+    startRun(threadId?: string, metadata?: Record<string, any>): Promise<string>;
+    
+    // Event handling
+    on(event: string, handler: Function): void;
+    off(event: string, handler: Function): void;
+    
+    // State and statistics
+    getState(): HAIPConnectionState;
+    getStatistics(): HAIPConnectionStatistics;
+}
+```
+
+**Events:**
+- `connect` - Connection established
+- `disconnect` - Connection closed
+- `reconnect` - Reconnection attempt
+- `error` - Connection error
+- `message` - Message received
+- `textMessage` - Text message received
+- `toolCall` - Tool call received
+- `runStarted` - Run started
+- `runFinished` - Run finished
+- `ping` - Ping received
+- `pong` - Pong received
+
+### HAIPCLIUtils
+
+Utility class providing helper functions.
+
+```typescript
+class HAIPCLIUtils {
+    // ID generation
+    static generateId(): string;
+    static generateRunId(): string;
+    static generateThreadId(): string;
+    
+    // Sequence management
+    static generateSequence(): number;
+    static incrementSequence(sequence: number): number;
+    
+    // Time formatting
+    static formatTimestamp(date: Date): string;
+    static formatDuration(ms: number): string;
+    
+    // Message formatting
+    static formatMessage(message: HAIPMessage, options?: MessageFormatOptions): string;
+    static formatTextMessage(message: HAIPTextMessage): string;
+    static formatToolCall(message: HAIPToolCall): string;
+    
+    // Token validation
+    static validateToken(token: string): boolean;
+    static decodeToken(token: string): any;
+    
+    // Message creation
+    static createHandshakeMessage(): HAIPMessage;
+    static createTextMessage(channel: string, content: string, author?: string, runId?: string, threadId?: string): HAIPTextMessage;
+    static createToolCall(tool: string, parameters: Record<string, any>, runId?: string, threadId?: string): HAIPToolCall;
+    static createRunStarted(threadId?: string, metadata?: Record<string, any>): HAIPRunStarted;
+    static createPingMessage(): HAIPMessage;
+    static createPongMessage(): HAIPMessage;
+    
+    // Utility functions
+    static sleep(ms: number): Promise<void>;
+    static retry<T>(fn: () => Promise<T>, attempts: number, delay: number): Promise<T>;
+    static debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T;
+    static throttle<T extends (...args: any[]) => any>(fn: T, delay: number): T;
+}
+```
+
+## Command Implementations
+
+### Connect Command
+
+```typescript
+function createConnectCommand(): Command {
+    return new Command("connect")
+        .description("Connect to a HAIP server")
+        .argument("<url>", "Server URL")
+        .option("-t, --transport <type>", "Transport type")
+        .option("--token <token>", "JWT authentication token")
+        .option("--timeout <ms>", "Connection timeout")
+        .option("--reconnect-attempts <count>", "Reconnection attempts")
+        .option("--reconnect-delay <ms>", "Reconnection delay")
+        .option("-v, --verbose", "Enable verbose output")
+        .action(async (url: string, options: any) => {
+            // Implementation
+        });
+}
+```
+
+### Send Commands
+
+```typescript
+function createSendTextCommand(): Command {
+    return new Command("text")
+        .description("Send a text message")
+        .argument("<message>", "Message content")
+        .option("-u, --url <url>", "Server URL")
+        .option("-t, --transport <type>", "Transport type")
+        .option("--token <token>", "JWT token")
+        .option("-c, --channel <channel>", "Message channel")
+        .option("--author <author>", "Message author")
+        .option("--run-id <id>", "Run ID")
+        .option("--thread-id <id>", "Thread ID")
+        .option("-v, --verbose", "Enable verbose output")
+        .action(async (message: string, options: any) => {
+            // Implementation
+        });
+}
+
+function createSendToolCommand(): Command {
+    return new Command("tool")
+        .description("Call a tool")
+        .argument("<tool>", "Tool name")
+        .argument("[params...]", "Tool parameters")
+        .option("-u, --url <url>", "Server URL")
+        .option("-t, --transport <type>", "Transport type")
+        .option("--token <token>", "JWT token")
+        .option("-c, --channel <channel>", "Message channel")
+        .option("--run-id <id>", "Run ID")
+        .option("--thread-id <id>", "Thread ID")
+        .option("-v, --verbose", "Enable verbose output")
+        .action(async (tool: string, params: string[], options: any) => {
+            // Implementation
+        });
+}
+
+function createSendRunCommand(): Command {
+    return new Command("run")
+        .description("Start a new run")
+        .option("-u, --url <url>", "Server URL")
+        .option("-t, --transport <type>", "Transport type")
+        .option("--token <token>", "JWT token")
+        .option("--thread-id <id>", "Thread ID")
+        .option("--metadata <json>", "Run metadata")
+        .option("-v, --verbose", "Enable verbose output")
+        .action(async (options: any) => {
+            // Implementation
+        });
+}
+```
+
+### Monitor Command
+
+```typescript
+function createMonitorCommand(): Command {
+    return new Command("monitor")
+        .description("Monitor HAIP server events")
+        .option("-u, --url <url>", "Server URL")
+        .option("-t, --transport <type>", "Transport type")
+        .option("--token <token>", "JWT token")
+        .option("--show-timestamps", "Show timestamps")
+        .option("--show-metadata", "Show metadata")
+        .option("--filter-types <types>", "Filter by message types")
+        .option("--filter-channels <channels>", "Filter by channels")
+        .option("--max-lines <count>", "Maximum lines")
+        .option("--follow", "Follow new messages")
+        .option("-v, --verbose", "Enable verbose output")
+        .action(async (options: any) => {
+            // Implementation
+        });
+}
+```
+
+### Test Command
+
+```typescript
+function createTestCommand(): Command {
+    return new Command("test")
+        .description("Test HAIP server performance")
+        .option("-u, --url <url>", "Server URL")
+        .option("-t, --transport <type>", "Transport type")
+        .option("--token <token>", "JWT token")
+        .option("--message-count <count>", "Message count")
+        .option("--message-size <bytes>", "Message size")
+        .option("--delay <ms>", "Delay between messages")
+        .option("--timeout <ms>", "Test timeout")
+        .option("--validate-responses", "Validate responses")
+        .option("-v, --verbose", "Enable verbose output")
+        .action(async (options: any) => {
+            // Implementation
+        });
+}
+```
+
+### Health Command
+
+```typescript
+function createHealthCommand(): Command {
+    return new Command("health")
+        .description("Check server health")
+        .option("-u, --url <url>", "Server URL")
+        .option("--timeout <ms>", "Request timeout")
+        .option("--format <format>", "Output format")
+        .action(async (options: any) => {
+            // Implementation
+        });
+}
+```
+
+## Transport Implementations
+
+### WebSocket Transport
+
+```typescript
+class WebSocketTransport {
+    constructor(url: string, options?: WebSocketOptions);
+    
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    send(message: HAIPMessage): Promise<void>;
+    on(event: string, handler: Function): void;
+    off(event: string, handler: Function): void;
+}
+
+interface WebSocketOptions {
+    timeout?: number;
+    reconnectAttempts?: number;
+    reconnectDelay?: number;
+    heartbeatInterval?: number;
+    heartbeatTimeout?: number;
+}
+```
+
+### SSE Transport
+
+```typescript
+class SSETransport {
+    constructor(url: string, options?: SSEOptions);
+    
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    send(message: HAIPMessage): Promise<void>;
+    on(event: string, handler: Function): void;
+    off(event: string, handler: Function): void;
+}
+
+interface SSEOptions {
+    timeout?: number;
+    reconnectAttempts?: number;
+    reconnectDelay?: number;
+    headers?: Record<string, string>;
+}
+```
+
+### HTTP Streaming Transport
+
+```typescript
+class HTTPStreamingTransport {
+    constructor(url: string, options?: HTTPStreamingOptions);
+    
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    send(message: HAIPMessage): Promise<void>;
+    on(event: string, handler: Function): void;
+    off(event: string, handler: Function): void;
+}
+
+interface HTTPStreamingOptions {
+    timeout?: number;
+    headers?: Record<string, string>;
+    method?: string;
+}
+```
+
+## Error Handling
+
+### Error Types
+
+```typescript
+class HAIPCLIError extends Error {
+    constructor(message: string, code?: string, details?: any);
+    code: string;
+    details: any;
+}
+
+class HAIPConnectionError extends HAIPCLIError {
+    constructor(message: string, url?: string, details?: any);
+    url?: string;
+}
+
+class HAIPProtocolError extends HAIPCLIError {
+    constructor(message: string, messageType?: string, details?: any);
+    messageType?: string;
+}
+
+class HAIPTimeoutError extends HAIPCLIError {
+    constructor(message: string, timeout?: number, details?: any);
+    timeout?: number;
+}
+```
+
+### Error Codes
+
+```typescript
+enum HAIPErrorCodes {
+    CONNECTION_FAILED = "CONNECTION_FAILED",
+    AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED",
+    PROTOCOL_ERROR = "PROTOCOL_ERROR",
+    TIMEOUT = "TIMEOUT",
+    INVALID_MESSAGE = "INVALID_MESSAGE",
+    TOOL_NOT_FOUND = "TOOL_NOT_FOUND",
+    RUN_NOT_FOUND = "RUN_NOT_FOUND",
+    FLOW_CONTROL_ERROR = "FLOW_CONTROL_ERROR",
+    TRANSPORT_ERROR = "TRANSPORT_ERROR"
+}
+```
+
+## Output Formatting
+
+### Message Formatting
+
+```typescript
+interface MessageFormatOptions {
+    showTimestamps?: boolean;
+    showMetadata?: boolean;
+    showSequence?: boolean;
+    colorize?: boolean;
+    compact?: boolean;
+}
+
+function formatMessage(message: HAIPMessage, options?: MessageFormatOptions): string;
+function formatTextMessage(message: HAIPTextMessage, options?: MessageFormatOptions): string;
+function formatToolCall(message: HAIPToolCall, options?: MessageFormatOptions): string;
+function formatRunStarted(message: HAIPRunStarted, options?: MessageFormatOptions): string;
+function formatError(error: Error, options?: MessageFormatOptions): string;
+```
+
+### Statistics Formatting
+
+```typescript
+interface StatisticsFormatOptions {
+    showDetails?: boolean;
+    showHistory?: boolean;
+    format?: "text" | "json" | "table";
+}
+
+function formatConnectionStatistics(stats: HAIPConnectionStatistics, options?: StatisticsFormatOptions): string;
+function formatTestResults(results: HAIPCLITestResults, options?: StatisticsFormatOptions): string;
+function formatHealthStatus(health: any, options?: StatisticsFormatOptions): string;
+```
+
+## Configuration Management
+
+### Environment Variable Parsing
+
+```typescript
+function parseEnvironmentVariables(): HAIPCLIConfig;
+function getEnvironmentVariable(key: string, defaultValue?: any): any;
+function setEnvironmentVariable(key: string, value: any): void;
+```
+
+### Configuration File Loading
+
+```typescript
+interface ConfigurationFile {
+    servers?: Record<string, ServerConfig>;
+    connection?: ConnectionConfig;
+    output?: OutputConfig;
+    testing?: TestingConfig;
+}
+
+function loadConfigurationFile(path?: string): ConfigurationFile;
+function saveConfigurationFile(config: ConfigurationFile, path?: string): void;
+function mergeConfigurations(...configs: HAIPCLIConfig[]): HAIPCLIConfig;
+```
+
+## Testing Utilities
+
+### Test Helpers
+
+```typescript
+function createTestMessage(content: string, channel?: string, author?: string): HAIPTextMessage;
+function createTestToolCall(tool: string, parameters?: Record<string, any>): HAIPToolCall;
+function createTestRun(threadId?: string, metadata?: Record<string, any>): HAIPRunStarted;
+function validateMessage(message: HAIPMessage): boolean;
+function validateResponse(message: HAIPMessage, expectedType?: string): boolean;
+```
+
+### Performance Testing
+
+```typescript
+interface PerformanceTestConfig {
+    messageCount: number;
+    messageSize: number;
+    delay: number;
+    timeout: number;
+    validateResponses: boolean;
+    concurrentConnections?: number;
+}
+
+function runPerformanceTest(config: PerformanceTestConfig): Promise<HAIPCLITestResults>;
+function runLoadTest(config: PerformanceTestConfig): Promise<HAIPCLITestResults>;
+function runStressTest(config: PerformanceTestConfig): Promise<HAIPCLITestResults>;
+```
+
+## Next Steps
+
+- [Commands](/cli/commands) - Command usage and options
+- [Configuration](/cli/configuration) - Configuration options
+- [Examples](/cli/examples) - Usage examples and patterns 

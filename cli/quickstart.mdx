@@ -1,0 +1,290 @@
+---
+title: "Quick Start"
+description: "Get up and running with the HAIP CLI quickly"
+---
+
+Get started with the HAIP CLI in minutes. This guide will walk you through the essential commands and help you test your HAIP server.
+
+## Prerequisites
+
+- HAIP CLI installed (see [Installation](/cli/installation))
+- A HAIP server running (see [HAIP Server](/server/overview))
+
+## Step 1: Verify Installation
+
+First, let's make sure the CLI is working:
+
+```bash
+# Check CLI version
+node dist/index.js version
+
+# Check system information
+node dist/index.js info
+
+# Show available commands
+node dist/index.js --help
+```
+
+## Step 2: Check Server Health
+
+Before connecting, let's check if your HAIP server is running:
+
+```bash
+# Check default server health
+node dist/index.js health
+
+# Check specific server
+node dist/index.js health --url http://localhost:8080
+
+# Get JSON output
+node dist/index.js health --format json
+```
+
+Expected output:
+```
+✅ Server is healthy
+Status: OK
+Uptime: 2h 15m 30s
+Connections: 5
+Version: 1.1.2
+```
+
+## Step 3: Connect to Server
+
+Connect to your HAIP server:
+
+```bash
+# Connect via WebSocket (default)
+node dist/index.js connect ws://localhost:8080
+
+# Connect via SSE
+node dist/index.js connect http://localhost:8080 --transport sse
+
+# Connect with authentication
+node dist/index.js connect ws://localhost:8080 --token your-jwt-token
+
+# Connect with verbose output
+node dist/index.js connect ws://localhost:8080 --verbose
+```
+
+The connection will remain active until you press `Ctrl+C`.
+
+## Step 4: Send Messages
+
+Send your first message:
+
+```bash
+# Send a simple text message
+node dist/index.js send text "Hello, HAIP!"
+
+# Send with specific channel and author
+node dist/index.js send text "Hello from user" --channel USER --author user
+
+# Send within a run context
+node dist/index.js send text "Hello" --run-id run-123 --thread-id thread-456
+```
+
+## Step 5: Call Tools
+
+Test tool integration:
+
+```bash
+# Call echo tool
+node dist/index.js send tool echo message="Hello World"
+
+# Call calculator tool
+node dist/index.js send tool calculator expression="2+2"
+
+# Call with multiple parameters
+node dist/index.js send tool weather location="London" units="celsius"
+```
+
+## Step 6: Start a Run
+
+Start a new conversation run:
+
+```bash
+# Start a simple run
+node dist/index.js send run
+
+# Start with thread ID
+node dist/index.js send run --thread-id my-thread
+
+# Start with metadata
+node dist/index.js send run --metadata '{"user":"alice","session":"chat-1"}'
+```
+
+## Step 7: Monitor Events
+
+Monitor server events in real-time:
+
+```bash
+# Basic monitoring
+node dist/index.js monitor
+
+# Monitor with filtering
+node dist/index.js monitor --filter-types TEXT_MESSAGE_START,TOOL_CALL
+
+# Monitor specific channels
+node dist/index.js monitor --filter-channels USER,AGENT
+
+# Follow mode with metadata
+node dist/index.js monitor --follow --show-metadata
+```
+
+## Step 8: Test Performance
+
+Test your server's performance:
+
+```bash
+# Basic performance test
+node dist/index.js test
+
+# High-load test
+node dist/index.js test --message-count 1000 --delay 10
+
+# Large message test
+node dist/index.js test --message-size 8192 --message-count 100
+
+# Validate responses
+node dist/index.js test --validate-responses
+```
+
+## Complete Example Session
+
+Here's a complete example session:
+
+```bash
+# 1. Check server health
+node dist/index.js health
+
+# 2. Start monitoring in background
+node dist/index.js monitor --follow &
+
+# 3. Start a run
+node dist/index.js send run --thread-id test-session
+
+# 4. Send a message
+node dist/index.js send text "Hello, can you help me with a calculation?" --thread-id test-session
+
+# 5. Call a tool
+node dist/index.js send tool calculator expression="15 * 23" --thread-id test-session
+
+# 6. Send another message
+node dist/index.js send text "Thank you!" --thread-id test-session
+
+# 7. Stop monitoring
+kill %1
+```
+
+## Environment Configuration
+
+Set up environment variables for convenience:
+
+```bash
+# Set default server
+export HAIP_DEFAULT_URL=ws://localhost:8080
+
+# Set default transport
+export HAIP_DEFAULT_TRANSPORT=websocket
+
+# Set authentication token
+export HAIP_DEFAULT_TOKEN=your-jwt-token
+
+# Enable verbose output
+export HAIP_VERBOSE=true
+```
+
+Now you can use shorter commands:
+
+```bash
+# These will use the default URL
+node dist/index.js health
+node dist/index.js connect
+node dist/index.js send text "Hello!"
+```
+
+## Common Patterns
+
+### Testing Server Connectivity
+
+```bash
+# Quick health check
+node dist/index.js health
+
+# Test connection
+node dist/index.js connect ws://localhost:8080 --timeout 5000
+
+# Test message sending
+node dist/index.js send text "Test message" --url ws://localhost:8080
+```
+
+### Debugging Issues
+
+```bash
+# Enable verbose output
+node dist/index.js connect ws://localhost:8080 --verbose
+
+# Monitor all events
+node dist/index.js monitor --follow --show-metadata
+
+# Test with validation
+node dist/index.js test --validate-responses --verbose
+```
+
+### Performance Testing
+
+```bash
+# Load test
+node dist/index.js test --message-count 1000 --delay 10
+
+# Stress test
+node dist/index.js test --message-count 10000 --delay 1
+
+# Latency test
+node dist/index.js test --message-count 100 --delay 1000
+```
+
+## Next Steps
+
+Now that you're familiar with the basics:
+
+- [Command Reference](/cli/commands) - Complete command documentation
+- [Configuration](/cli/configuration) - Advanced configuration options
+- [Examples](/cli/examples) - More usage examples and patterns
+- [API Reference](/cli/api-reference) - Technical API documentation
+
+## Troubleshooting
+
+### Connection Issues
+
+```bash
+# Check if server is running
+node dist/index.js health
+
+# Try different transport
+node dist/index.js connect http://localhost:8080 --transport sse
+
+# Check with verbose output
+node dist/index.js connect ws://localhost:8080 --verbose
+```
+
+### Authentication Issues
+
+```bash
+# Check token format
+node dist/index.js connect ws://localhost:8080 --token your-token --verbose
+
+# Try without authentication first
+node dist/index.js connect ws://localhost:8080
+```
+
+### Performance Issues
+
+```bash
+# Test with smaller load
+node dist/index.js test --message-count 10 --delay 1000
+
+# Check server resources
+node dist/index.js health --format json
+``` 

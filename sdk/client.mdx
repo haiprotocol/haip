@@ -1,0 +1,591 @@
+---
+title: 'Client API'
+description: 'Complete reference for the HAIP client interface'
+---
+
+The HAIP client is the main interface for interacting with HAIP servers. It manages connections, handles protocol state, and provides methods for sending messages and managing runs.
+
+## Creating a Client
+
+### Factory Function (Recommended)
+
+```typescript
+import { createHAIPClient } from 'haip-sdk';
+
+const client = createHAIPClient({
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token',
+  transport: 'websocket'
+});
+```
+
+### Direct Constructor
+
+```typescript
+import { HAIPClientImpl } from 'haip-sdk';
+
+const client = new HAIPClientImpl({
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token',
+  transport: 'websocket',
+  flowControl: {
+    initialCredits: 10,
+    initialCreditBytes: 1024 * 1024
+  },
+  maxConcurrentRuns: 5,
+  maxReconnectAttempts: 5,
+  reconnectDelay: 1000,
+  heartbeatInterval: 30000
+});
+```
+
+## Configuration Options
+
+<ParamField body="url" type="string" required>
+  The server URL to connect to. Supports WebSocket, SSE, and HTTP streaming endpoints.
+</ParamField>
+
+<ParamField body="token" type="string" required>
+  JWT authentication token for server authentication.
+</ParamField>
+
+<ParamField body="transport" type="'websocket' | 'sse' | 'http-streaming'" default="'websocket'">
+  The transport protocol to use for communication.
+</ParamField>
+
+<ParamField body="flowControl" type="HAIPFlowControlConfig">
+  Flow control configuration for managing message back-pressure.
+</ParamField>
+
+<ParamField body="maxConcurrentRuns" type="number" default="5">
+  Maximum number of concurrent runs allowed.
+</ParamField>
+
+<ParamField body="maxReconnectAttempts" type="number" default="5">
+  Maximum number of reconnection attempts on connection loss.
+</ParamField>
+
+<ParamField body="reconnectDelay" type="number" default="1000">
+  Initial delay between reconnection attempts (uses exponential backoff).
+</ParamField>
+
+<ParamField body="heartbeatInterval" type="number" default="30000">
+  Interval for heartbeat ping/pong messages in milliseconds.
+</ParamField>
+
+## Connection Management
+
+### connect()
+
+Establishes a connection to the HAIP server.
+
+```typescript
+await client.connect();
+```
+
+**Returns:** `Promise<void>`
+
+**Events:**
+- `connect` - Emitted when connection is established
+- `handshake` - Emitted when handshake is completed
+- `error` - Emitted if connection fails
+
+### disconnect()
+
+Gracefully disconnects from the server.
+
+```typescript
+await client.disconnect();
+```
+
+**Returns:** `Promise<void>`
+
+**Events:**
+- `disconnect` - Emitted when disconnection is complete
+
+### isConnected()
+
+Checks if the client is currently connected.
+
+```typescript
+const connected = client.isConnected();
+```
+
+**Returns:** `boolean`
+
+## Run Management
+
+### startRun()
+
+Starts a new HAIP run session.
+
+```typescript
+const runId = await client.startRun(
+  threadId?: string,
+  metadata?: Record<string, any>
+);
+```
+
+<ParamField body="threadId" type="string">
+  Optional thread identifier for grouping related runs.
+</ParamField>
+
+<ParamField body="metadata" type="Record<string, any>">
+  Optional metadata to associate with the run.
+</ParamField>
+
+**Returns:** `Promise<string>` - The generated run ID
+
+### finishRun()
+
+Completes a run with the specified status.
+
+```typescript
+await client.finishRun(
+  runId: string,
+  status?: 'OK' | 'CANCELLED' | 'ERROR',
+  summary?: string
+);
+```
+
+<ParamField body="runId" type="string" required>
+  The ID of the run to finish.
+</ParamField>
+
+<ParamField body="status" type="'OK' | 'CANCELLED' | 'ERROR'" default="'OK'">
+  The final status of the run.
+</ParamField>
+
+<ParamField body="summary" type="string">
+  Optional summary text describing the run outcome.
+</ParamField>
+
+### cancelRun()
+
+Cancels an active run.
+
+```typescript
+await client.cancelRun(runId: string);
+```
+
+<ParamField body="runId" type="string" required>
+  The ID of the run to cancel.
+</ParamField>
+
+## Messaging
+
+### sendTextMessage()
+
+Sends a text message on the specified channel.
+
+```typescript
+const messageId = await client.sendTextMessage(
+  channel: HAIPChannel,
+  text: string,
+  author?: string,
+  runId?: string,
+  threadId?: string
+);
+```
+
+<ParamField body="channel" type="HAIPChannel" required>
+  The channel to send the message on ('USER', 'AGENT', 'SYSTEM').
+</ParamField>
+
+<ParamField body="text" type="string" required>
+  The text content to send.
+</ParamField>
+
+<ParamField body="author" type="string">
+  The author of the message.
+</ParamField>
+
+<ParamField body="runId" type="string">
+  Optional run ID to associate with the message.
+</ParamField>
+
+<ParamField body="threadId" type="string">
+  Optional thread ID to associate with the message.
+</ParamField>
+
+**Returns:** `Promise<string>` - The generated message ID
+
+### sendMessage()
+
+Sends a custom HAIP message.
+
+```typescript
+await client.sendMessage(
+  message: HAIPMessage,
+  options?: HAIPMessageOptions
+);
+```
+
+<ParamField body="message" type="HAIPMessage" required>
+  The HAIP message to send.
+</ParamField>
+
+<ParamField body="options" type="HAIPMessageOptions">
+  Optional message options for flow control.
+</ParamField>
+
+### sendBinary()
+
+Sends binary data.
+
+```typescript
+await client.sendBinary(data: ArrayBuffer);
+```
+
+<ParamField body="data" type="ArrayBuffer" required>
+  The binary data to send.
+</ParamField>
+
+## Tool Integration
+
+### callTool()
+
+Initiates a tool call.
+
+```typescript
+const callId = await client.callTool(
+  channel: HAIPChannel,
+  tool: string,
+  params?: Record<string, any>,
+  runId?: string,
+  threadId?: string
+);
+```
+
+<ParamField body="channel" type="HAIPChannel" required>
+  The channel for the tool call.
+</ParamField>
+
+<ParamField body="tool" type="string" required>
+  The name of the tool to call.
+</ParamField>
+
+<ParamField body="params" type="Record<string, any>">
+  Parameters to pass to the tool.
+</ParamField>
+
+<ParamField body="runId" type="string">
+  Optional run ID to associate with the tool call.
+</ParamField>
+
+<ParamField body="threadId" type="string">
+  Optional thread ID to associate with the tool call.
+</ParamField>
+
+**Returns:** `Promise<string>` - The generated call ID
+
+### updateTool()
+
+Updates the status of a tool call.
+
+```typescript
+await client.updateTool(
+  channel: HAIPChannel,
+  callId: string,
+  status: 'QUEUED' | 'RUNNING' | 'CANCELLING',
+  progress?: number,
+  partial?: any,
+  runId?: string,
+  threadId?: string
+);
+```
+
+### completeTool()
+
+Completes a tool call with results.
+
+```typescript
+await client.completeTool(
+  channel: HAIPChannel,
+  callId: string,
+  status?: 'OK' | 'CANCELLED' | 'ERROR',
+  result?: any,
+  runId?: string,
+  threadId?: string
+);
+```
+
+### cancelTool()
+
+Cancels a tool call.
+
+```typescript
+await client.cancelTool(
+  channel: HAIPChannel,
+  callId: string,
+  reason?: string,
+  runId?: string,
+  threadId?: string
+);
+```
+
+## Event Handling
+
+The client extends EventEmitter and provides the following events:
+
+### Connection Events
+
+```typescript
+client.on('connect', () => {
+  console.log('Connected to server');
+});
+
+client.on('disconnect', (reason: string) => {
+  console.log('Disconnected:', reason);
+});
+
+client.on('handshake', (payload: any) => {
+  console.log('Handshake completed:', payload);
+});
+```
+
+### Message Events
+
+```typescript
+client.on('message', (message: HAIPMessage) => {
+  console.log('Received message:', message);
+});
+
+client.on('binary', (data: ArrayBuffer) => {
+  console.log('Received binary data:', data.byteLength, 'bytes');
+});
+```
+
+### Error Events
+
+```typescript
+client.on('error', (error: Error) => {
+  console.error('Client error:', error);
+});
+```
+
+## State Management
+
+### getConnectionState()
+
+Gets the current connection state.
+
+```typescript
+const state = client.getConnectionState();
+```
+
+**Returns:** `HAIPConnectionState`
+
+```typescript
+interface HAIPConnectionState {
+  connected: boolean;
+  handshakeCompleted: boolean;
+  sessionId: string;
+  lastAck: string;
+  reconnectAttempts: number;
+  credits: Map<HAIPChannel, number>;
+  byteCredits: Map<HAIPChannel, number>;
+}
+```
+
+### getPerformanceMetrics()
+
+Gets performance metrics.
+
+```typescript
+const metrics = client.getPerformanceMetrics();
+```
+
+**Returns:** `HAIPPerformanceMetrics`
+
+```typescript
+interface HAIPPerformanceMetrics {
+  messagesSent: number;
+  messagesReceived: number;
+  bytesSent: number;
+  bytesReceived: number;
+  connectionTime: number;
+  lastUpdated: number;
+}
+```
+
+### getActiveRuns()
+
+Gets all active runs.
+
+```typescript
+const runs = client.getActiveRuns();
+```
+
+**Returns:** `HAIPRun[]`
+
+### getRun()
+
+Gets a specific run by ID.
+
+```typescript
+const run = client.getRun(runId);
+```
+
+**Returns:** `HAIPRun | undefined`
+
+## Flow Control
+
+### sendFlowUpdate()
+
+Sends a flow control update.
+
+```typescript
+await client.sendFlowUpdate(
+  channel: string,
+  addMessages?: number,
+  addBytes?: number
+);
+```
+
+<ParamField body="channel" type="string" required>
+  The channel to update flow control for.
+</ParamField>
+
+<ParamField body="addMessages" type="number">
+  Number of message credits to add.
+</ParamField>
+
+<ParamField body="addBytes" type="number">
+  Number of byte credits to add.
+</ParamField>
+
+## Channel Control
+
+### pauseChannel()
+
+Pauses message flow on a channel.
+
+```typescript
+await client.pauseChannel(channel: string);
+```
+
+### resumeChannel()
+
+Resumes message flow on a channel.
+
+```typescript
+await client.resumeChannel(channel: string);
+```
+
+## Replay Support
+
+### requestReplay()
+
+Requests message replay from a specific sequence number.
+
+```typescript
+await client.requestReplay(
+  fromSeq: string,
+  toSeq?: string
+);
+```
+
+<ParamField body="fromSeq" type="string" required>
+  Starting sequence number for replay.
+</ParamField>
+
+<ParamField body="toSeq" type="string">
+  Ending sequence number for replay (optional).
+</ParamField>
+
+## Audio Support
+
+### sendAudioChunk()
+
+Sends an audio chunk.
+
+```typescript
+await client.sendAudioChunk(
+  channel: HAIPChannel,
+  messageId: string,
+  mime: string,
+  data: ArrayBuffer,
+  durationMs?: number,
+  runId?: string,
+  threadId?: string
+);
+```
+
+<ParamField body="channel" type="HAIPChannel" required>
+  The channel for the audio data.
+</ParamField>
+
+<ParamField body="messageId" type="string" required>
+  Unique identifier for the audio message.
+</ParamField>
+
+<ParamField body="mime" type="string" required>
+  MIME type of the audio data.
+</ParamField>
+
+<ParamField body="data" type="ArrayBuffer" required>
+  The audio data to send.
+</ParamField>
+
+<ParamField body="durationMs" type="number">
+  Duration of the audio chunk in milliseconds.
+</ParamField>
+
+<ParamField body="runId" type="string">
+  Optional run ID to associate with the audio.
+</ParamField>
+
+<ParamField body="threadId" type="string">
+  Optional thread ID to associate with the audio.
+</ParamField>
+
+## Error Handling
+
+The client provides comprehensive error handling:
+
+```typescript
+client.on('error', (error: Error) => {
+  // Handle different error types
+  if (error.message.includes('AUTHENTICATION_FAILED')) {
+    console.log('Authentication failed - check your token');
+  } else if (error.message.includes('CONNECTION_FAILED')) {
+    console.log('Connection failed - will attempt to reconnect');
+  } else if (error.message.includes('FLOW_CONTROL')) {
+    console.log('Flow control error - message was dropped');
+  }
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Transports"
+    href="/sdk/transports"
+    icon="wifi"
+  >
+    Learn about different transport options and configurations.
+  </Card>
+  <Card
+    title="Examples"
+    href="/sdk/examples"
+    icon="book-open"
+  >
+    See practical examples of client usage.
+  </Card>
+  <Card
+    title="Types"
+    href="/sdk/api-reference"
+    icon="code"
+  >
+    Explore the complete type definitions.
+  </Card>
+  <Card
+    title="API Reference"
+    href="/sdk/api-reference"
+    icon="laptop"
+  >
+    Full API reference documentation.
+  </Card>
+</CardGroup> 

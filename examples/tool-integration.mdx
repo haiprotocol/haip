@@ -1,0 +1,776 @@
+---
+title: "Tool Integration Example"
+description: "Model Context Protocol (MCP) tool integration with HAIP"
+---
+
+## Overview
+
+This example demonstrates how to integrate tools using the Model Context Protocol (MCP) with HAI Protocol, including tool advertisement, invocation, progress updates, and completion handling.
+
+## Tool Manager Implementation
+
+```typescript
+class HAIPToolManager {
+  private ws: WebSocket | null = null;
+  private sessionId: string;
+  private seqCounter = 1;
+  private activeTools = new Map<string, ToolExecution>();
+  private toolRegistry = new Map<string, ToolDefinition>();
+  
+  constructor(private url: string, private token: string) {
+    this.sessionId = this.generateUUID();
+    this.registerDefaultTools();
+  }
+  
+  private registerDefaultTools() {
+    // Register calculator tool
+    this.registerTool({
+      name: "calculator",
+      description: "Perform mathematical calculations",
+      inputSchema: {
+        type: "object",
+        properties: {
+          expression: {
+            type: "string",
+            description: "Mathematical expression to evaluate"
+          }
+        },
+        required: ["expression"]
+      }
+    });
+    
+    // Register weather tool
+    this.registerTool({
+      name: "weather",
+      description: "Get current weather information",
+      inputSchema: {
+        type: "object",
+        properties: {
+          location: {
+            type: "string",
+            description: "City name or coordinates"
+          }
+        },
+        required: ["location"]
+      }
+    });
+    
+    // Register file_reader tool
+    this.registerTool({
+      name: "file_reader",
+      description: "Read file contents",
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "File path to read"
+          }
+        },
+        required: ["path"]
+      }
+    });
+  }
+  
+  registerTool(tool: ToolDefinition) {
+    this.toolRegistry.set(tool.name, tool);
+  }
+  
+  async connect(): Promise<void> {
+    const wsUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
+    this.ws = new WebSocket(wsUrl);
+    
+    this.ws.onopen = () => {
+      console.log('Connected to HAIP tool manager');
+      this.sendHandshake();
+    };
+    
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleMessage(message);
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+    
+    this.ws.onclose = () => {
+      console.log('Disconnected from HAIP tool manager');
+    };
+  }
+  
+  private sendHandshake() {
+    const handshake = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE", 
+          "TOOL_CANCELLED", "TOOL_ERROR"
+        ]
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(handshake));
+  }
+  
+  advertiseTools() {
+    const tools = Array.from(this.toolRegistry.values());
+    
+    const advertisement = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "TOOL_CALL",
+      payload: {
+        call_id: this.generateUUID(),
+        name: "list_tools",
+        arguments: {
+          tools: tools
+        }
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(advertisement));
+  }
+  
+  invokeTool(toolName: string, arguments: any): string {
+    const tool = this.toolRegistry.get(toolName);
+    if (!tool) {
+      throw new Error(`Tool '${toolName}' not found`);
+    }
+    
+    const callId = this.generateUUID();
+    
+    const toolCall = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TOOL_CALL",
+      payload: {
+        call_id: callId,
+        name: toolName,
+        arguments: arguments
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(toolCall));
+    
+    // Start tool execution
+    this.executeTool(callId, toolName, arguments);
+    
+    return callId;
+  }
+  
+  private async executeTool(callId: string, toolName: string, arguments: any) {
+    const execution: ToolExecution = {
+      callId,
+      toolName,
+      arguments,
+      status: "running",
+      startTime: Date.now()
+    };
+    
+    this.activeTools.set(callId, execution);
+    
+    try {
+      // Send tool started event
+      this.sendToolUpdate(callId, "started", { message: "Tool execution started" });
+      
+      let result: any;
+      
+      switch (toolName) {
+        case "calculator":
+          result = await this.executeCalculator(arguments.expression);
+          break;
+        case "weather":
+          result = await this.executeWeather(arguments.location);
+          break;
+        case "file_reader":
+          result = await this.executeFileReader(arguments.path);
+          break;
+        default:
+          throw new Error(`Unknown tool: ${toolName}`);
+      }
+      
+      // Send tool completion
+      this.sendToolDone(callId, result);
+      
+    } catch (error) {
+      // Send tool error
+      this.sendToolError(callId, error.message);
+    }
+  }
+  
+  private async executeCalculator(expression: string): Promise<any> {
+    // Send progress updates
+    this.sendToolUpdate(this.getActiveCallId(), "progress", { 
+      message: "Evaluating expression", 
+      progress: 0.5 
+    });
+    
+    // Simulate processing time
+    await this.delay(1000);
+    
+    try {
+      // Safe evaluation (in production, use a proper expression parser)
+      const result = eval(expression);
+      return { result, expression };
+    } catch (error) {
+      throw new Error(`Invalid expression: ${expression}`);
+    }
+  }
+  
+  private async executeWeather(location: string): Promise<any> {
+    this.sendToolUpdate(this.getActiveCallId(), "progress", { 
+      message: "Fetching weather data", 
+      progress: 0.3 
+    });
+    
+    await this.delay(500);
+    
+    this.sendToolUpdate(this.getActiveCallId(), "progress", { 
+      message: "Processing weather information", 
+      progress: 0.7 
+    });
+    
+    await this.delay(500);
+    
+    // Simulate weather API response
+    return {
+      location,
+      temperature: "22°C",
+      condition: "Sunny",
+      humidity: "65%",
+      wind: "10 km/h"
+    };
+  }
+  
+  private async executeFileReader(path: string): Promise<any> {
+    this.sendToolUpdate(this.getActiveCallId(), "progress", { 
+      message: "Reading file", 
+      progress: 0.4 
+    });
+    
+    await this.delay(800);
+    
+    // Simulate file reading
+    const content = `Sample file content for ${path}\nThis is a simulated file read operation.`;
+    
+    return {
+      path,
+      content,
+      size: content.length,
+      lastModified: new Date().toISOString()
+    };
+  }
+  
+  private sendToolUpdate(callId: string, status: string, data: any) {
+    const update = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TOOL_UPDATE",
+      payload: {
+        call_id: callId,
+        status: status,
+        data: data
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(update));
+  }
+  
+  private sendToolDone(callId: string, result: any) {
+    const done = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TOOL_DONE",
+      payload: {
+        call_id: callId,
+        result: result
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(done));
+    
+    // Clean up
+    this.activeTools.delete(callId);
+  }
+  
+  private sendToolError(callId: string, error: string) {
+    const errorEvent = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TOOL_ERROR",
+      payload: {
+        call_id: callId,
+        error: error
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(errorEvent));
+    
+    // Clean up
+    this.activeTools.delete(callId);
+  }
+  
+  cancelTool(callId: string) {
+    const execution = this.activeTools.get(callId);
+    if (!execution) {
+      throw new Error(`Tool execution '${callId}' not found`);
+    }
+    
+    const cancelled = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TOOL_CANCELLED",
+      payload: {
+        call_id: callId
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(cancelled));
+    
+    // Clean up
+    this.activeTools.delete(callId);
+  }
+  
+  private handleMessage(message: any) {
+    switch (message.type) {
+      case 'HAI':
+        console.log('Handshake completed');
+        this.advertiseTools();
+        break;
+      case 'TOOL_CALL':
+        this.onToolCall?.(message.payload);
+        break;
+      case 'TOOL_UPDATE':
+        this.onToolUpdate?.(message.payload);
+        break;
+      case 'TOOL_DONE':
+        this.onToolDone?.(message.payload);
+        break;
+      case 'TOOL_ERROR':
+        this.onToolError?.(message.payload);
+        break;
+      case 'TOOL_CANCELLED':
+        this.onToolCancelled?.(message.payload);
+        break;
+    }
+  }
+  
+  private getActiveCallId(): string {
+    // Get the most recent active call ID
+    const activeCalls = Array.from(this.activeTools.keys());
+    return activeCalls[activeCalls.length - 1] || "";
+  }
+  
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+  
+  // Event handlers
+  onToolCall?: (payload: any) => void;
+  onToolUpdate?: (payload: any) => void;
+  onToolDone?: (payload: any) => void;
+  onToolError?: (payload: any) => void;
+  onToolCancelled?: (payload: any) => void;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: any;
+}
+
+interface ToolExecution {
+  callId: string;
+  toolName: string;
+  arguments: any;
+  status: string;
+  startTime: number;
+}
+```
+
+## Custom Tool Implementation
+
+```typescript
+class CustomToolProvider {
+  private toolManager: HAIPToolManager;
+  
+  constructor(toolManager: HAIPToolManager) {
+    this.toolManager = toolManager;
+    this.registerCustomTools();
+  }
+  
+  private registerCustomTools() {
+    // Database query tool
+    this.toolManager.registerTool({
+      name: "database_query",
+      description: "Execute SQL queries on database",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "SQL query to execute"
+          },
+          database: {
+            type: "string",
+            description: "Database name"
+          }
+        },
+        required: ["query", "database"]
+      }
+    });
+    
+    // Image processing tool
+    this.toolManager.registerTool({
+      name: "image_processor",
+      description: "Process and manipulate images",
+      inputSchema: {
+        type: "object",
+        properties: {
+          operation: {
+            type: "string",
+            enum: ["resize", "crop", "filter", "convert"],
+            description: "Image processing operation"
+          },
+          image_url: {
+            type: "string",
+            description: "URL of image to process"
+          },
+          parameters: {
+            type: "object",
+            description: "Operation-specific parameters"
+          }
+        },
+        required: ["operation", "image_url"]
+      }
+    });
+    
+    // API integration tool
+    this.toolManager.registerTool({
+      name: "api_call",
+      description: "Make HTTP API calls",
+      inputSchema: {
+        type: "object",
+        properties: {
+          method: {
+            type: "string",
+            enum: ["GET", "POST", "PUT", "DELETE"],
+            description: "HTTP method"
+          },
+          url: {
+            type: "string",
+            description: "API endpoint URL"
+          },
+          headers: {
+            type: "object",
+            description: "Request headers"
+          },
+          body: {
+            type: "object",
+            description: "Request body"
+          }
+        },
+        required: ["method", "url"]
+      }
+    });
+  }
+  
+  async executeDatabaseQuery(query: string, database: string): Promise<any> {
+    // Simulate database query execution
+    await this.delay(2000);
+    
+    return {
+      query,
+      database,
+      result: [
+        { id: 1, name: "John Doe", email: "john@example.com" },
+        { id: 2, name: "Jane Smith", email: "jane@example.com" }
+      ],
+      rowCount: 2,
+      executionTime: "2.1ms"
+    };
+  }
+  
+  async processImage(operation: string, imageUrl: string, parameters: any): Promise<any> {
+    // Simulate image processing
+    await this.delay(1500);
+    
+    return {
+      operation,
+      original_url: imageUrl,
+      processed_url: `https://processed.example.com/${operation}_${Date.now()}.jpg`,
+      parameters,
+      processing_time: "1.5s",
+      new_dimensions: "800x600"
+    };
+  }
+  
+  async makeApiCall(method: string, url: string, headers?: any, body?: any): Promise<any> {
+    // Simulate API call
+    await this.delay(1000);
+    
+    return {
+      method,
+      url,
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: { success: true, data: "API response data" },
+      response_time: "1.0s"
+    };
+  }
+  
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+```
+
+## Usage Example
+
+```typescript
+// Create tool manager
+const toolManager = new HAIPToolManager('wss://api.haiprotocol.com/haip/websocket', 'your-jwt-token');
+
+// Set up event handlers
+toolManager.onToolCall = (payload) => {
+  console.log('Tool called:', payload.name, payload.arguments);
+};
+
+toolManager.onToolUpdate = (payload) => {
+  console.log('Tool update:', payload.status, payload.data);
+};
+
+toolManager.onToolDone = (payload) => {
+  console.log('Tool completed:', payload.result);
+};
+
+toolManager.onToolError = (payload) => {
+  console.error('Tool error:', payload.error);
+};
+
+// Connect and use tools
+await toolManager.connect();
+
+// Invoke calculator tool
+const calcCallId = toolManager.invokeTool("calculator", {
+  expression: "2 + 2 * 3"
+});
+
+// Invoke weather tool
+const weatherCallId = toolManager.invokeTool("weather", {
+  location: "London, UK"
+});
+
+// Invoke file reader tool
+const fileCallId = toolManager.invokeTool("file_reader", {
+  path: "/path/to/document.txt"
+});
+
+// Cancel a tool if needed
+setTimeout(() => {
+  toolManager.cancelTool(weatherCallId);
+}, 5000);
+```
+
+## Server Implementation
+
+```typescript
+import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
+
+class HAIPToolServer {
+  private wss: WebSocket.Server;
+  private sessions = new Map<string, any>();
+  private toolExecutions = new Map<string, any>();
+  
+  constructor(port: number) {
+    this.wss = new WebSocket.Server({ port });
+    this.setupServer();
+  }
+  
+  private setupServer() {
+    this.wss.on('connection', (ws, req) => {
+      const sessionId = uuidv4();
+      this.sessions.set(sessionId, { ws, seqCounter: 1 });
+      
+      ws.on('message', (data) => {
+        const message = JSON.parse(data.toString());
+        this.handleMessage(sessionId, message);
+      });
+      
+      ws.on('close', () => {
+        this.sessions.delete(sessionId);
+      });
+    });
+  }
+  
+  private handleMessage(sessionId: string, message: any) {
+    switch (message.type) {
+      case 'HAI':
+        this.handleHandshake(sessionId, message);
+        break;
+      case 'TOOL_CALL':
+        this.handleToolCall(sessionId, message);
+        break;
+      case 'TOOL_UPDATE':
+      case 'TOOL_DONE':
+      case 'TOOL_ERROR':
+      case 'TOOL_CANCELLED':
+        this.handleToolEvent(sessionId, message);
+        break;
+    }
+  }
+  
+  private handleHandshake(sessionId: string, message: any) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    
+    const response = {
+      id: uuidv4(),
+      session: sessionId,
+      seq: session.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE", 
+          "TOOL_CANCELLED", "TOOL_ERROR"
+        ]
+      }
+    };
+    
+    session.ws.send(JSON.stringify(response));
+  }
+  
+  private handleToolCall(sessionId: string, message: any) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    
+    const { call_id, name, arguments: args } = message.payload;
+    
+    // Store tool execution
+    this.toolExecutions.set(call_id, {
+      sessionId,
+      name,
+      arguments: args,
+      status: "running",
+      startTime: Date.now()
+    });
+    
+    // Echo tool call back (in real implementation, execute the tool)
+    const response = {
+      id: uuidv4(),
+      session: sessionId,
+      seq: session.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "TOOL_CALL",
+      payload: {
+        call_id,
+        name,
+        arguments: args
+      }
+    };
+    
+    session.ws.send(JSON.stringify(response));
+  }
+  
+  private handleToolEvent(sessionId: string, message: any) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    
+    // Echo tool event back
+    const response = {
+      id: uuidv4(),
+      session: sessionId,
+      seq: session.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: message.type,
+      payload: message.payload
+    };
+    
+    session.ws.send(JSON.stringify(response));
+    
+    // Clean up if tool is done
+    if (message.type === "TOOL_DONE" || message.type === "TOOL_ERROR" || message.type === "TOOL_CANCELLED") {
+      this.toolExecutions.delete(message.payload.call_id);
+    }
+  }
+}
+
+// Start server
+const server = new HAIPToolServer(8080);
+console.log('HAIP Tool Server running on port 8080');
+```
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="MCP Integration" icon="link">
+    Seamless integration with Model Context Protocol for tool advertisement and discovery.
+  </Card>
+  <Card title="Tool Lifecycle Management" icon="arrows-rotate">
+    Complete tool lifecycle with start, update, completion, and error events.
+  </Card>
+  <Card title="Progress Tracking" icon="arrow-up">
+    Real-time progress updates and status monitoring for long-running tools.
+  </Card>
+  <Card title="Tool Cancellation" icon="xmark">
+    Support for cancelling running tools with proper cleanup and state management.
+  </Card>
+  <Card title="Custom Tool Registration" icon="plus">
+    Extensible tool system for registering custom tools and capabilities.
+  </Card>
+  <Card title="Error Handling" icon="exclamation">
+    Comprehensive error handling with detailed error reporting and recovery.
+  </Card>
+  <Card title="Session Management" icon="users">
+    Support for multiple concurrent tool executions with session isolation.
+  </Card>
+  <Card title="Schema Validation" icon="check">
+    Automatic validation of tool schemas and argument types for type safety.
+  </Card>
+</CardGroup>
+
+This example demonstrates how to build a comprehensive tool integration system using HAI Protocol's MCP capabilities. 

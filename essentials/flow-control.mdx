@@ -1,0 +1,619 @@
+---
+title: "Flow Control"
+description: "Manage back-pressure and prevent system overload in HAIP"
+---
+
+## Overview
+
+HAIP implements credit-based flow control to prevent overwhelming systems with messages and ensure reliable communication. Flow control operates on a per-channel basis, allowing fine-grained control over different types of traffic.
+
+## Flow Control Basics
+
+### Credit System
+
+Flow control uses a credit-based system where each channel has:
+- **Message credit**: Number of messages that can be sent
+- **Byte credit**: Number of bytes that can be sent
+
+```typescript
+interface FlowControlState {
+  channel: string;
+  messageCredit: number;
+  byteCredit: number;
+  isPaused: boolean;
+}
+```
+
+### Initial Credit
+
+Initial credit is advertised during the handshake:
+
+```typescript
+const handshake = {
+  id: this.generateUUID(),
+  session: this.sessionId,
+  seq: "1",
+  ts: Date.now().toString(),
+  channel: "SYSTEM",
+  type: "HAI",
+  payload: {
+    haip_version: "1.1.2",
+    accept_major: [1],
+    accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"],
+    capabilities: {
+      flow_control: {
+        initial_credit_messages: 32,
+        initial_credit_bytes: 262144  // 256KB
+      }
+    }
+  }
+};
+```
+
+## Flow Control Implementation
+
+### Client-Side Flow Control
+
+```typescript
+class HAIPFlowControl {
+  private channelStates = new Map<string, FlowControlState>();
+  private messageQueue = new Map<string, any[]>();
+  
+  constructor() {
+    // Initialize default channels
+    this.initializeChannel('USER', 32, 262144);
+    this.initializeChannel('AGENT', 32, 262144);
+    this.initializeChannel('SYSTEM', 50, 512 * 1024);
+    this.initializeChannel('AUDIO_IN', 1000, 10 * 1024 * 1024);
+    this.initializeChannel('AUDIO_OUT', 1000, 10 * 1024 * 1024);
+  }
+  
+  private initializeChannel(channel: string, messageCredit: number, byteCredit: number) {
+    this.channelStates.set(channel, {
+      channel,
+      messageCredit,
+      byteCredit,
+      isPaused: false
+    });
+    
+    this.messageQueue.set(channel, []);
+  }
+  
+  canSendMessage(channel: string, messageSize: number): boolean {
+    const state = this.channelStates.get(channel);
+    if (!state) return false;
+    
+    if (state.isPaused) return false;
+    if (state.messageCredit <= 0) return false;
+    if (state.byteCredit < messageSize) return false;
+    
+    return true;
+  }
+  
+  sendMessage(channel: string, message: any): boolean {
+    const messageSize = JSON.stringify(message).length;
+    
+    if (!this.canSendMessage(channel, messageSize)) {
+      // Queue message for later
+      this.queueMessage(channel, message);
+      return false;
+    }
+    
+    // Update credits
+    const state = this.channelStates.get(channel)!;
+    state.messageCredit--;
+    state.byteCredit -= messageSize;
+    
+    // Actually send the message
+    this.ws.send(JSON.stringify(message));
+    
+    return true;
+  }
+  
+  private queueMessage(channel: string, message: any) {
+    const queue = this.messageQueue.get(channel) || [];
+    queue.push(message);
+    this.messageQueue.set(channel, queue);
+  }
+  
+  processQueuedMessages(channel: string) {
+    const queue = this.messageQueue.get(channel) || [];
+    const processed: any[] = [];
+    
+    for (const message of queue) {
+      const messageSize = JSON.stringify(message).length;
+      
+      if (this.canSendMessage(channel, messageSize)) {
+        this.sendMessage(channel, message);
+        processed.push(message);
+      } else {
+        break; // Stop processing if we can't send more
+      }
+    }
+    
+    // Remove processed messages from queue
+    const remaining = queue.filter(msg => !processed.includes(msg));
+    this.messageQueue.set(channel, remaining);
+  }
+}
+```
+
+### Server-Side Flow Control
+
+```typescript
+class HAIPServerFlowControl {
+  private channelStates = new Map<string, FlowControlState>();
+  private clientStates = new Map<string, Map<string, FlowControlState>>();
+  
+  handleConnection(sessionId: string, handshake: any) {
+    const flowControl = handshake.payload.capabilities?.flow_control;
+    
+    if (flowControl) {
+      this.initializeClientChannels(sessionId, flowControl);
+    }
+  }
+  
+  private initializeClientChannels(sessionId: string, flowControl: any) {
+    const clientChannels = new Map<string, FlowControlState>();
+    
+    // Initialize all channels for this client
+    const channels = ['USER', 'AGENT', 'SYSTEM', 'AUDIO_IN', 'AUDIO_OUT'];
+    
+    for (const channel of channels) {
+      clientChannels.set(channel, {
+        channel,
+        messageCredit: flowControl.initial_credit_messages || 32,
+        byteCredit: flowControl.initial_credit_bytes || 262144,
+        isPaused: false
+      });
+    }
+    
+    this.clientStates.set(sessionId, clientChannels);
+  }
+  
+  canReceiveMessage(sessionId: string, channel: string, messageSize: number): boolean {
+    const clientChannels = this.clientStates.get(sessionId);
+    if (!clientChannels) return true; // No flow control for this client
+    
+    const state = clientChannels.get(channel);
+    if (!state) return true;
+    
+    if (state.isPaused) return false;
+    if (state.messageCredit <= 0) return false;
+    if (state.byteCredit < messageSize) return false;
+    
+    return true;
+  }
+  
+  consumeCredits(sessionId: string, channel: string, messageSize: number) {
+    const clientChannels = this.clientStates.get(sessionId);
+    if (!clientChannels) return;
+    
+    const state = clientChannels.get(channel);
+    if (!state) return;
+    
+    state.messageCredit--;
+    state.byteCredit -= messageSize;
+  }
+  
+  grantCredits(sessionId: string, channel: string, messageCredit: number, byteCredit: number) {
+    const clientChannels = this.clientStates.get(sessionId);
+    if (!clientChannels) return;
+    
+    const state = clientChannels.get(channel);
+    if (!state) return;
+    
+    state.messageCredit += messageCredit;
+    state.byteCredit += byteCredit;
+    
+    // Send FLOW_UPDATE to client
+    this.sendFlowUpdate(sessionId, channel, messageCredit, byteCredit);
+  }
+  
+  private sendFlowUpdate(sessionId: string, channel: string, messageCredit: number, byteCredit: number) {
+    const flowUpdate = {
+      id: this.generateUUID(),
+      session: sessionId,
+      seq: this.getNextSeq(sessionId),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "FLOW_UPDATE",
+      payload: {
+        channel: channel,
+        add_messages: messageCredit,
+        add_bytes: byteCredit
+      }
+    };
+    
+    this.sendToClient(sessionId, flowUpdate);
+  }
+}
+```
+
+## Flow Control Events
+
+### FLOW_UPDATE
+
+Grant additional credit to a channel:
+
+```typescript
+class HAIPFlowUpdateHandler {
+  handleFlowUpdate(message: any) {
+    const { channel, add_messages, add_bytes } = message.payload;
+    
+    const state = this.channelStates.get(channel);
+    if (!state) return;
+    
+    // Add credits
+    state.messageCredit += add_messages;
+    state.byteCredit += add_bytes;
+    
+    // Process any queued messages
+    this.processQueuedMessages(channel);
+    
+    console.log(`Granted ${add_messages} messages and ${add_bytes} bytes to channel ${channel}`);
+  }
+}
+```
+
+### PAUSE_CHANNEL
+
+Immediately pause a channel:
+
+```typescript
+class HAIPChannelPauseHandler {
+  handlePauseChannel(message: any) {
+    const { channel } = message.payload;
+    
+    const state = this.channelStates.get(channel);
+    if (!state) return;
+    
+    state.isPaused = true;
+    
+    console.log(`Channel ${channel} paused`);
+  }
+}
+```
+
+### RESUME_CHANNEL
+
+Resume a paused channel:
+
+```typescript
+class HAIPChannelResumeHandler {
+  handleResumeChannel(message: any) {
+    const { channel } = message.payload;
+    
+    const state = this.channelStates.get(channel);
+    if (!state) return;
+    
+    state.isPaused = false;
+    
+    // Process any queued messages
+    this.processQueuedMessages(channel);
+    
+    console.log(`Channel ${channel} resumed`);
+  }
+}
+```
+
+## Adaptive Flow Control
+
+### Dynamic Credit Adjustment
+
+```typescript
+class HAIPAdaptiveFlowControl {
+  private channelMetrics = new Map<string, ChannelMetrics>();
+  
+  updateMetrics(channel: string, messageSize: number, processingTime: number) {
+    const metrics = this.channelMetrics.get(channel) || {
+      messageCount: 0,
+      totalBytes: 0,
+      averageProcessingTime: 0,
+      lastUpdate: Date.now()
+    };
+    
+    metrics.messageCount++;
+    metrics.totalBytes += messageSize;
+    metrics.averageProcessingTime = 
+      (metrics.averageProcessingTime * (metrics.messageCount - 1) + processingTime) / metrics.messageCount;
+    metrics.lastUpdate = Date.now();
+    
+    this.channelMetrics.set(channel, metrics);
+    
+    // Adjust flow control based on metrics
+    this.adjustFlowControl(channel, metrics);
+  }
+  
+  private adjustFlowControl(channel: string, metrics: ChannelMetrics) {
+    const state = this.channelStates.get(channel);
+    if (!state) return;
+    
+    // If processing is slow, reduce credit
+    if (metrics.averageProcessingTime > 100) { // > 100ms
+      const reduction = Math.max(1, Math.floor(state.messageCredit * 0.1));
+      state.messageCredit = Math.max(1, state.messageCredit - reduction);
+      
+      console.log(`Reduced credit for channel ${channel} due to slow processing`);
+    }
+    
+    // If processing is fast and queue is empty, increase credit
+    if (metrics.averageProcessingTime < 10 && this.messageQueue.get(channel)?.length === 0) {
+      const increase = Math.min(10, Math.floor(state.messageCredit * 0.2));
+      state.messageCredit += increase;
+      
+      console.log(`Increased credit for channel ${channel} due to fast processing`);
+    }
+  }
+}
+
+interface ChannelMetrics {
+  messageCount: number;
+  totalBytes: number;
+  averageProcessingTime: number;
+  lastUpdate: number;
+}
+```
+
+### Back-Pressure Detection
+
+```typescript
+class HAIPBackPressureDetector {
+  private pressureThresholds = {
+    messageQueue: 100,
+    processingTime: 500, // ms
+    memoryUsage: 0.8 // 80%
+  };
+  
+  detectBackPressure(): BackPressureStatus {
+    const status: BackPressureStatus = {
+      hasPressure: false,
+      affectedChannels: [],
+      recommendations: []
+    };
+    
+    // Check message queues
+    for (const [channel, queue] of this.messageQueue.entries()) {
+      if (queue.length > this.pressureThresholds.messageQueue) {
+        status.hasPressure = true;
+        status.affectedChannels.push(channel);
+        status.recommendations.push(`Pause channel ${channel} - queue too long`);
+      }
+    }
+    
+    // Check processing times
+    for (const [channel, metrics] of this.channelMetrics.entries()) {
+      if (metrics.averageProcessingTime > this.pressureThresholds.processingTime) {
+        status.hasPressure = true;
+        status.affectedChannels.push(channel);
+        status.recommendations.push(`Reduce credit for channel ${channel} - slow processing`);
+      }
+    }
+    
+    // Check memory usage
+    if (this.getMemoryUsage() > this.pressureThresholds.memoryUsage) {
+      status.hasPressure = true;
+      status.recommendations.push('Reduce overall message flow - high memory usage');
+    }
+    
+    return status;
+  }
+  
+  private getMemoryUsage(): number {
+    if (typeof performance !== 'undefined' && performance.memory) {
+      return performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit;
+    }
+    return 0;
+  }
+  
+  applyBackPressureRecommendations(recommendations: string[]) {
+    for (const recommendation of recommendations) {
+      if (recommendation.includes('Pause channel')) {
+        const channel = recommendation.split(' ')[2];
+        this.pauseChannel(channel);
+      } else if (recommendation.includes('Reduce credit')) {
+        const channel = recommendation.split(' ')[3];
+        this.reduceChannelCredit(channel);
+      }
+    }
+  }
+}
+
+interface BackPressureStatus {
+  hasPressure: boolean;
+  affectedChannels: string[];
+  recommendations: string[];
+}
+```
+
+## Channel-Specific Flow Control
+
+### Audio Channel Management
+
+```typescript
+class HAIPAudioFlowControl {
+  private audioBufferSize = 1024 * 1024; // 1MB buffer
+  private audioChunks = new Map<string, ArrayBuffer[]>();
+  
+  handleAudioChunk(channel: string, messageId: string, audioData: ArrayBuffer) {
+    // Check if we have space for this chunk
+    const currentSize = this.getAudioBufferSize(channel);
+    
+    if (currentSize + audioData.byteLength > this.audioBufferSize) {
+      // Buffer is full, pause channel
+      this.pauseChannel(channel);
+      return false;
+    }
+    
+    // Store audio chunk
+    if (!this.audioChunks.has(channel)) {
+      this.audioChunks.set(channel, []);
+    }
+    
+    this.audioChunks.get(channel)!.push(audioData);
+    
+    // Process audio if we have enough data
+    this.processAudioChunks(channel);
+    
+    return true;
+  }
+  
+  private getAudioBufferSize(channel: string): number {
+    const chunks = this.audioChunks.get(channel) || [];
+    return chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+  }
+  
+  private processAudioChunks(channel: string) {
+    const chunks = this.audioChunks.get(channel) || [];
+    
+    // Process chunks in batches
+    const batchSize = 10;
+    if (chunks.length >= batchSize) {
+      const batch = chunks.splice(0, batchSize);
+      
+      // Process batch
+      this.playAudioBatch(channel, batch);
+      
+      // Grant more credit if buffer is getting low
+      if (chunks.length < batchSize / 2) {
+        this.grantAudioCredit(channel);
+      }
+    }
+  }
+  
+  private grantAudioCredit(channel: string) {
+    const state = this.channelStates.get(channel);
+    if (!state) return;
+    
+    // Grant more credit for audio channels
+    state.messageCredit += 50;
+    state.byteCredit += 1024 * 1024; // 1MB
+    
+    console.log(`Granted additional credit to audio channel ${channel}`);
+  }
+}
+```
+
+### Text Channel Management
+
+```typescript
+class HAIPTextFlowControl {
+  private textBufferSize = 64 * 1024; // 64KB buffer
+  private textBuffers = new Map<string, string>();
+  
+  handleTextMessage(channel: string, messageId: string, text: string) {
+    const currentBuffer = this.textBuffers.get(channel) || '';
+    const newBuffer = currentBuffer + text;
+    
+    if (newBuffer.length > this.textBufferSize) {
+      // Buffer is full, pause channel
+      this.pauseChannel(channel);
+      return false;
+    }
+    
+    // Update buffer
+    this.textBuffers.set(channel, newBuffer);
+    
+    // Process text if we have a complete message
+    if (this.isCompleteMessage(newBuffer)) {
+      this.processTextMessage(channel, newBuffer);
+      this.textBuffers.set(channel, '');
+      
+      // Grant more credit
+      this.grantTextCredit(channel);
+    }
+    
+    return true;
+  }
+  
+  private isCompleteMessage(buffer: string): boolean {
+    // Check for message end markers or complete sentences
+    return buffer.includes('\n') || buffer.endsWith('.') || buffer.endsWith('!') || buffer.endsWith('?');
+  }
+  
+  private grantTextCredit(channel: string) {
+    const state = this.channelStates.get(channel);
+    if (!state) return;
+    
+    // Grant more credit for text channels
+    state.messageCredit += 10;
+    state.byteCredit += 16 * 1024; // 16KB
+    
+    console.log(`Granted additional credit to text channel ${channel}`);
+  }
+}
+```
+
+## Monitoring and Metrics
+
+### Flow Control Metrics
+
+```typescript
+class HAIPFlowControlMetrics {
+  private metrics = {
+    totalMessagesSent: 0,
+    totalBytesSent: 0,
+    totalMessagesReceived: 0,
+    totalBytesReceived: 0,
+    flowControlViolations: 0,
+    channelPauses: 0,
+    channelResumes: 0
+  };
+  
+  recordMessageSent(channel: string, messageSize: number) {
+    this.metrics.totalMessagesSent++;
+    this.metrics.totalBytesSent += messageSize;
+  }
+  
+  recordMessageReceived(channel: string, messageSize: number) {
+    this.metrics.totalMessagesReceived++;
+    this.metrics.totalBytesReceived += messageSize;
+  }
+  
+  recordFlowControlViolation(channel: string) {
+    this.metrics.flowControlViolations++;
+    console.warn(`Flow control violation on channel ${channel}`);
+  }
+  
+  recordChannelPause(channel: string) {
+    this.metrics.channelPauses++;
+  }
+  
+  recordChannelResume(channel: string) {
+    this.metrics.channelResumes++;
+  }
+  
+  getMetrics() {
+    return {
+      ...this.metrics,
+      averageMessageSize: this.metrics.totalMessagesSent > 0 
+        ? this.metrics.totalBytesSent / this.metrics.totalMessagesSent 
+        : 0,
+      flowControlEfficiency: this.metrics.flowControlViolations / 
+        (this.metrics.totalMessagesSent + this.metrics.totalMessagesReceived)
+    };
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+
+<Card title="Monitor Queues" icon="arrow-up">
+  Regularly check message queue lengths and processing times to detect back-pressure early.
+</Card>
+
+<Card title="Adaptive Credits" icon="sliders">
+  Adjust credit grants based on system performance and queue lengths.
+</Card>
+
+<Card title="Channel Isolation" icon="network-wired">
+  Use separate channels for different types of traffic to prevent one from affecting others.
+</Card>
+
+<Card title="Graceful Degradation" icon="arrow-down">
+  When under pressure, gracefully reduce functionality rather than failing completely.
+</Card>
+
+</CardGroup> 

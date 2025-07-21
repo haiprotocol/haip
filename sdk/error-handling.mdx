@@ -1,0 +1,885 @@
+---
+title: 'Error Handling'
+description: 'Comprehensive error handling, recovery mechanisms, and debugging strategies for robust HAIP SDK applications'
+---
+
+Build resilient applications with the HAIP SDK's comprehensive error handling system. Learn how to implement proper error recovery, debugging strategies, and graceful degradation for production-ready HAIP applications.
+
+## Error Types
+
+### HAIPError Hierarchy
+
+The SDK defines a hierarchy of error types for different scenarios:
+
+```typescript
+// Base error class
+class HAIPError extends Error {
+  constructor(message: string, code?: string, details?: any);
+  code: string;
+  details: any;
+}
+
+// Connection-related errors
+class HAIPConnectionError extends HAIPError {
+  constructor(message: string, details?: any);
+}
+
+// Authentication errors
+class HAIPAuthenticationError extends HAIPError {
+  constructor(message: string, details?: any);
+}
+
+// Flow control errors
+class HAIPFlowControlError extends HAIPError {
+  constructor(message: string, details?: any);
+}
+
+// Protocol errors
+class HAIProtocolError extends HAIPError {
+  constructor(message: string, details?: any);
+}
+```
+
+### Common Error Codes
+
+| Error Code | Description | Recovery Action |
+|------------|-------------|-----------------|
+| `CONNECTION_FAILED` | Connection to server failed | Retry with exponential backoff |
+| `AUTHENTICATION_FAILED` | JWT token invalid or expired | Refresh token and reconnect |
+| `FLOW_CONTROL` | No credits available for sending | Wait for flow update or request credits |
+| `PROTOCOL_ERROR` | Invalid message format or sequence | Reset connection |
+| `TIMEOUT` | Operation timed out | Retry with longer timeout |
+| `RATE_LIMITED` | Too many requests | Implement rate limiting |
+| `SERVER_ERROR` | Server-side error | Retry with exponential backoff |
+
+## Basic Error Handling
+
+### Event-Based Error Handling
+
+```typescript
+import { createHAIPClient } from 'haip-sdk';
+
+const client = createHAIPClient({
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token',
+  transport: 'websocket'
+});
+
+// Handle connection errors
+client.on('error', (error: Error) => {
+  console.error('Client error:', error);
+  
+  if (error.message.includes('AUTHENTICATION_FAILED')) {
+    console.log('Authentication failed - check your token');
+  } else if (error.message.includes('CONNECTION_FAILED')) {
+    console.log('Connection failed - will attempt to reconnect');
+  } else if (error.message.includes('FLOW_CONTROL')) {
+    console.log('Flow control error - message was dropped');
+  }
+});
+
+// Handle connection state changes
+client.on('disconnect', (reason: string) => {
+  console.log('Disconnected:', reason);
+  
+  if (reason === 'AUTHENTICATION_FAILED') {
+    // Handle authentication failure
+    handleAuthenticationFailure();
+  } else if (reason === 'NETWORK_ERROR') {
+    // Handle network issues
+    handleNetworkError();
+  }
+});
+```
+
+### Try-Catch Error Handling
+
+```typescript
+async function sendMessageSafely(text: string, runId: string) {
+  try {
+    const messageId = await client.sendTextMessage('USER', text, 'user', runId);
+    console.log('Message sent successfully:', messageId);
+    return messageId;
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    
+    if (error instanceof HAIPFlowControlError) {
+      // Queue message for later
+      await queueMessage(text, runId);
+    } else if (error instanceof HAIPConnectionError) {
+      // Attempt to reconnect
+      await reconnect();
+    } else {
+      // Handle other errors
+      throw error;
+    }
+  }
+}
+```
+
+## Advanced Error Handling
+
+### Error Recovery Strategies
+
+```typescript
+class ErrorRecoveryManager {
+  private retryAttempts = new Map<string, number>();
+  private maxRetries = 3;
+  private backoffMultiplier = 2;
+
+  constructor(private client: any) {
+    this.setupErrorHandling();
+  }
+
+  private setupErrorHandling() {
+    this.client.on('error', async (error: Error) => {
+      await this.handleError(error);
+    });
+  }
+
+  private async handleError(error: Error) {
+    const errorType = this.getErrorType(error);
+    const retryCount = this.retryAttempts.get(errorType) || 0;
+
+    if (retryCount < this.maxRetries) {
+      console.log(`Retrying ${errorType} (attempt ${retryCount + 1}/${this.maxRetries})`);
+      
+      this.retryAttempts.set(errorType, retryCount + 1);
+      
+      const delay = this.calculateBackoff(retryCount);
+      await this.delay(delay);
+      
+      await this.retryOperation(errorType);
+    } else {
+      console.error(`Max retries exceeded for ${errorType}`);
+      this.handleMaxRetriesExceeded(errorType);
+    }
+  }
+
+  private getErrorType(error: Error): string {
+    if (error.message.includes('AUTHENTICATION_FAILED')) return 'AUTH';
+    if (error.message.includes('CONNECTION_FAILED')) return 'CONNECTION';
+    if (error.message.includes('FLOW_CONTROL')) return 'FLOW_CONTROL';
+    if (error.message.includes('TIMEOUT')) return 'TIMEOUT';
+    return 'UNKNOWN';
+  }
+
+  private calculateBackoff(attempt: number): number {
+    return Math.min(1000 * Math.pow(this.backoffMultiplier, attempt), 30000);
+  }
+
+  private async retryOperation(errorType: string) {
+    switch (errorType) {
+      case 'AUTH':
+        await this.refreshToken();
+        break;
+      case 'CONNECTION':
+        await this.reconnect();
+        break;
+      case 'FLOW_CONTROL':
+        await this.requestCredits();
+        break;
+      case 'TIMEOUT':
+        await this.retryWithLongerTimeout();
+        break;
+    }
+  }
+
+  private async refreshToken() {
+    // Implement token refresh logic
+    console.log('Refreshing authentication token...');
+  }
+
+  private async reconnect() {
+    try {
+      await this.client.disconnect();
+      await this.client.connect();
+      console.log('Reconnected successfully');
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+    }
+  }
+
+  private async requestCredits() {
+    try {
+      await this.client.sendFlowUpdate('USER', 10, 1024 * 1024);
+      console.log('Requested more credits');
+    } catch (error) {
+      console.error('Failed to request credits:', error);
+    }
+  }
+
+  private async retryWithLongerTimeout() {
+    // Implement retry with longer timeout
+    console.log('Retrying with longer timeout...');
+  }
+
+  private handleMaxRetriesExceeded(errorType: string) {
+    // Implement final error handling
+    console.error(`Max retries exceeded for ${errorType}`);
+    
+    // Could trigger user notification, fallback mode, etc.
+    this.notifyUserOfError(errorType);
+  }
+
+  private notifyUserOfError(errorType: string) {
+    // Implement user notification
+    console.log(`Notifying user of ${errorType} error`);
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  resetRetryCount(errorType: string) {
+    this.retryAttempts.delete(errorType);
+  }
+}
+
+// Usage
+const recoveryManager = new ErrorRecoveryManager(client);
+```
+
+### Circuit Breaker Pattern
+
+```typescript
+class CircuitBreaker {
+  private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+  private failureCount = 0;
+  private lastFailureTime = 0;
+  private threshold = 5;
+  private timeout = 60000; // 1 minute
+
+  async execute<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.state === 'OPEN') {
+      if (Date.now() - this.lastFailureTime > this.timeout) {
+        this.state = 'HALF_OPEN';
+      } else {
+        throw new Error('Circuit breaker is OPEN');
+      }
+    }
+
+    try {
+      const result = await operation();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private onSuccess() {
+    this.failureCount = 0;
+    this.state = 'CLOSED';
+  }
+
+  private onFailure() {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failureCount >= this.threshold) {
+      this.state = 'OPEN';
+    }
+  }
+
+  getState(): string {
+    return this.state;
+  }
+}
+
+// Usage with HAIP client
+const circuitBreaker = new CircuitBreaker();
+
+async function sendMessageWithCircuitBreaker(text: string, runId: string) {
+  return circuitBreaker.execute(async () => {
+    return await client.sendTextMessage('USER', text, 'user', runId);
+  });
+}
+```
+
+## Connection Error Handling
+
+### Automatic Reconnection
+
+```typescript
+class ReconnectionManager {
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private isReconnecting = false;
+
+  constructor(private client: any) {
+    this.setupReconnectionHandling();
+  }
+
+  private setupReconnectionHandling() {
+    this.client.on('disconnect', async (reason: string) => {
+      console.log('Disconnected:', reason);
+      
+      if (reason !== 'USER_DISCONNECT' && !this.isReconnecting) {
+        await this.attemptReconnection();
+      }
+    });
+
+    this.client.on('connect', () => {
+      console.log('Reconnected successfully');
+      this.reconnectAttempts = 0;
+      this.isReconnecting = false;
+    });
+  }
+
+  private async attemptReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnection attempts reached');
+      return;
+    }
+
+    this.isReconnecting = true;
+    this.reconnectAttempts++;
+
+    const delay = this.calculateReconnectDelay();
+    console.log(`Attempting reconnection in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+    setTimeout(async () => {
+      try {
+        await this.client.connect();
+      } catch (error) {
+        console.error('Reconnection failed:', error);
+        await this.attemptReconnection();
+      }
+    }, delay);
+  }
+
+  private calculateReconnectDelay(): number {
+    return Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
+  }
+}
+
+// Usage
+const reconnectionManager = new ReconnectionManager(client);
+```
+
+### Connection Health Monitoring
+
+```typescript
+class ConnectionHealthMonitor {
+  private healthChecks = 0;
+  private failedHealthChecks = 0;
+  private maxFailedChecks = 3;
+
+  constructor(private client: any) {
+    this.startHealthMonitoring();
+  }
+
+  private startHealthMonitoring() {
+    // Periodic health check
+    setInterval(() => {
+      this.performHealthCheck();
+    }, 30000); // Every 30 seconds
+
+    // Monitor connection state
+    this.client.on('connect', () => {
+      this.resetHealthChecks();
+    });
+
+    this.client.on('disconnect', () => {
+      this.failedHealthChecks++;
+    });
+  }
+
+  private async performHealthCheck() {
+    this.healthChecks++;
+
+    try {
+      if (!this.client.isConnected()) {
+        throw new Error('Client not connected');
+      }
+
+      // Send a ping to check connection health
+      const startTime = Date.now();
+      await this.sendPing();
+      const responseTime = Date.now() - startTime;
+
+      console.log(`Health check passed (${responseTime}ms)`);
+      this.resetHealthChecks();
+
+    } catch (error) {
+      console.error('Health check failed:', error);
+      this.failedHealthChecks++;
+
+      if (this.failedHealthChecks >= this.maxFailedChecks) {
+        console.error('Too many failed health checks, triggering reconnection');
+        await this.triggerReconnection();
+      }
+    }
+  }
+
+  private async sendPing() {
+    // Send a lightweight ping message
+    await this.client.sendMessage({
+      type: 'PING',
+      payload: { timestamp: Date.now() }
+    });
+  }
+
+  private async triggerReconnection() {
+    try {
+      await this.client.disconnect();
+      await this.client.connect();
+    } catch (error) {
+      console.error('Reconnection triggered by health monitor failed:', error);
+    }
+  }
+
+  private resetHealthChecks() {
+    this.failedHealthChecks = 0;
+  }
+
+  getHealthStatus() {
+    return {
+      healthChecks: this.healthChecks,
+      failedHealthChecks: this.failedHealthChecks,
+      isHealthy: this.failedHealthChecks < this.maxFailedChecks
+    };
+  }
+}
+
+// Usage
+const healthMonitor = new ConnectionHealthMonitor(client);
+```
+
+## Message Error Handling
+
+### Message Retry Logic
+
+```typescript
+class MessageRetryManager {
+  private retryQueue = new Map<string, {
+    message: any;
+    attempts: number;
+    maxAttempts: number;
+    delay: number;
+  }>();
+
+  constructor(private client: any) {
+    this.setupRetryHandling();
+  }
+
+  private setupRetryHandling() {
+    this.client.on('error', (error: Error) => {
+      if (error.message.includes('FLOW_CONTROL') || error.message.includes('TIMEOUT')) {
+        // These errors might be retryable
+        this.handleRetryableError(error);
+      }
+    });
+  }
+
+  async sendMessageWithRetry(message: any, maxAttempts: number = 3): Promise<string> {
+    const messageId = HAIPUtils.generateUUID();
+    
+    try {
+      return await this.client.sendMessage(message);
+    } catch (error) {
+      if (this.isRetryableError(error)) {
+        return this.queueForRetry(messageId, message, maxAttempts);
+      }
+      throw error;
+    }
+  }
+
+  private isRetryableError(error: Error): boolean {
+    return error.message.includes('FLOW_CONTROL') ||
+           error.message.includes('TIMEOUT') ||
+           error.message.includes('NETWORK_ERROR');
+  }
+
+  private queueForRetry(messageId: string, message: any, maxAttempts: number) {
+    this.retryQueue.set(messageId, {
+      message,
+      attempts: 0,
+      maxAttempts,
+      delay: 1000
+    });
+
+    this.scheduleRetry(messageId);
+    return messageId;
+  }
+
+  private scheduleRetry(messageId: string) {
+    const retryInfo = this.retryQueue.get(messageId);
+    if (!retryInfo) return;
+
+    setTimeout(async () => {
+      await this.attemptRetry(messageId);
+    }, retryInfo.delay);
+  }
+
+  private async attemptRetry(messageId: string) {
+    const retryInfo = this.retryQueue.get(messageId);
+    if (!retryInfo) return;
+
+    retryInfo.attempts++;
+
+    try {
+      await this.client.sendMessage(retryInfo.message);
+      this.retryQueue.delete(messageId);
+      console.log(`Message ${messageId} retry successful`);
+    } catch (error) {
+      if (retryInfo.attempts < retryInfo.maxAttempts) {
+        retryInfo.delay *= 2; // Exponential backoff
+        this.scheduleRetry(messageId);
+        console.log(`Message ${messageId} retry failed, scheduling next attempt`);
+      } else {
+        this.retryQueue.delete(messageId);
+        console.error(`Message ${messageId} max retries exceeded`);
+        // Could trigger user notification or fallback handling
+      }
+    }
+  }
+
+  private handleRetryableError(error: Error) {
+    // Process any queued retries
+    for (const [messageId] of this.retryQueue) {
+      this.scheduleRetry(messageId);
+    }
+  }
+
+  getRetryQueueStatus() {
+    return {
+      queuedMessages: this.retryQueue.size,
+      messageIds: Array.from(this.retryQueue.keys())
+    };
+  }
+}
+
+// Usage
+const retryManager = new MessageRetryManager(client);
+
+// Send message with retry
+const messageId = await retryManager.sendMessageWithRetry({
+  type: 'TEXT_MESSAGE_START',
+  payload: {
+    channel: 'USER',
+    text: 'Hello',
+    author: 'user'
+  }
+}, 3);
+```
+
+## Error Logging and Monitoring
+
+### Structured Error Logging
+
+```typescript
+class ErrorLogger {
+  private logLevel: 'debug' | 'info' | 'warn' | 'error' = 'info';
+
+  constructor(private client: any) {
+    this.setupErrorLogging();
+  }
+
+  private setupErrorLogging() {
+    this.client.on('error', (error: Error) => {
+      this.logError('CLIENT_ERROR', error);
+    });
+
+    this.client.on('disconnect', (reason: string) => {
+      this.logError('DISCONNECT', new Error(reason));
+    });
+  }
+
+  private logError(type: string, error: Error) {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      type,
+      message: error.message,
+      stack: error.stack,
+      clientState: this.client.getConnectionState(),
+      performanceMetrics: this.client.getPerformanceMetrics()
+    };
+
+    switch (this.logLevel) {
+      case 'debug':
+        console.debug('HAIP Error:', logEntry);
+        break;
+      case 'info':
+        console.info('HAIP Error:', logEntry);
+        break;
+      case 'warn':
+        console.warn('HAIP Error:', logEntry);
+        break;
+      case 'error':
+        console.error('HAIP Error:', logEntry);
+        break;
+    }
+
+    // Could also send to external logging service
+    this.sendToLoggingService(logEntry);
+  }
+
+  private sendToLoggingService(logEntry: any) {
+    // Implementation for sending to external logging service
+    // e.g., Sentry, LogRocket, etc.
+  }
+
+  setLogLevel(level: 'debug' | 'info' | 'warn' | 'error') {
+    this.logLevel = level;
+  }
+}
+
+// Usage
+const errorLogger = new ErrorLogger(client);
+errorLogger.setLogLevel('error');
+```
+
+### Error Metrics Collection
+
+```typescript
+class ErrorMetrics {
+  private metrics = {
+    totalErrors: 0,
+    errorTypes: new Map<string, number>(),
+    errorTimeline: [] as Array<{ timestamp: number; type: string; message: string }>,
+    recoveryAttempts: 0,
+    successfulRecoveries: 0
+  };
+
+  recordError(type: string, message: string) {
+    this.metrics.totalErrors++;
+    
+    const currentCount = this.metrics.errorTypes.get(type) || 0;
+    this.metrics.errorTypes.set(type, currentCount + 1);
+    
+    this.metrics.errorTimeline.push({
+      timestamp: Date.now(),
+      type,
+      message
+    });
+
+    // Keep only last 100 errors
+    if (this.metrics.errorTimeline.length > 100) {
+      this.metrics.errorTimeline.shift();
+    }
+  }
+
+  recordRecoveryAttempt() {
+    this.metrics.recoveryAttempts++;
+  }
+
+  recordSuccessfulRecovery() {
+    this.metrics.successfulRecoveries++;
+  }
+
+  getMetrics() {
+    return {
+      ...this.metrics,
+      errorTypes: Object.fromEntries(this.metrics.errorTypes),
+      recoveryRate: this.metrics.recoveryAttempts > 0 
+        ? (this.metrics.successfulRecoveries / this.metrics.recoveryAttempts) * 100 
+        : 0
+    };
+  }
+
+  reset() {
+    this.metrics = {
+      totalErrors: 0,
+      errorTypes: new Map(),
+      errorTimeline: [],
+      recoveryAttempts: 0,
+      successfulRecoveries: 0
+    };
+  }
+}
+
+// Usage
+const errorMetrics = new ErrorMetrics();
+
+// Monitor error metrics
+setInterval(() => {
+  const metrics = errorMetrics.getMetrics();
+  console.log('Error metrics:', metrics);
+}, 60000); // Every minute
+```
+
+## Testing Error Handling
+
+### Error Simulation Testing
+
+```typescript
+class ErrorSimulator {
+  constructor(private client: any) {}
+
+  simulateConnectionError() {
+    // Simulate network disconnection
+    this.client.emit('disconnect', 'NETWORK_ERROR');
+  }
+
+  simulateAuthenticationError() {
+    // Simulate authentication failure
+    this.client.emit('error', new HAIPAuthenticationError('Token expired'));
+  }
+
+  simulateFlowControlError() {
+    // Simulate flow control error
+    this.client.emit('error', new HAIPFlowControlError('No credits available'));
+  }
+
+  simulateTimeout() {
+    // Simulate operation timeout
+    this.client.emit('error', new Error('Operation timed out'));
+  }
+}
+
+// Usage in tests
+const errorSimulator = new ErrorSimulator(client);
+
+describe('Error Handling', () => {
+  test('should handle connection errors', async () => {
+    const reconnectionSpy = jest.spyOn(client, 'connect');
+    
+    errorSimulator.simulateConnectionError();
+    
+    // Wait for reconnection attempt
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    expect(reconnectionSpy).toHaveBeenCalled();
+  });
+
+  test('should handle authentication errors', async () => {
+    const tokenRefreshSpy = jest.spyOn(client, 'refreshToken');
+    
+    errorSimulator.simulateAuthenticationError();
+    
+    expect(tokenRefreshSpy).toHaveBeenCalled();
+  });
+});
+```
+
+## Best Practices
+
+### Error Handling Checklist
+
+1. **Always handle connection errors**
+   ```typescript
+   client.on('error', (error) => {
+     // Log error and implement recovery strategy
+   });
+   ```
+
+2. **Implement retry logic for transient errors**
+   ```typescript
+   // Use exponential backoff for retries
+   const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+   ```
+
+3. **Monitor error rates and patterns**
+   ```typescript
+   // Track error metrics and alert on high error rates
+   if (errorRate > 0.1) {
+     alert('High error rate detected');
+   }
+   ```
+
+4. **Provide user feedback for errors**
+   ```typescript
+   // Show user-friendly error messages
+   showUserNotification('Connection lost. Reconnecting...');
+   ```
+
+5. **Implement graceful degradation**
+   ```typescript
+   // Fall back to offline mode when connection fails
+   if (connectionFailed) {
+     enableOfflineMode();
+   }
+   ```
+
+### Error Recovery Patterns
+
+```typescript
+// Pattern 1: Retry with exponential backoff
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  maxAttempts: number = 3
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt === maxAttempts) throw error;
+      
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max attempts exceeded');
+}
+
+// Pattern 2: Circuit breaker
+const circuitBreaker = new CircuitBreaker();
+
+// Pattern 3: Graceful degradation
+class GracefulDegradation {
+  private fallbackMode = false;
+
+  async sendMessage(text: string) {
+    try {
+      return await client.sendTextMessage('USER', text, 'user', runId);
+    } catch (error) {
+      if (this.shouldUseFallback(error)) {
+        return this.sendMessageFallback(text);
+      }
+      throw error;
+    }
+  }
+
+  private shouldUseFallback(error: Error): boolean {
+    return error.message.includes('CONNECTION_FAILED') ||
+           error.message.includes('AUTHENTICATION_FAILED');
+  }
+
+  private sendMessageFallback(text: string) {
+    // Store message locally, sync when connection restored
+    this.storeMessageLocally(text);
+    return 'local-message-id';
+  }
+
+  private storeMessageLocally(text: string) {
+    // Implementation for local storage
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Client API"
+    href="/sdk/client"
+    icon="code"
+  >
+    Learn about the client interface and methods.
+  </Card>
+  <Card
+    title="Examples"
+    href="/sdk/examples"
+    icon="book-open"
+  >
+    See practical examples of error handling.
+  </Card>
+  <Card
+    title="Flow Control"
+    href="/sdk/flow-control"
+    icon="gauge"
+  >
+    Understand flow control and back-pressure management.
+  </Card>
+  <Card
+    title="API Reference"
+    href="/sdk/api-reference"
+    icon="laptop"
+  >
+    Full API reference documentation.
+  </Card>
+</CardGroup> 

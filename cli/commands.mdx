@@ -1,0 +1,465 @@
+---
+title: "Commands"
+description: "Complete reference for all HAIP CLI commands"
+---
+
+The HAIP CLI provides a comprehensive set of commands for interacting with HAIP servers. All commands support verbose output with the `--verbose` flag for debugging.
+
+## Global Options
+
+All commands support these global options:
+
+- `-v, --verbose` - Enable verbose output
+- `--help` - Show command help
+- `--version` - Show version information
+
+## Core Commands
+
+### `haip version`
+
+Show version information.
+
+```bash
+node dist/index.js version
+```
+
+**Output:**
+```
+HAIP CLI v1.0.0
+Human-Agent Interaction Protocol Command Line Interface
+https://github.com/haiprotocol/haip-cli
+```
+
+### `haip info`
+
+Show system information.
+
+```bash
+node dist/index.js info
+```
+
+**Output:**
+```
+HAIP CLI System Information
+────────────────────────────────────────
+Node.js: v16.14.2
+Platform: darwin
+Architecture: arm64
+HAIP Version: 1.1.2
+CLI Version: 1.0.0
+```
+
+### `haip examples`
+
+Show usage examples.
+
+```bash
+node dist/index.js examples
+```
+
+## Connection Commands
+
+### `haip connect <url>`
+
+Connect to a HAIP server and maintain an interactive connection.
+
+**Syntax:**
+```bash
+haip connect <url> [options]
+```
+
+**Arguments:**
+- `url` - Server URL (e.g., `ws://localhost:8080`)
+
+**Options:**
+- `-t, --transport <type>` - Transport type (`websocket`, `sse`, `http-streaming`)
+- `--token <token>` - JWT authentication token
+- `--timeout <ms>` - Connection timeout in milliseconds (default: 10000)
+- `--reconnect-attempts <count>` - Maximum reconnection attempts (default: 3)
+- `--reconnect-delay <ms>` - Base reconnection delay in milliseconds (default: 1000)
+- `-v, --verbose` - Enable verbose output
+
+**Examples:**
+```bash
+# Connect via WebSocket
+node dist/index.js connect ws://localhost:8080
+
+# Connect via SSE with authentication
+node dist/index.js connect http://localhost:8080 --transport sse --token your-jwt-token
+
+# Connect with custom options
+node dist/index.js connect ws://localhost:8080 --timeout 5000 --reconnect-attempts 5
+
+# Connect with verbose output
+node dist/index.js connect ws://localhost:8080 --verbose
+```
+
+**Behaviour:**
+- Establishes connection and maintains it until `Ctrl+C`
+- Shows connection status and statistics
+- Handles reconnection automatically
+- Displays real-time connection events
+
+## Send Commands
+
+### `haip send`
+
+Send messages to a HAIP server.
+
+#### `haip send text <message>`
+
+Send a text message.
+
+**Syntax:**
+```bash
+haip send text <message> [options]
+```
+
+**Arguments:**
+- `message` - Text message to send
+
+**Options:**
+- `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
+- `-t, --transport <type>` - Transport type (default: `websocket`)
+- `--token <token>` - JWT authentication token
+- `-c, --channel <channel>` - Message channel (`USER`, `AGENT`, `SYSTEM`) (default: `AGENT`)
+- `--author <author>` - Message author
+- `--run-id <id>` - Run ID
+- `--thread-id <id>` - Thread ID
+- `-v, --verbose` - Enable verbose output
+
+**Examples:**
+```bash
+# Send a simple message
+node dist/index.js send text "Hello, world!"
+
+# Send with specific channel and author
+node dist/index.js send text "Hello" --channel USER --author user
+
+# Send within a run context
+node dist/index.js send text "Hello" --run-id run-123 --thread-id thread-456
+
+# Send to specific server
+node dist/index.js send text "Hello" --url ws://my-server:8080
+```
+
+#### `haip send tool <tool> [params...]`
+
+Call a tool with parameters.
+
+**Syntax:**
+```bash
+haip send tool <tool> [params...] [options]
+```
+
+**Arguments:**
+- `tool` - Tool name to call
+- `params` - Tool parameters in `key=value` format
+
+**Options:**
+- `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
+- `-t, --transport <type>` - Transport type (default: `websocket`)
+- `--token <token>` - JWT authentication token
+- `-c, --channel <channel>` - Message channel (default: `AGENT`)
+- `--run-id <id>` - Run ID
+- `--thread-id <id>` - Thread ID
+- `-v, --verbose` - Enable verbose output
+
+**Examples:**
+```bash
+# Call echo tool
+node dist/index.js send tool echo message="Hello World"
+
+# Call calculator tool
+node dist/index.js send tool calculator expression="2+2"
+
+# Call with multiple parameters
+node dist/index.js send tool weather location="London" units="celsius"
+
+# Call with run context
+node dist/index.js send tool calculator expression="15*23" --run-id run-123
+```
+
+#### `haip send run`
+
+Start a new run.
+
+**Syntax:**
+```bash
+haip send run [options]
+```
+
+**Options:**
+- `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
+- `-t, --transport <type>` - Transport type (default: `websocket`)
+- `--token <token>` - JWT authentication token
+- `--thread-id <id>` - Thread ID
+- `--metadata <json>` - Run metadata (JSON string)
+- `-v, --verbose` - Enable verbose output
+
+**Examples:**
+```bash
+# Start a simple run
+node dist/index.js send run
+
+# Start with thread ID
+node dist/index.js send run --thread-id my-thread
+
+# Start with metadata
+node dist/index.js send run --metadata '{"user":"alice","session":"chat-1"}'
+
+# Start with specific server
+node dist/index.js send run --url ws://my-server:8080
+```
+
+## Monitor Commands
+
+### `haip monitor`
+
+Monitor HAIP server events in real-time.
+
+**Syntax:**
+```bash
+haip monitor [options]
+```
+
+**Options:**
+- `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
+- `-t, --transport <type>` - Transport type (default: `websocket`)
+- `--token <token>` - JWT authentication token
+- `--show-timestamps` - Show message timestamps
+- `--show-metadata` - Show message metadata
+- `--filter-types <types>` - Filter by message types (comma-separated)
+- `--filter-channels <channels>` - Filter by channels (comma-separated)
+- `--max-lines <count>` - Maximum lines to display
+- `--follow` - Follow new messages
+- `-v, --verbose` - Enable verbose output
+
+**Examples:**
+```bash
+# Basic monitoring
+node dist/index.js monitor
+
+# Monitor with filtering
+node dist/index.js monitor --filter-types TEXT_MESSAGE_START,TOOL_CALL
+
+# Monitor specific channels
+node dist/index.js monitor --filter-channels USER,AGENT
+
+# Follow mode with metadata
+node dist/index.js monitor --follow --show-metadata
+
+# Monitor with timestamps
+node dist/index.js monitor --show-timestamps --follow
+
+# Monitor specific server
+node dist/index.js monitor --url ws://my-server:8080
+```
+
+**Filter Types:**
+- `HAI` - Protocol handshake
+- `PING/PONG` - Heartbeat messages
+- `TEXT_MESSAGE_START/PART/END` - Text messages
+- `AUDIO_CHUNK` - Audio data
+- `TOOL_CALL/UPDATE/DONE/CANCEL` - Tool operations
+- `RUN_STARTED/FINISHED/CANCEL` - Run management
+- `FLOW_UPDATE` - Flow control
+- `ERROR` - Error messages
+
+**Filter Channels:**
+- `USER` - User messages
+- `AGENT` - Agent messages
+- `SYSTEM` - System messages
+- `AUDIO_IN` - Audio input
+- `AUDIO_OUT` - Audio output
+
+## Test Commands
+
+### `haip test`
+
+Test HAIP server connectivity and performance.
+
+**Syntax:**
+```bash
+haip test [options]
+```
+
+**Options:**
+- `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
+- `-t, --transport <type>` - Transport type (default: `websocket`)
+- `--token <token>` - JWT authentication token
+- `--message-count <count>` - Number of test messages to send (default: 100)
+- `--message-size <bytes>` - Size of test messages in bytes (default: 1024)
+- `--delay <ms>` - Delay between messages in milliseconds (default: 100)
+- `--timeout <ms>` - Test timeout in milliseconds (default: 30000)
+- `--validate-responses` - Validate server responses
+- `-v, --verbose` - Enable verbose output
+
+**Examples:**
+```bash
+# Basic performance test
+node dist/index.js test
+
+# High-load test
+node dist/index.js test --message-count 1000 --delay 10
+
+# Large message test
+node dist/index.js test --message-size 8192 --message-count 100
+
+# Validate responses
+node dist/index.js test --validate-responses
+
+# Test with custom timeout
+node dist/index.js test --timeout 60000 --message-count 500
+
+# Test specific server
+node dist/index.js test --url ws://my-server:8080 --verbose
+```
+
+**Test Results:**
+The test command provides comprehensive performance metrics:
+- **Connection Time** - Time to establish connection
+- **Message Throughput** - Messages per second
+- **Latency** - Average message round-trip time
+- **Success Rate** - Percentage of successful messages
+- **Error Count** - Number of failed messages
+- **Total Duration** - Total test duration
+
+## Health Commands
+
+### `haip health`
+
+Check HAIP server health status.
+
+**Syntax:**
+```bash
+haip health [options]
+```
+
+**Options:**
+- `-u, --url <url>` - Server URL (default: `http://localhost:8080`)
+- `--timeout <ms>` - Request timeout in milliseconds (default: 10000)
+- `--format <format>` - Output format (`text`, `json`)
+
+**Examples:**
+```bash
+# Check health
+node dist/index.js health
+
+# JSON output
+node dist/index.js health --format json
+
+# Custom server
+node dist/index.js health --url http://my-server:8080
+
+# Custom timeout
+node dist/index.js health --timeout 5000
+```
+
+**Health Response:**
+```json
+{
+  "status": "OK",
+  "uptime": "2h 15m 30s",
+  "connections": 5,
+  "version": "1.1.2",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+## Command Combinations
+
+### Complete Testing Session
+
+```bash
+# 1. Check server health
+node dist/index.js health
+
+# 2. Start monitoring in background
+node dist/index.js monitor --follow &
+
+# 3. Test connection
+node dist/index.js connect ws://localhost:8080 --timeout 5000
+
+# 4. Start a run
+node dist/index.js send run --thread-id test-session
+
+# 5. Send messages
+node dist/index.js send text "Hello" --thread-id test-session
+node dist/index.js send tool echo message="Test" --thread-id test-session
+
+# 6. Run performance test
+node dist/index.js test --message-count 100 --validate-responses
+
+# 7. Stop monitoring
+kill %1
+```
+
+### Debugging Session
+
+```bash
+# 1. Check server status
+node dist/index.js health --format json
+
+# 2. Monitor with verbose output
+node dist/index.js monitor --follow --show-metadata --verbose
+
+# 3. Test connection with verbose output
+node dist/index.js connect ws://localhost:8080 --verbose
+
+# 4. Send test message with verbose output
+node dist/index.js send text "Debug test" --verbose
+```
+
+### Load Testing Session
+
+```bash
+# 1. Baseline test
+node dist/index.js test --message-count 100 --delay 1000
+
+# 2. Medium load test
+node dist/index.js test --message-count 1000 --delay 100
+
+# 3. High load test
+node dist/index.js test --message-count 10000 --delay 10
+
+# 4. Large message test
+node dist/index.js test --message-size 8192 --message-count 100
+```
+
+## Environment Variables
+
+All commands respect these environment variables:
+
+```bash
+# Server configuration
+HAIP_DEFAULT_URL=ws://localhost:8080
+HAIP_DEFAULT_TRANSPORT=websocket
+HAIP_DEFAULT_TOKEN=your-jwt-token
+
+# Connection settings
+HAIP_TIMEOUT=10000
+HAIP_RECONNECT_ATTEMPTS=3
+HAIP_RECONNECT_DELAY=1000
+
+# Output settings
+HAIP_VERBOSE=false
+HAIP_COLOR=true
+```
+
+## Exit Codes
+
+The CLI uses standard exit codes:
+
+- `0` - Success
+- `1` - General error
+- `2` - Configuration error
+- `3` - Connection error
+- `4` - Protocol error
+- `5` - Timeout error
+
+## Next Steps
+
+- [Configuration](/cli/configuration) - Advanced configuration options
+- [Examples](/cli/examples) - Usage examples and patterns
+- [API Reference](/cli/api-reference) - Technical API documentation 

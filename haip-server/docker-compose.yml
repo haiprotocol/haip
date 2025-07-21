@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  haip-server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - JWT_SECRET=your-secret-key-change-in-production
+      - JWT_EXPIRES_IN=24h
+      - MAX_CONNECTIONS=1000
+      - HEARTBEAT_INTERVAL=30000
+      - HEARTBEAT_TIMEOUT=5000
+      - ENABLE_CORS=true
+      - ENABLE_COMPRESSION=true
+      - ENABLE_LOGGING=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - haip-network
+
+  haip-test-client:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./test-client:/app
+    command: >
+      sh -c "
+        npm install ws &&
+        node test-client.js
+      "
+    depends_on:
+      haip-server:
+        condition: service_healthy
+    networks:
+      - haip-network
+    environment:
+      - HAIP_SERVER_URL=ws://haip-server:8080
+
+networks:
+  haip-network:
+    driver: bridge
+
+volumes:
+  logs: 

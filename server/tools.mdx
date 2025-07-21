@@ -1,0 +1,770 @@
+---
+title: "Tools"
+description: "Dynamic tool registration, MCP integration, and extensible server capabilities in the HAIP Server"
+---
+
+Transform your HAIP Server into a powerful extensible platform with dynamic tool registration. Add custom functionality, integrate external services, and build sophisticated AI applications with runtime tool management.
+
+<CardGroup cols={2}>
+  <Card title="Dynamic Registration" icon="wrench">
+    Register tools at runtime without server restart
+  </Card>
+  <Card title="Built-in Tools" icon="check">
+    Echo, add, and weather tools included for testing
+  </Card>
+  <Card title="Schema Validation" icon="shield">
+    JSON Schema validation for inputs and outputs
+  </Card>
+  <Card title="Progress Updates" icon="chart-line">
+    Real-time progress updates during tool execution
+  </Card>
+</CardGroup>
+
+## Built-in Tools
+
+The server includes several built-in tools for testing and development:
+
+### Echo Tool
+
+Echoes back the input message.
+
+```typescript
+{
+  name: 'echo',
+  description: 'Echo back the input',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' }
+    },
+    required: ['message']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      echoed: { type: 'string' }
+    }
+  }
+}
+```
+
+**Usage:**
+```javascript
+// Call echo tool
+const echoCall = {
+  id: 'call-1',
+  session: 'test-session',
+  seq: '1',
+  ts: Date.now().toString(),
+  type: 'TOOL_CALL',
+  channel: 'USER',
+  payload: {
+    call_id: 'echo-1',
+    tool: 'echo',
+    params: {
+      message: 'Hello, HAIP Server!'
+    }
+  }
+};
+
+ws.send(JSON.stringify(echoCall));
+```
+
+**Response:**
+```json
+{
+  "type": "TOOL_DONE",
+  "channel": "AGENT",
+  "payload": {
+    "call_id": "echo-1",
+    "status": "OK",
+    "result": {
+      "echoed": "Hello, HAIP Server!"
+    }
+  }
+}
+```
+
+### Add Tool
+
+Adds two numbers together.
+
+```typescript
+{
+  name: 'add',
+  description: 'Add two numbers',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      a: { type: 'number' },
+      b: { type: 'number' }
+    },
+    required: ['a', 'b']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      result: { type: 'number' }
+    }
+  }
+}
+```
+
+**Usage:**
+```javascript
+// Call add tool
+const addCall = {
+  id: 'call-2',
+  session: 'test-session',
+  seq: '2',
+  ts: Date.now().toString(),
+  type: 'TOOL_CALL',
+  channel: 'USER',
+  payload: {
+    call_id: 'add-1',
+    tool: 'add',
+    params: {
+      a: 5,
+      b: 3
+    }
+  }
+};
+
+ws.send(JSON.stringify(addCall));
+```
+
+**Response:**
+```json
+{
+  "type": "TOOL_DONE",
+  "channel": "AGENT",
+  "payload": {
+    "call_id": "add-1",
+    "status": "OK",
+    "result": {
+      "result": 8
+    }
+  }
+}
+```
+
+### Weather Tool
+
+Returns mock weather information.
+
+```typescript
+{
+  name: 'weather',
+  description: 'Get weather information',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      location: { type: 'string' }
+    }
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      temperature: { type: 'string' },
+      condition: { type: 'string' },
+      location: { type: 'string' }
+    }
+  }
+}
+```
+
+**Usage:**
+```javascript
+// Call weather tool
+const weatherCall = {
+  id: 'call-3',
+  session: 'test-session',
+  seq: '3',
+  ts: Date.now().toString(),
+  type: 'TOOL_CALL',
+  channel: 'USER',
+  payload: {
+    call_id: 'weather-1',
+    tool: 'weather',
+    params: {
+      location: 'London'
+    }
+  }
+};
+
+ws.send(JSON.stringify(weatherCall));
+```
+
+**Response:**
+```json
+{
+  "type": "TOOL_DONE",
+  "channel": "AGENT",
+  payload: {
+    "call_id": "weather-1",
+    "status": "OK",
+    "result": {
+      "temperature": "22°C",
+      "condition": "Sunny",
+      "location": "London"
+    }
+  }
+}
+```
+
+## Custom Tool Development
+
+### Tool Definition
+
+Tools are defined using a standard interface:
+
+```typescript
+interface HAIPToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: object; // JSON Schema
+  outputSchema: object; // JSON Schema
+  execute?: (params: any) => Promise<any>; // Optional custom executor
+}
+```
+
+### Simple Tool Example
+
+```typescript
+// Simple calculator tool
+const calculatorTool = {
+  name: 'calculator',
+  description: 'Perform basic mathematical operations',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      operation: {
+        type: 'string',
+        enum: ['add', 'subtract', 'multiply', 'divide']
+      },
+      a: { type: 'number' },
+      b: { type: 'number' }
+    },
+    required: ['operation', 'a', 'b']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      result: { type: 'number' },
+      operation: { type: 'string' }
+    }
+  }
+};
+
+// Register the tool
+server.registerTool(calculatorTool);
+```
+
+### Async Tool Example
+
+```typescript
+// Async database query tool
+const databaseTool = {
+  name: 'query_database',
+  description: 'Query the database',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string' },
+      limit: { type: 'number', default: 100 }
+    },
+    required: ['query']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      results: { type: 'array' },
+      count: { type: 'number' }
+    }
+  },
+  execute: async (params) => {
+    // Simulate database query
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return {
+      results: [
+        { id: 1, name: 'John Doe' },
+        { id: 2, name: 'Jane Smith' }
+      ],
+      count: 2
+    };
+  }
+};
+
+server.registerTool(databaseTool);
+```
+
+### Tool with Progress Updates
+
+```typescript
+// File processing tool with progress
+const fileProcessorTool = {
+  name: 'process_file',
+  description: 'Process a file with progress updates',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      filename: { type: 'string' },
+      operation: { type: 'string' }
+    },
+    required: ['filename', 'operation']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      processed: { type: 'boolean' },
+      lines: { type: 'number' }
+    }
+  },
+  execute: async (params, sessionId, callId, server) => {
+    // Send progress updates
+    server.sendToolUpdate(sessionId, callId, 'RUNNING', 0);
+    
+    // Simulate processing steps
+    for (let i = 0; i <= 100; i += 20) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      server.sendToolUpdate(sessionId, callId, 'RUNNING', i);
+    }
+    
+    return {
+      processed: true,
+      lines: 150
+    };
+  }
+};
+
+server.registerTool(fileProcessorTool);
+```
+
+## Tool Registration
+
+### Runtime Registration
+
+Tools can be registered at runtime:
+
+```typescript
+// Register a new tool
+server.registerTool({
+  name: 'custom_tool',
+  description: 'A custom tool',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      input: { type: 'string' }
+    },
+    required: ['input']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      output: { type: 'string' }
+    }
+  }
+});
+
+// Unregister a tool
+server.unregisterTool('custom_tool');
+
+// Get all registered tools
+const tools = server.getTools();
+console.log('Registered tools:', tools.map(t => t.name));
+```
+
+### Tool Discovery
+
+Clients can discover available tools:
+
+```javascript
+// Request tool list
+const toolListRequest = {
+  id: 'discovery-1',
+  session: 'test-session',
+  seq: '1',
+  ts: Date.now().toString(),
+  type: 'TOOL_LIST',
+  channel: 'USER',
+  payload: {}
+};
+
+ws.send(JSON.stringify(toolListRequest));
+```
+
+**Response:**
+```json
+{
+  "type": "TOOL_LIST",
+  "channel": "AGENT",
+  "payload": {
+    "tools": [
+      {
+        "name": "echo",
+        "description": "Echo back the input"
+      },
+      {
+        "name": "add",
+        "description": "Add two numbers"
+      },
+      {
+        "name": "weather",
+        "description": "Get weather information"
+      }
+    ]
+  }
+}
+```
+
+### Tool Schema Request
+
+Get detailed schema for a specific tool:
+
+```javascript
+// Request tool schema
+const schemaRequest = {
+  id: 'schema-1',
+  session: 'test-session',
+  seq: '2',
+  ts: Date.now().toString(),
+  type: 'TOOL_SCHEMA',
+  channel: 'USER',
+  payload: {
+    tool: 'echo'
+  }
+};
+
+ws.send(JSON.stringify(schemaRequest));
+```
+
+**Response:**
+```json
+{
+  "type": "TOOL_SCHEMA",
+  "channel": "AGENT",
+  "payload": {
+    "tool": "echo",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": { "type": "string" }
+      },
+      "required": ["message"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "echoed": { "type": "string" }
+      }
+    }
+  }
+}
+```
+
+## Tool Execution Flow
+
+### 1. Tool Call
+
+Client sends a tool call:
+
+```javascript
+const toolCall = {
+  id: 'call-1',
+  session: 'test-session',
+  seq: '1',
+  ts: Date.now().toString(),
+  type: 'TOOL_CALL',
+  channel: 'USER',
+  payload: {
+    call_id: 'unique-call-id',
+    tool: 'echo',
+    params: {
+      message: 'Hello, world!'
+    }
+  }
+};
+```
+
+### 2. Tool Update (Optional)
+
+Server sends progress updates:
+
+```json
+{
+  "type": "TOOL_UPDATE",
+  "channel": "AGENT",
+  "payload": {
+    "call_id": "unique-call-id",
+    "status": "RUNNING",
+    "progress": 50
+  }
+}
+```
+
+### 3. Tool Done
+
+Server sends completion:
+
+```json
+{
+  "type": "TOOL_DONE",
+  "channel": "AGENT",
+  "payload": {
+    "call_id": "unique-call-id",
+    "status": "OK",
+    "result": {
+      "echoed": "Hello, world!"
+    }
+  }
+}
+```
+
+### 4. Tool Cancel (Optional)
+
+Client can cancel a running tool:
+
+```javascript
+const toolCancel = {
+  id: 'cancel-1',
+  session: 'test-session',
+  seq: '2',
+  ts: Date.now().toString(),
+  type: 'TOOL_CANCEL',
+  channel: 'USER',
+  payload: {
+    call_id: 'unique-call-id'
+  }
+};
+```
+
+## Advanced Tool Features
+
+### Tool with Side Effects
+
+```typescript
+const emailTool = {
+  name: 'send_email',
+  description: 'Send an email',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      to: { type: 'string', format: 'email' },
+      subject: { type: 'string' },
+      body: { type: 'string' }
+    },
+    required: ['to', 'subject', 'body']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      sent: { type: 'boolean' },
+      message_id: { type: 'string' }
+    }
+  },
+  execute: async (params) => {
+    // Send email (implementation depends on your email service)
+    const messageId = await sendEmail(params.to, params.subject, params.body);
+    
+    return {
+      sent: true,
+      message_id: messageId
+    };
+  }
+};
+```
+
+### Tool with Validation
+
+```typescript
+const userTool = {
+  name: 'create_user',
+  description: 'Create a new user',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      username: { 
+        type: 'string',
+        minLength: 3,
+        maxLength: 20,
+        pattern: '^[a-zA-Z0-9_]+$'
+      },
+      email: { 
+        type: 'string',
+        format: 'email'
+      },
+      age: { 
+        type: 'number',
+        minimum: 13,
+        maximum: 120
+      }
+    },
+    required: ['username', 'email', 'age']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      user_id: { type: 'string' },
+      created: { type: 'boolean' }
+    }
+  },
+  execute: async (params) => {
+    // Validate input (schema validation is automatic)
+    if (params.age < 13) {
+      throw new Error('User must be at least 13 years old');
+    }
+    
+    // Create user
+    const userId = await createUser(params);
+    
+    return {
+      user_id: userId,
+      created: true
+    };
+  }
+};
+```
+
+### Tool with Error Handling
+
+```typescript
+const apiTool = {
+  name: 'api_call',
+  description: 'Make an API call',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', format: 'uri' },
+      method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'DELETE'] }
+    },
+    required: ['url', 'method']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      status: { type: 'number' },
+      data: { type: 'object' }
+    }
+  },
+  execute: async (params) => {
+    try {
+      const response = await fetch(params.url, {
+        method: params.method
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      return {
+        status: response.status,
+        data: data
+      };
+    } catch (error) {
+      // Return error in expected format
+      return {
+        status: 500,
+        data: { error: error.message }
+      };
+    }
+  }
+};
+```
+
+## Tool Management
+
+### List All Tools
+
+```typescript
+// Get all registered tools
+const tools = server.getTools();
+console.log('Available tools:', tools.map(t => t.name));
+```
+
+### Check Tool Existence
+
+```typescript
+// Check if a tool exists
+const toolExists = server.getTools().some(t => t.name === 'echo');
+console.log('Echo tool exists:', toolExists);
+```
+
+### Tool Statistics
+
+```typescript
+// Get tool execution statistics
+const stats = server.getStats();
+console.log('Tool executions:', stats.toolExecutions);
+```
+
+## Best Practices
+
+### 1. Use Descriptive Names
+
+```typescript
+// Good
+{ name: 'send_email_notification' }
+
+// Bad
+{ name: 'email' }
+```
+
+### 2. Provide Clear Descriptions
+
+```typescript
+// Good
+{ description: 'Send an email notification to the specified recipient' }
+
+// Bad
+{ description: 'Sends email' }
+```
+
+### 3. Validate Inputs
+
+```typescript
+// Use JSON Schema for validation
+inputSchema: {
+  type: 'object',
+  properties: {
+    email: { type: 'string', format: 'email' },
+    age: { type: 'number', minimum: 0 }
+  },
+  required: ['email', 'age']
+}
+```
+
+### 4. Handle Errors Gracefully
+
+```typescript
+execute: async (params) => {
+  try {
+    // Tool logic
+    return { success: true, data: result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+```
+
+### 5. Use Progress Updates for Long Operations
+
+```typescript
+execute: async (params, sessionId, callId, server) => {
+  server.sendToolUpdate(sessionId, callId, 'RUNNING', 0);
+  // ... work ...
+  server.sendToolUpdate(sessionId, callId, 'RUNNING', 50);
+  // ... more work ...
+  server.sendToolUpdate(sessionId, callId, 'RUNNING', 100);
+  return result;
+}
+```
+
+## Next Steps
+
+- [Authentication](/server/authentication) - Configure authentication for tools
+- [Monitoring](/server/monitoring) - Monitor tool execution and performance
+- [Deployment](/server/deployment) - Deploy tools to production
+- [API Reference](/server/api-reference) - Complete API documentation 

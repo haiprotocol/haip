@@ -1,0 +1,560 @@
+---
+title: 'Messaging'
+description: 'Real-time messaging, binary data handling, and communication patterns in the HAIP SDK'
+---
+
+Master real-time communication with the HAIP SDK's powerful messaging system. From simple text messages to complex binary data streams, learn how to implement efficient, reliable messaging patterns for your applications.
+
+## Message Types
+
+### Text Messages
+
+Text messages are the primary communication method in HAIP, supporting streaming and chunked delivery.
+
+#### Basic Text Message
+
+```typescript
+// Send a simple text message
+const messageId = await client.sendTextMessage(
+  'USER',           // channel
+  'Hello, world!',  // text content
+  'john',           // author
+  runId             // run ID
+);
+```
+
+#### Streaming Text Messages
+
+For long messages, you can send them in parts:
+
+```typescript
+// Start a text message
+await client.sendMessage({
+  type: 'TEXT_MESSAGE_START',
+  payload: {
+    channel: 'USER',
+    author: 'john',
+    text: 'This is the beginning of a long message...'
+  },
+  envelope: { run_id: runId }
+});
+
+// Send message parts
+await client.sendMessage({
+  type: 'TEXT_MESSAGE_PART',
+  payload: {
+    channel: 'USER',
+    text: '...that continues with more content...'
+  },
+  envelope: { run_id: runId }
+});
+
+// End the message
+await client.sendMessage({
+  type: 'TEXT_MESSAGE_END',
+  payload: {
+    channel: 'USER',
+    text: '...and finally ends here.'
+  },
+  envelope: { run_id: runId }
+});
+```
+
+### Binary Messages
+
+Send binary data like audio, images, or files:
+
+```typescript
+// Send binary data directly
+const audioData = new ArrayBuffer(1024);
+await client.sendBinary(audioData);
+
+// Send audio chunk with metadata
+await client.sendAudioChunk(
+  'AUDIO_IN',           // channel
+  'audio-123',          // message ID
+  'audio/wav',          // MIME type
+  audioData,            // binary data
+  1000,                 // duration in milliseconds
+  runId                 // run ID
+);
+```
+
+## Message Channels
+
+HAIP supports multiple channels for different types of communication:
+
+### Channel Types
+
+- **USER**: User messages and interactions
+- **AGENT**: Agent responses and actions  
+- **SYSTEM**: Protocol control messages
+- **AUDIO_IN**: Incoming audio data
+- **AUDIO_OUT**: Outgoing audio data
+
+### Channel Usage
+
+```typescript
+// User sends a message
+await client.sendTextMessage('USER', 'What is the weather?', 'user', runId);
+
+// Agent responds
+await client.sendTextMessage('AGENT', 'The weather is sunny today.', 'assistant', runId);
+
+// System notification
+await client.sendTextMessage('SYSTEM', 'Connection established', 'system', runId);
+```
+
+## Message Handling
+
+### Receiving Messages
+
+Listen for incoming messages:
+
+```typescript
+client.on('message', (message: HAIPMessage) => {
+  switch (message.type) {
+    case 'TEXT_MESSAGE_START':
+      console.log('Message started:', message.payload.text);
+      break;
+      
+    case 'TEXT_MESSAGE_PART':
+      console.log('Message part:', message.payload.text);
+      break;
+      
+    case 'TEXT_MESSAGE_END':
+      console.log('Message ended:', message.payload.text);
+      break;
+      
+    case 'AUDIO_CHUNK':
+      console.log('Audio chunk received:', message.payload.mime);
+      break;
+      
+    default:
+      console.log('Other message:', message.type);
+  }
+});
+```
+
+### Message Accumulation
+
+For streaming messages, accumulate parts:
+
+```typescript
+class MessageAccumulator {
+  private messages = new Map<string, string>();
+
+  constructor(private client: any) {
+    this.setupListeners();
+  }
+
+  private setupListeners() {
+    this.client.on('message', (message: HAIPMessage) => {
+      if (message.type === 'TEXT_MESSAGE_START') {
+        const { channel, text } = message.payload;
+        const key = `${channel}-${message.envelope?.run_id}`;
+        this.messages.set(key, text);
+      } else if (message.type === 'TEXT_MESSAGE_PART') {
+        const { channel, text } = message.payload;
+        const key = `${channel}-${message.envelope?.run_id}`;
+        const current = this.messages.get(key) || '';
+        this.messages.set(key, current + text);
+      } else if (message.type === 'TEXT_MESSAGE_END') {
+        const { channel, text } = message.payload;
+        const key = `${channel}-${message.envelope?.run_id}`;
+        const current = this.messages.get(key) || '';
+        const fullMessage = current + text;
+        
+        console.log(`Complete message on ${channel}:`, fullMessage);
+        this.messages.delete(key);
+      }
+    });
+  }
+}
+```
+
+## Message Validation
+
+### Built-in Validation
+
+The SDK automatically validates messages:
+
+```typescript
+import { HAIPUtils } from 'haip-sdk';
+
+// Validate a message
+const message = {
+  type: 'TEXT_MESSAGE_START',
+  payload: {
+    channel: 'USER',
+    text: 'Hello',
+    author: 'john'
+  }
+};
+
+const isValid = HAIPUtils.validateMessage(message);
+console.log('Message is valid:', isValid);
+```
+
+### Custom Validation
+
+Add custom validation rules:
+
+```typescript
+function validateTextMessage(message: HAIPMessage): boolean {
+  if (message.type !== 'TEXT_MESSAGE_START') {
+    return false;
+  }
+  
+  const { channel, text, author } = message.payload;
+  
+  // Check required fields
+  if (!channel || !text || !author) {
+    return false;
+  }
+  
+  // Check channel validity
+  if (!['USER', 'AGENT', 'SYSTEM'].includes(channel)) {
+    return false;
+  }
+  
+  // Check text length
+  if (text.length > 10000) {
+    return false;
+  }
+  
+  return true;
+}
+```
+
+## Message Patterns
+
+### Request-Response Pattern
+
+```typescript
+class RequestResponseHandler {
+  private pendingRequests = new Map<string, (response: any) => void>();
+
+  constructor(private client: any) {
+    this.setupResponseHandler();
+  }
+
+  async sendRequest(text: string, runId: string): Promise<string> {
+    const requestId = HAIPUtils.generateUUID();
+    
+    return new Promise((resolve) => {
+      this.pendingRequests.set(requestId, resolve);
+      
+      // Send the request
+      this.client.sendTextMessage('USER', text, 'user', runId);
+    });
+  }
+
+  private setupResponseHandler() {
+    this.client.on('message', (message: HAIPMessage) => {
+      if (message.type === 'TEXT_MESSAGE_START' && 
+          message.payload.channel === 'AGENT') {
+        // Assume the first agent response is for the pending request
+        const pendingIds = Array.from(this.pendingRequests.keys());
+        if (pendingIds.length > 0) {
+          const requestId = pendingIds[0];
+          const resolve = this.pendingRequests.get(requestId);
+          if (resolve) {
+            resolve(message.payload.text);
+            this.pendingRequests.delete(requestId);
+          }
+        }
+      }
+    });
+  }
+}
+```
+
+### Message Queuing
+
+Handle message queuing for reliable delivery:
+
+```typescript
+class MessageQueue {
+  private queue: Array<() => Promise<void>> = [];
+  private processing = false;
+
+  async enqueue(messageFn: () => Promise<void>) {
+    this.queue.push(messageFn);
+    if (!this.processing) {
+      this.processQueue();
+    }
+  }
+
+  private async processQueue() {
+    this.processing = true;
+    
+    while (this.queue.length > 0) {
+      const messageFn = this.queue.shift();
+      if (messageFn) {
+        try {
+          await messageFn();
+        } catch (error) {
+          console.error('Message failed:', error);
+          // Optionally retry or move to dead letter queue
+        }
+      }
+    }
+    
+    this.processing = false;
+  }
+}
+
+// Usage
+const queue = new MessageQueue();
+
+queue.enqueue(async () => {
+  await client.sendTextMessage('USER', 'Message 1', 'user', runId);
+});
+
+queue.enqueue(async () => {
+  await client.sendTextMessage('USER', 'Message 2', 'user', runId);
+});
+```
+
+## Message Metadata
+
+### Envelope Information
+
+Every message can include envelope metadata:
+
+```typescript
+const message = {
+  type: 'TEXT_MESSAGE_START',
+  payload: {
+    channel: 'USER',
+    text: 'Hello',
+    author: 'john'
+  },
+  envelope: {
+    session_id: 'session-123',
+    run_id: 'run-456',
+    thread_id: 'thread-789',
+    channel: 'USER',
+    sequence: '1',
+    timestamp: '2024-01-01T12:00:00Z',
+    ack: 'ack-123'
+  }
+};
+```
+
+### Custom Metadata
+
+Add custom metadata to messages:
+
+```typescript
+await client.sendMessage({
+  type: 'TEXT_MESSAGE_START',
+  payload: {
+    channel: 'USER',
+    text: 'Hello',
+    author: 'john',
+    metadata: {
+      source: 'web-app',
+      version: '1.0.0',
+      userAgent: navigator.userAgent
+    }
+  },
+  envelope: { run_id: runId }
+});
+```
+
+## Message Serialization
+
+### JSON Serialization
+
+Messages are automatically serialized to JSON:
+
+```typescript
+// Create a message
+const message = HAIPUtils.createTextMessage('USER', 'Hello', 'john', runId);
+
+// Serialize to JSON
+const json = JSON.stringify(message);
+console.log('Serialized message:', json);
+
+// Deserialize from JSON
+const parsedMessage = JSON.parse(json);
+console.log('Parsed message:', parsedMessage);
+```
+
+### Binary Serialization
+
+For binary data, use base64 encoding:
+
+```typescript
+// Convert binary data to base64
+const binaryData = new ArrayBuffer(1024);
+const base64Data = HAIPUtils.encodeBase64(binaryData);
+
+// Convert base64 back to binary
+const decodedData = HAIPUtils.parseBase64(base64Data);
+```
+
+## Message Flow Control
+
+### Credit-Based Flow Control
+
+HAIP uses credit-based flow control to manage message flow:
+
+```typescript
+// Check available credits
+const state = client.getConnectionState();
+const userCredits = state.credits.get('USER') || 0;
+
+if (userCredits > 0) {
+  await client.sendTextMessage('USER', 'Hello', 'user', runId);
+} else {
+  console.log('No credits available, message queued');
+}
+
+// Send flow update to request more credits
+await client.sendFlowUpdate('USER', 10, 1024 * 1024);
+```
+
+### Message Prioritization
+
+Implement message prioritization:
+
+```typescript
+class PriorityMessageQueue {
+  private highPriority: Array<() => Promise<void>> = [];
+  private normalPriority: Array<() => Promise<void>> = [];
+  private lowPriority: Array<() => Promise<void>> = [];
+
+  async enqueue(messageFn: () => Promise<void>, priority: 'high' | 'normal' | 'low' = 'normal') {
+    switch (priority) {
+      case 'high':
+        this.highPriority.push(messageFn);
+        break;
+      case 'normal':
+        this.normalPriority.push(messageFn);
+        break;
+      case 'low':
+        this.lowPriority.push(messageFn);
+        break;
+    }
+  }
+
+  async processNext(): Promise<void> {
+    // Process high priority first
+    if (this.highPriority.length > 0) {
+      const messageFn = this.highPriority.shift();
+      if (messageFn) await messageFn();
+      return;
+    }
+    
+    // Then normal priority
+    if (this.normalPriority.length > 0) {
+      const messageFn = this.normalPriority.shift();
+      if (messageFn) await messageFn();
+      return;
+    }
+    
+    // Finally low priority
+    if (this.lowPriority.length > 0) {
+      const messageFn = this.lowPriority.shift();
+      if (messageFn) await messageFn();
+    }
+  }
+}
+```
+
+## Message Testing
+
+### Mock Message Testing
+
+```typescript
+function createMockMessage(type: string, payload: any = {}): HAIPMessage {
+  return {
+    type: type as HAIPEventType,
+    payload,
+    envelope: {
+      session_id: 'test-session',
+      run_id: 'test-run',
+      sequence: '1',
+      timestamp: new Date().toISOString()
+    }
+  };
+}
+
+// Test message handling
+const mockMessage = createMockMessage('TEXT_MESSAGE_START', {
+  channel: 'USER',
+  text: 'Test message',
+  author: 'test-user'
+});
+
+// Simulate message reception
+client.emit('message', mockMessage);
+```
+
+### Message Validation Testing
+
+```typescript
+describe('Message Validation', () => {
+  test('should validate correct text message', () => {
+    const message = {
+      type: 'TEXT_MESSAGE_START',
+      payload: {
+        channel: 'USER',
+        text: 'Hello',
+        author: 'john'
+      }
+    };
+    
+    expect(HAIPUtils.validateMessage(message)).toBe(true);
+  });
+  
+  test('should reject invalid channel', () => {
+    const message = {
+      type: 'TEXT_MESSAGE_START',
+      payload: {
+        channel: 'INVALID',
+        text: 'Hello',
+        author: 'john'
+      }
+    };
+    
+    expect(HAIPUtils.validateMessage(message)).toBe(false);
+  });
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Client API"
+    href="/sdk/client"
+    icon="code"
+  >
+    Learn about the client interface and methods.
+  </Card>
+  <Card
+    title="Examples"
+    href="/sdk/examples"
+    icon="book-open"
+  >
+    See practical examples of messaging usage.
+  </Card>
+  <Card
+    title="Flow Control"
+    href="/sdk/flow-control"
+    icon="gauge"
+  >
+    Understand flow control and back-pressure management.
+  </Card>
+  <Card
+    title="API Reference"
+    href="/sdk/api-reference"
+    icon="laptop"
+  >
+    Full API reference documentation.
+  </Card>
+</CardGroup> 
