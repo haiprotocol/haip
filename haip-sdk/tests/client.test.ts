@@ -613,8 +613,15 @@ describe("HAIPClient", () => {
 
   describe("Heartbeat", () => {
     test("should send heartbeat", async () => {
+      // For this test, we'll modify the config before creating the client
+      const originalConfig = { ...config };
+      config.heartbeatInterval = 50; // 50ms for testing
+      
+      // Create a new client with the modified config  
+      const testClient = new HAIPClientImpl(config);
+      
       // First establish a proper connection
-      const connectPromise = client.connect();
+      const connectPromise = testClient.connect();
       
       // Wait for handshake to be sent
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -639,15 +646,24 @@ describe("HAIPClient", () => {
         }
       };
       
-      mockTransport.simulateMessage(handshakeResponse);
+      // Get the transport from the test client by accessing private property
+      const transport = (testClient as any).transport;
+      if (transport && transport.simulateMessage) {
+        transport.simulateMessage(handshakeResponse);
+      }
+      
       await connectPromise;
       
-      // Wait for heartbeat
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for heartbeat (longer than heartbeat interval)
+      await new Promise(resolve => setTimeout(resolve, 150));
       
-      const sentMessages = mockTransport.getSentMessages();
-      const pingMessage = sentMessages.find(m => m.type === "PING");
+      const sentMessages = transport?.getSentMessages?.() || [];
+      const pingMessage = sentMessages.find((m: any) => m.type === "PING");
       expect(pingMessage).toBeDefined();
+      
+      // Clean up and restore config
+      await testClient.disconnect();
+      Object.assign(config, originalConfig);
     });
 
     test("should handle pong", async () => {

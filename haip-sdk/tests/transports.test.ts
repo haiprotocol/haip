@@ -204,11 +204,23 @@ class MockEventSource {
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
+// Create a global mock instance that can be accessed by tests
+let globalMockWs: MockNodeWebSocket;
+
 // Mock the ws module
 jest.mock("ws", () => {
-  return jest.fn().mockImplementation((url: string) => {
-    return new MockNodeWebSocket(url);
+  const MockWSConstructor = jest.fn().mockImplementation((url: string) => {
+    globalMockWs = new MockNodeWebSocket(url);
+    return globalMockWs;
   });
+  
+  // Add WebSocket constants to the mocked constructor
+  (MockWSConstructor as any).OPEN = 1;
+  (MockWSConstructor as any).CONNECTING = 0;
+  (MockWSConstructor as any).CLOSING = 2;
+  (MockWSConstructor as any).CLOSED = 3;
+  
+  return MockWSConstructor;
 });
 
 describe("Transports", () => {
@@ -229,21 +241,25 @@ describe("Transports", () => {
     let mockWs: MockNodeWebSocket;
 
     beforeEach(() => {
-      // Get the mocked WebSocket constructor
-      const WebSocket = require("ws");
-      mockWs = new MockNodeWebSocket(config.url);
-      WebSocket.mockImplementation(() => mockWs);
-
       transport = new WebSocketTransport(config.url, config.token, config.options);
+      
+      // The mockWs will be set when transport.connect() creates the WebSocket
+      mockWs = globalMockWs;
     });
 
     afterEach(() => {
       transport.disconnect();
+      jest.clearAllMocks();
     });
 
     test("should connect successfully", async () => {
       const connectPromise = transport.connect();
       
+      // Give some time for the WebSocket to be created
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      // Get the mock instance that was created
+      mockWs = globalMockWs;
       mockWs.simulateOpen();
       
       await connectPromise;
@@ -266,7 +282,11 @@ describe("Transports", () => {
     });
 
     test("should handle disconnection", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       const disconnectPromise = new Promise<string>((resolve) => {
         transport.onDisconnect((reason) => resolve(reason));
@@ -280,7 +300,11 @@ describe("Transports", () => {
     });
 
     test("should send messages", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       const message: HAIPMessage = {
         id: "test-id",
@@ -299,7 +323,11 @@ describe("Transports", () => {
     });
 
     test("should send binary data", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       const data = new ArrayBuffer(8);
       const view = new Uint8Array(data);
@@ -312,7 +340,11 @@ describe("Transports", () => {
     });
 
     test("should handle incoming messages", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       const messagePromise = new Promise<HAIPMessage>((resolve) => {
         transport.onMessage((message) => resolve(message));
@@ -335,7 +367,11 @@ describe("Transports", () => {
     });
 
     test("should handle incoming binary data", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       const binaryPromise = new Promise<ArrayBuffer>((resolve) => {
         transport.onBinary((data) => resolve(data));
@@ -349,7 +385,11 @@ describe("Transports", () => {
     });
 
     test("should handle heartbeat", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       // Wait for heartbeat
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -359,13 +399,20 @@ describe("Transports", () => {
     });
 
     test("should reconnect on connection loss", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mockWs = globalMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
       
       const reconnectPromise = new Promise<void>((resolve) => {
         transport.onConnect(() => resolve());
       });
 
       mockWs.simulateClose(1006, "Connection lost");
+      
+      // Simulate reconnection by opening a new connection
+      setTimeout(() => mockWs.simulateOpen(), 100);
       
       // Wait for reconnection
       await reconnectPromise;
@@ -378,15 +425,34 @@ describe("Transports", () => {
     let mockEventSource: MockEventSource;
 
     beforeEach(() => {
-      // Mock browser environment
-      Object.defineProperty(global, "window", {
-        value: {},
-        writable: true
+      // Mock browser environment for globalThis
+      Object.defineProperty(globalThis, "window", {
+        value: {
+          document: {},
+          location: { href: "http://localhost" },
+          EventSource: MockEventSource
+        },
+        writable: true,
+        configurable: true
       });
+      
+      // Also mock on global for compatibility
+      Object.defineProperty(global, "window", {
+        value: globalThis.window,
+        writable: true,
+        configurable: true
+      });
+      
+      // Create mock EventSource instance
+      mockEventSource = new MockEventSource(config.url);
       
       // Mock EventSource constructor
       (global as any).EventSource = jest.fn().mockImplementation((url: string) => {
-        mockEventSource = new MockEventSource(url);
+        return mockEventSource;
+      });
+      
+      // Also set on window for SSE transport
+      (globalThis.window as any).EventSource = jest.fn().mockImplementation((url: string) => {
         return mockEventSource;
       });
 
@@ -396,6 +462,10 @@ describe("Transports", () => {
 
     afterEach(() => {
       transport.disconnect();
+      // Clean up browser mocks
+      delete (globalThis as any).window;
+      delete (global as any).window;
+      delete (global as any).EventSource;
     });
 
     test("should connect successfully", async () => {
