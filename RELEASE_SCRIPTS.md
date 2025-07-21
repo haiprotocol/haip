@@ -51,9 +51,9 @@ The scripts handle these packages:
 
 | Directory | Package Name | Description |
 |-----------|--------------|-------------|
-| `haip-sdk` | `haip-sdk` | TypeScript SDK for HAIP |
-| `haip-server` | `@haip-protocol/server` | Reference HAIP server |
-| `haip-cli` | `@haip-protocol/cli` | Command-line interface |
+| `haip-sdk` | `@haip/sdk` | TypeScript SDK for HAIP |
+| `haip-server` | `@haip/server` | Reference HAIP server |
+| `haip-cli` | `@haip/cli` | Command-line interface |
 
 ## Release Process
 
@@ -184,9 +184,9 @@ After successful release:
 
 3. **Verify Installation**
    ```bash
-   npm install haip-sdk
-   npm install @haip-protocol/server
-   npm install @haip-protocol/cli
+   npm install @haip/sdk
+   npm install @haip/server
+   npm install @haip/cli
    ```
 
 4. **Update Status Documents**
@@ -201,7 +201,7 @@ Edit the `PACKAGES` and `PACKAGE_NAMES` arrays in both scripts:
 
 ```bash
 PACKAGES=("haip-sdk" "haip-server" "haip-cli" "new-package")
-PACKAGE_NAMES=("haip-sdk" "@haip-protocol/server" "@haip-protocol/cli" "@haip-protocol/new-package")
+PACKAGE_NAMES=("@haip/sdk" "@haip/server" "@haip/cli" "@haip/new-package")
 ```
 
 ### Modifying Build Process

@@ -34,7 +34,7 @@ npm link
 ### From NPM (Coming Soon)
 
 ```bash
-npm install -g @haip-protocol/cli
+npm install -g @haip/cli
 ```
 
 ## Quick Start
@@ -362,4 +362,4 @@ MIT License - see LICENSE file for details.
 
 ## Protocol Version
 
-This SDK implements HAIP version 1.1.2. For protocol documentation, see the [HAI Protocol Specification](https://github.com/haiprotocol/specification). 
+This CLI implements HAIP version 1.1.2. For protocol documentation, see the [HAIP Specification](https://github.com/haiprotocol/specification). 

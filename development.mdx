@@ -237,12 +237,12 @@ Set up your development environment for HAIP implementation.
 
 ### Server-Side Implementation
 
-The HAIP Server provides a complete, production-ready implementation of the HAI Protocol. For development and testing, use the official HAIP Server:
+The HAIP Server provides a complete, production-ready implementation of the HAIP. For development and testing, use the official HAIP Server:
 
 <AccordionGroup>
   <Accordion icon="server" title="HAIP Server">
     ```typescript
-    import { HAIPServer } from '@haip-protocol/server';
+    import { HAIPServer } from '@haip/server';
 
     // Create server with configuration
     const server = new HAIPServer({
@@ -295,7 +295,7 @@ The HAIP Server provides a complete, production-ready implementation of the HAI 
     ```
 
     **Features:**
-    - Complete HAI Protocol implementation
+    - Complete HAIP implementation
     - Multiple transport support (WebSocket, SSE, HTTP streaming)
     - Built-in authentication and security
     - Tool integration system

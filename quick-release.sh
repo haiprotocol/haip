@@ -14,7 +14,7 @@ NC='\033[0m'
 
 # Configuration
 PACKAGES=("haip-sdk" "haip-server" "haip-cli")
-PACKAGE_NAMES=("haip-sdk" "@haip-protocol/server" "@haip-protocol/cli")
+PACKAGE_NAMES=("@haip/sdk" "@haip/server" "@haip/cli")
 CURRENT_DIR=$(pwd)
 
 print_status() {

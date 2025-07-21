@@ -1,5 +1,5 @@
 {
-  "name": "@haip-protocol/cli",
+  "name": "@haip/cli",
   "version": "1.0.0",
   "description": "Command-line interface for the Human-Agent Interaction Protocol (HAIP)",
   "main": "dist/index.js",
@@ -33,7 +33,7 @@
     "typescript"
   ],
   "author": {
-    "name": "Sand Digital",
+    "name": "San Digital",
     "url": "https://sandigital.uk",
     "email": "office@sandigital.uk"
   },

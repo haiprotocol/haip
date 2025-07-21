@@ -11,11 +11,11 @@
   "servers": [
     {
       "url": "wss://api.haiprotocol.com",
-      "description": "WebSocket endpoint for HAI Protocol"
+      "description": "WebSocket endpoint for HAIP"
     },
     {
       "url": "https://api.haiprotocol.com",
-      "description": "HTTP/SSE endpoint for HAI Protocol"
+      "description": "HTTP/SSE endpoint for HAIP"
     }
   ],
   "security": [

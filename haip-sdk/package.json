@@ -1,5 +1,5 @@
 {
-  "name": "haip-sdk",
+  "name": "@haip/sdk",
   "version": "1.1.2",
   "description": "TypeScript SDK for the Human-Agent Interaction Protocol (HAIP)",
   "main": "dist/index.js",

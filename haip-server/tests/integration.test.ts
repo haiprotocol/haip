@@ -63,7 +63,7 @@ describe('HAIPServer Integration Tests', () => {
     global.testUtils.cleanupPort(port);
   });
 
-  describe('Complete HAI Protocol Flow', () => {
+  describe('Complete HAIP Flow', () => {
     it('should handle complete conversation flow', (done) => {
       const token = global.testUtils.generateTestToken();
       const url = `ws://localhost:${port}?token=${token}`;

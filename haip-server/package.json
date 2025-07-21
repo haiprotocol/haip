@@ -1,5 +1,5 @@
 {
-  "name": "haip-server",
+  "name": "@haip/server",
   "version": "1.0.0",
   "description": "Reference implementation of HAIP (Human-Agent Interaction Protocol) server",
   "main": "dist/index.js",

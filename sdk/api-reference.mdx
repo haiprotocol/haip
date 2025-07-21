@@ -67,7 +67,7 @@ interface HAIPFlowControlConfig {
 
 ### HAIPMessage
 
-Core message interface for all HAI Protocol messages.
+Core message interface for all HAIP messages.
 
 ```typescript
 interface HAIPMessage {
@@ -135,7 +135,7 @@ type HAIPChannel = 'USER' | 'AGENT' | 'SYSTEM' | 'AUDIO_IN' | 'AUDIO_OUT';
 
 ### HAIPClient
 
-Main client interface for HAI Protocol communication.
+Main client interface for HAIP communication.
 
 ```typescript
 interface HAIPClient extends EventEmitter {
@@ -259,7 +259,7 @@ class HTTPStreamingTransport implements HAIPTransport {
 
 ### HAIPUtils
 
-Utility functions for HAI Protocol operations.
+Utility functions for HAIP operations.
 
 ```typescript
 class HAIPUtils {

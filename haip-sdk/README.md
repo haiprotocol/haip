@@ -21,13 +21,13 @@ A complete TypeScript SDK for the Human-Agent Interaction Protocol (HAIP) versio
 ## Installation
 
 ```bash
-npm install haip-sdk
+npm install @haip/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { createHAIPClient, HAIPEventHandlers } from "haip-sdk";
+import { createHAIPClient, HAIPEventHandlers } from "@haip/sdk";
 
 // Create client configuration
 const config = {
@@ -303,7 +303,7 @@ client.on("audioChunk", (payload, binaryData) => {
 ### Custom Transport
 
 ```typescript
-import { HAIPTransport, HAIPTransportConfig } from "haip-sdk";
+import { HAIPTransport, HAIPTransportConfig } from "@haip/sdk";
 
 class CustomTransport implements HAIPTransport {
   // Implement transport interface
@@ -393,4 +393,4 @@ MIT License - see LICENSE file for details.
 
 ## Protocol Version
 
-This SDK implements HAIP version 1.1.2. For protocol documentation, see the [HAI Protocol Specification](https://github.com/haiprotocol/specification). 
+This SDK implements HAIP version 1.1.2. For protocol documentation, see the [HAIP Specification](https://github.com/haiprotocol/specification). 

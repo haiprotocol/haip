@@ -4,7 +4,7 @@ A reference implementation of the HAIP (Human-Agent Interaction Protocol) server
 
 ## Features
 
-- ✅ **Full HAI Protocol Support** - Complete implementation of HAIP 1.1.2
+- ✅ **Full HAIP Support** - Complete implementation of HAIP 1.1.2
 - ✅ **Multiple Transports** - WebSocket, SSE, and HTTP streaming
 - ✅ **Authentication** - JWT-based authentication
 - ✅ **Flow Control** - Credit-based flow control with back-pressure management
@@ -109,7 +109,7 @@ GET /stats
 ### WebSocket Connection
 
 ```javascript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from '@haip/sdk';
 
 const client = createHAIPClient({
   url: 'ws://localhost:8080',
@@ -176,7 +176,7 @@ while (true) {
 ### Registering Tools
 
 ```javascript
-import { HAIPServer } from 'haip-server';
+import { HAIPServer } from '@haip/server';
 
 const server = new HAIPServer();
 
@@ -442,4 +442,4 @@ MIT License - see LICENSE file for details.
 
 ## Protocol Version
 
-This SDK implements HAIP version 1.1.2. For protocol documentation, see the [HAI Protocol Specification](https://github.com/haiprotocol/specification). 
+This server implements HAIP version 1.1.2. For protocol documentation, see the [HAIP Specification](https://github.com/haiprotocol/specification). 
