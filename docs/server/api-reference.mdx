@@ -1,0 +1,796 @@
+---
+title: "API Reference"
+description: "Complete API reference for the HAIP Server"
+---
+
+# API Reference
+
+Complete reference documentation for the HAIP Server API, including all methods, events, and configuration options.
+
+## Server Class
+
+### HAIPServer
+
+The main server class that handles all HAI Protocol operations.
+
+```typescript
+import { HAIPServer } from './src/server';
+
+const server = new HAIPServer(config);
+```
+
+### Constructor
+
+```typescript
+constructor(config: Partial<HAIPServerConfig> = {})
+```
+
+**Parameters:**
+- `config` - Configuration object (optional)
+
+**Returns:** HAIPServer instance
+
+**Example:**
+```typescript
+const server = new HAIPServer({
+  port: 8080,
+  host: '0.0.0.0',
+  jwtSecret: 'your-secret-key',
+  maxConnections: 1000
+});
+```
+
+## Configuration
+
+### HAIPServerConfig
+
+```typescript
+interface HAIPServerConfig {
+  // Basic settings
+  port: number;
+  host: string;
+  jwtSecret: string;
+  jwtExpiresIn: string;
+  
+  // Connection limits
+  maxConnections: number;
+  heartbeatInterval: number;
+  heartbeatTimeout: number;
+  
+  // Flow control
+  flowControl: FlowControlConfig;
+  
+  // Run management
+  maxConcurrentRuns: number;
+  replayWindowSize: number;
+  replayWindowTime: number;
+  
+  // Feature toggles
+  enableCORS: boolean;
+  enableCompression: boolean;
+  enableLogging: boolean;
+}
+```
+
+### FlowControlConfig
+
+```typescript
+interface FlowControlConfig {
+  enabled: boolean;
+  initialCredits: number;
+  minCredits: number;
+  maxCredits: number;
+  creditThreshold: number;
+  backPressureThreshold: number;
+  adaptiveAdjustment: boolean;
+  initialCreditMessages: number;
+  initialCreditBytes: number;
+}
+```
+
+## Public Methods
+
+### start()
+
+Start the server and begin accepting connections.
+
+```typescript
+start(): void
+```
+
+**Example:**
+```typescript
+server.start();
+```
+
+### stop()
+
+Stop the server and close all connections.
+
+```typescript
+stop(): void
+```
+
+**Example:**
+```typescript
+server.stop();
+```
+
+### registerTool()
+
+Register a new tool with the server.
+
+```typescript
+registerTool(tool: HAIPToolDefinition): void
+```
+
+**Parameters:**
+- `tool` - Tool definition object
+
+**Example:**
+```typescript
+server.registerTool({
+  name: 'calculator',
+  description: 'Perform mathematical operations',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      operation: { type: 'string' },
+      a: { type: 'number' },
+      b: { type: 'number' }
+    },
+    required: ['operation', 'a', 'b']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      result: { type: 'number' }
+    }
+  }
+});
+```
+
+### unregisterTool()
+
+Remove a tool from the server.
+
+```typescript
+unregisterTool(toolName: string): void
+```
+
+**Parameters:**
+- `toolName` - Name of the tool to remove
+
+**Example:**
+```typescript
+server.unregisterTool('calculator');
+```
+
+### getTools()
+
+Get all registered tools.
+
+```typescript
+getTools(): HAIPToolDefinition[]
+```
+
+**Returns:** Array of tool definitions
+
+**Example:**
+```typescript
+const tools = server.getTools();
+console.log('Available tools:', tools.map(t => t.name));
+```
+
+### getSession()
+
+Get a specific session by ID.
+
+```typescript
+getSession(sessionId: string): HAIPSession | undefined
+```
+
+**Parameters:**
+- `sessionId` - Session identifier
+
+**Returns:** Session object or undefined
+
+**Example:**
+```typescript
+const session = server.getSession('session-123');
+if (session) {
+  console.log('Session user:', session.userId);
+  console.log('Connected:', session.connected);
+}
+```
+
+### getStats()
+
+Get current server statistics.
+
+```typescript
+getStats(): HAIPServerStats
+```
+
+**Returns:** Server statistics object
+
+**Example:**
+```typescript
+const stats = server.getStats();
+console.log('Active connections:', stats.activeConnections);
+console.log('Total messages:', stats.totalMessages);
+console.log('Error rate:', stats.errorRate);
+```
+
+### broadcast()
+
+Send a message to all connected sessions.
+
+```typescript
+broadcast(message: HAIPMessage): void
+```
+
+**Parameters:**
+- `message` - HAIP message to broadcast
+
+**Example:**
+```typescript
+const notification = HAIPServerUtils.createTextMessageStart('broadcast', {
+  message_id: 'notification-1',
+  content_type: 'text/plain'
+});
+
+server.broadcast(notification);
+```
+
+### sendMessage()
+
+Send a message to a specific session.
+
+```typescript
+sendMessage(sessionId: string, message: HAIPMessage): void
+```
+
+**Parameters:**
+- `sessionId` - Target session ID
+- `message` - HAIP message to send
+
+**Example:**
+```typescript
+const response = HAIPServerUtils.createPongMessage(sessionId, {
+  nonce: 'test-nonce'
+});
+
+server.sendMessage(sessionId, response);
+```
+
+### sendToolDone()
+
+Send a tool completion message to a session.
+
+```typescript
+sendToolDone(sessionId: string, callId: string, status: string, result?: any): void
+```
+
+**Parameters:**
+- `sessionId` - Target session ID
+- `callId` - Tool call identifier
+- `status` - Completion status ('OK', 'ERROR', 'CANCELLED')
+- `result` - Tool result (optional)
+
+**Example:**
+```typescript
+server.sendToolDone(sessionId, 'call-123', 'OK', {
+  result: 42
+});
+```
+
+### closeAllConnections()
+
+Close all WebSocket connections.
+
+```typescript
+closeAllConnections(): void
+```
+
+**Example:**
+```typescript
+server.closeAllConnections();
+```
+
+## Events
+
+The HAIPServer extends EventEmitter and emits various events.
+
+### Server Events
+
+#### 'started'
+Emitted when the server starts successfully.
+
+```typescript
+server.on('started', () => {
+  console.log('Server started successfully');
+});
+```
+
+#### 'stopped'
+Emitted when the server stops.
+
+```typescript
+server.on('stopped', () => {
+  console.log('Server stopped');
+});
+```
+
+### Connection Events
+
+#### 'connect'
+Emitted when a new client connects.
+
+```typescript
+server.on('connect', (sessionId: string) => {
+  const session = server.getSession(sessionId);
+  console.log(`User ${session?.userId} connected with session ${sessionId}`);
+});
+```
+
+#### 'disconnect'
+Emitted when a client disconnects.
+
+```typescript
+server.on('disconnect', (sessionId: string) => {
+  const session = server.getSession(sessionId);
+  console.log(`User ${session?.userId} disconnected from session ${sessionId}`);
+});
+```
+
+#### 'handshake'
+Emitted when a client completes handshake.
+
+```typescript
+server.on('handshake', (sessionId: string, payload: HAIPHandshakePayload) => {
+  console.log(`Handshake completed for session ${sessionId}`);
+  console.log('HAIP version:', payload.haip_version);
+});
+```
+
+### Message Events
+
+#### 'textMessage'
+Emitted when a text message is received.
+
+```typescript
+server.on('textMessage', (sessionId: string, message: HAIPMessage) => {
+  console.log(`Text message from ${sessionId}:`, message.payload);
+});
+```
+
+#### 'audioChunk'
+Emitted when an audio chunk is received.
+
+```typescript
+server.on('audioChunk', (sessionId: string, message: HAIPMessage) => {
+  console.log(`Audio chunk from ${sessionId}:`, message.payload);
+});
+```
+
+#### 'binary'
+Emitted when binary data is received.
+
+```typescript
+server.on('binary', (sessionId: string, data: Buffer) => {
+  console.log(`Binary data from ${sessionId}:`, data.length, 'bytes');
+});
+```
+
+### Run Events
+
+#### 'runStarted'
+Emitted when a run starts.
+
+```typescript
+server.on('runStarted', (sessionId: string, run: HAIPRun) => {
+  console.log(`Run started: ${run.runId} by session ${sessionId}`);
+});
+```
+
+#### 'runFinished'
+Emitted when a run finishes.
+
+```typescript
+server.on('runFinished', (sessionId: string, run: HAIPRun) => {
+  console.log(`Run finished: ${run.runId} with status ${run.status}`);
+});
+```
+
+#### 'runCancelled'
+Emitted when a run is cancelled.
+
+```typescript
+server.on('runCancelled', (sessionId: string, run: HAIPRun) => {
+  console.log(`Run cancelled: ${run.runId} by session ${sessionId}`);
+});
+```
+
+### Tool Events
+
+#### 'toolCall'
+Emitted when a tool is called.
+
+```typescript
+server.on('toolCall', (sessionId: string, execution: HAIPToolExecution) => {
+  console.log(`Tool call: ${execution.toolName} by session ${sessionId}`);
+  console.log('Arguments:', execution.arguments);
+});
+```
+
+### Error Events
+
+#### 'error'
+Emitted when an error occurs.
+
+```typescript
+server.on('error', (error: Error) => {
+  console.error('Server error:', error);
+});
+```
+
+## HTTP Endpoints
+
+### Health Check
+
+**Endpoint:** `GET /health`
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "uptime": 12345,
+  "activeConnections": 5,
+  "totalConnections": 25
+}
+```
+
+### Statistics
+
+**Endpoint:** `GET /stats`
+
+**Response:**
+```json
+{
+  "totalConnections": 25,
+  "activeConnections": 5,
+  "totalMessages": 1250,
+  "messagesPerSecond": 2.5,
+  "averageLatency": 15,
+  "errorRate": 0.02,
+  "uptime": 12345
+}
+```
+
+## WebSocket Endpoints
+
+### WebSocket Connection
+
+**Endpoint:** `ws://localhost:8080/haip/websocket?token=<jwt-token>`
+
+**Parameters:**
+- `token` - JWT authentication token (required)
+
+**Example:**
+```javascript
+const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
+```
+
+## SSE Endpoints
+
+### Server-Sent Events
+
+**Endpoint:** `GET /haip/sse?token=<jwt-token>`
+
+**Parameters:**
+- `token` - JWT authentication token (required)
+
+**Example:**
+```javascript
+const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+const eventSource = new EventSource(`http://localhost:8080/haip/sse?token=${token}`);
+```
+
+## HTTP Streaming Endpoints
+
+### HTTP Streaming
+
+**Endpoint:** `POST /haip/stream`
+
+**Headers:**
+- `Authorization: Bearer <jwt-token>` (required)
+- `Content-Type: application/json`
+
+**Example:**
+```javascript
+const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+
+const response = await fetch('http://localhost:8080/haip/stream', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(handshakeMessage)
+});
+```
+
+## Types
+
+### HAIPSession
+
+```typescript
+interface HAIPSession {
+  id: string;
+  userId: string;
+  connected: boolean;
+  handshakeCompleted: boolean;
+  lastActivity: number;
+  credits: Map<HAIPChannel, number>;
+  byteCredits: Map<HAIPChannel, number>;
+  pausedChannels: Set<HAIPChannel>;
+  lastAck: string;
+  lastDeliveredSeq: string;
+  replayWindow: Map<string, HAIPMessage>;
+  activeRuns: Set<string>;
+  pendingMessages: Map<string, HAIPMessage>;
+  ws?: WebSocket;
+  sseResponse?: any;
+  httpResponse?: any;
+}
+```
+
+### HAIPServerStats
+
+```typescript
+interface HAIPServerStats {
+  totalConnections: number;
+  activeConnections: number;
+  totalMessages: number;
+  messagesPerSecond: number;
+  averageLatency: number;
+  errorRate: number;
+  uptime: number;
+}
+```
+
+### HAIPRun
+
+```typescript
+interface HAIPRun {
+  runId: string;
+  threadId?: string;
+  status: 'active' | 'finished' | 'cancelled' | 'error';
+  startTime: number;
+  endTime?: number;
+  metadata?: any;
+  summary?: any;
+  error?: any;
+}
+```
+
+### HAIPToolExecution
+
+```typescript
+interface HAIPToolExecution {
+  callId: string;
+  toolName: string;
+  arguments: any;
+  status: 'pending' | 'running' | 'completed' | 'cancelled' | 'error';
+  startTime: number;
+  endTime?: number;
+  result?: any;
+  progress?: number;
+  partial?: any;
+}
+```
+
+### HAIPToolDefinition
+
+```typescript
+interface HAIPToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: object; // JSON Schema
+  outputSchema: object; // JSON Schema
+  execute?: (params: any, sessionId?: string, callId?: string, server?: HAIPServer) => Promise<any>;
+}
+```
+
+## Error Codes
+
+### Authentication Errors
+
+- `INVALID_TOKEN` - JWT token is invalid or expired
+- `MISSING_TOKEN` - JWT token is required but not provided
+
+### Message Errors
+
+- `INVALID_MESSAGE` - Message format is invalid
+- `UNSUPPORTED_TYPE` - Message type is not supported
+
+### Tool Errors
+
+- `TOOL_NOT_FOUND` - Requested tool does not exist
+- `TOOL_EXECUTION_ERROR` - Tool execution failed
+
+### Flow Control Errors
+
+- `INSUFFICIENT_CREDITS` - Not enough credits for the channel
+- `CHANNEL_PAUSED` - Channel is paused
+
+### Run Errors
+
+- `MISSING_RUN_ID` - Run ID is required but not provided
+- `RUN_NOT_FOUND` - Run does not exist
+- `MAX_RUNS_EXCEEDED` - Maximum concurrent runs exceeded
+
+## Environment Variables
+
+### Required
+
+- `JWT_SECRET` - Secret key for JWT token signing
+
+### Optional
+
+- `PORT` - Server port (default: 8080)
+- `HOST` - Server host (default: 0.0.0.0)
+- `NODE_ENV` - Environment (development/production)
+- `JWT_EXPIRES_IN` - JWT expiration time (default: 24h)
+- `MAX_CONNECTIONS` - Maximum connections (default: 1000)
+- `HEARTBEAT_INTERVAL` - Heartbeat interval in ms (default: 30000)
+- `HEARTBEAT_TIMEOUT` - Heartbeat timeout in ms (default: 5000)
+- `ENABLE_CORS` - Enable CORS (default: true)
+- `ENABLE_COMPRESSION` - Enable compression (default: true)
+- `ENABLE_LOGGING` - Enable logging (default: true)
+
+### Flow Control
+
+- `FLOW_CONTROL_ENABLED` - Enable flow control (default: true)
+- `FLOW_CONTROL_INITIAL_CREDITS` - Initial credits (default: 1000)
+- `FLOW_CONTROL_MIN_CREDITS` - Minimum credits (default: 100)
+- `FLOW_CONTROL_MAX_CREDITS` - Maximum credits (default: 10000)
+- `FLOW_CONTROL_CREDIT_THRESHOLD` - Credit threshold (default: 200)
+- `FLOW_CONTROL_BACK_PRESSURE_THRESHOLD` - Back-pressure threshold (default: 0.8)
+- `FLOW_CONTROL_ADAPTIVE_ADJUSTMENT` - Adaptive adjustment (default: true)
+- `FLOW_CONTROL_INITIAL_CREDIT_MESSAGES` - Initial message credits (default: 1000)
+- `FLOW_CONTROL_INITIAL_CREDIT_BYTES` - Initial byte credits (default: 1048576)
+
+## Examples
+
+### Basic Server Setup
+
+```typescript
+import { HAIPServer } from './src/server';
+
+const server = new HAIPServer({
+  port: 8080,
+  host: '0.0.0.0',
+  jwtSecret: 'your-secret-key',
+  maxConnections: 1000,
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000
+  }
+});
+
+// Listen for events
+server.on('started', () => {
+  console.log('Server started');
+});
+
+server.on('connect', (sessionId) => {
+  console.log('Client connected:', sessionId);
+});
+
+server.on('disconnect', (sessionId) => {
+  console.log('Client disconnected:', sessionId);
+});
+
+// Start the server
+server.start();
+```
+
+### Custom Tool Implementation
+
+```typescript
+// Register a custom tool
+server.registerTool({
+  name: 'custom_calculator',
+  description: 'Advanced calculator with multiple operations',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      operation: {
+        type: 'string',
+        enum: ['add', 'subtract', 'multiply', 'divide', 'power']
+      },
+      numbers: {
+        type: 'array',
+        items: { type: 'number' },
+        minItems: 2
+      }
+    },
+    required: ['operation', 'numbers']
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      result: { type: 'number' },
+      operation: { type: 'string' }
+    }
+  },
+  execute: async (params, sessionId, callId, server) => {
+    const { operation, numbers } = params;
+    
+    // Send progress update
+    server.sendToolUpdate(sessionId, callId, 'RUNNING', 50);
+    
+    let result;
+    switch (operation) {
+      case 'add':
+        result = numbers.reduce((a, b) => a + b, 0);
+        break;
+      case 'subtract':
+        result = numbers.reduce((a, b) => a - b);
+        break;
+      case 'multiply':
+        result = numbers.reduce((a, b) => a * b, 1);
+        break;
+      case 'divide':
+        result = numbers.reduce((a, b) => a / b);
+        break;
+      case 'power':
+        result = Math.pow(numbers[0], numbers[1]);
+        break;
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
+    }
+    
+    return {
+      result,
+      operation
+    };
+  }
+});
+```
+
+### Monitoring and Statistics
+
+```typescript
+// Monitor server performance
+setInterval(() => {
+  const stats = server.getStats();
+  
+  console.log('=== Server Statistics ===');
+  console.log(`Active Connections: ${stats.activeConnections}`);
+  console.log(`Total Connections: ${stats.totalConnections}`);
+  console.log(`Messages/Second: ${stats.messagesPerSecond.toFixed(2)}`);
+  console.log(`Average Latency: ${stats.averageLatency}ms`);
+  console.log(`Error Rate: ${(stats.errorRate * 100).toFixed(2)}%`);
+  console.log(`Uptime: ${Math.floor(stats.uptime / 1000)}s`);
+  console.log('========================');
+}, 5000);
+
+// Monitor for high error rates
+server.on('error', (error) => {
+  const stats = server.getStats();
+  if (stats.errorRate > 0.05) {
+    console.error('High error rate detected:', stats.errorRate);
+  }
+});
+```
+
+## Next Steps
+
+- [Quick Start](/server/quickstart) - Get up and running quickly
+- [Configuration](/server/configuration) - Configure the server
+- [Tools](/server/tools) - Add custom tools
+- [Deployment](/server/deployment) - Deploy to production 

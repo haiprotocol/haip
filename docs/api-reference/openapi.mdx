@@ -1,0 +1,225 @@
+---
+title: "OpenAPI Specification"
+description: "Complete HAI Protocol API reference"
+---
+
+## Overview
+
+The HAI Protocol is fully specified using OpenAPI 3.1.0. This specification defines all endpoints, message schemas, and protocol components for implementing HAIP-compliant clients and servers.
+
+## Interactive Documentation
+
+You can explore the complete HAI Protocol specification using the interactive OpenAPI documentation below:
+
+<OpenApiSpec spec="openapi.json" />
+
+## Key Components
+
+### Transport Endpoints
+
+- **WebSocket**: `/haip/websocket` - Primary real-time communication
+- **Server-Sent Events**: `/haip/sse` - HTTP-based streaming
+- **HTTP Streaming**: `/haip/stream` - Chunked transfer encoding
+
+### Message Structure
+
+All HAIP messages follow a consistent envelope structure:
+
+```json
+{
+  "id": "uuid",
+  "session": "session-id",
+  "seq": "sequence-number",
+  "ts": "timestamp",
+  "channel": "USER|AGENT|SYSTEM|AUDIO_IN|AUDIO_OUT",
+  "type": "event-type",
+  "payload": {},
+  "bin_len": 0,
+  "bin_mime": "mime-type"
+}
+```
+
+### Event Types
+
+#### Core Events
+- `HAI` - Protocol handshake
+- `ERROR` - Error reporting
+- `FLOW_UPDATE` - Flow control updates
+
+#### Messaging Events
+- `TEXT_MESSAGE_START` - Text message beginning
+- `TEXT_MESSAGE_PART` - Text message continuation
+- `TEXT_MESSAGE_END` - Text message completion
+- `AUDIO_CHUNK` - Audio data transmission
+
+#### Tool Events
+- `TOOL_CALL` - Tool invocation
+- `TOOL_UPDATE` - Tool progress updates
+- `TOOL_DONE` - Tool completion
+- `TOOL_ERROR` - Tool error reporting
+- `TOOL_CANCELLED` - Tool cancellation
+
+#### Flow Control Events
+- `PAUSE_CHANNEL` - Channel pause
+- `RESUME_CHANNEL` - Channel resume
+
+### Authentication
+
+HAIP uses JWT Bearer token authentication with required claims:
+
+```json
+{
+  "sub": "user-id",
+  "iss": "issuer",
+  "aud": "audience",
+  "exp": "expiration",
+  "iat": "issued-at",
+  "haip_version": "1.1.2"
+}
+```
+
+### Binary Frames
+
+For audio, video, and file transmission, HAIP supports binary frames:
+
+1. **Envelope**: JSON message with `bin_len` and `bin_mime`
+2. **Binary Data**: Raw binary data following the envelope
+3. **Fragmentation**: Large files split into multiple frames
+
+### Flow Control
+
+Credit-based back-pressure management:
+
+- **Initial Credits**: Configurable per channel
+- **Credit Thresholds**: Automatic credit requests
+- **Back-Pressure Detection**: Automatic channel pausing
+- **Adaptive Adjustment**: Performance-based credit tuning
+
+## Implementation Examples
+
+### WebSocket Client
+
+```typescript
+const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket?token=jwt-token');
+
+ws.onopen = () => {
+  // Send handshake
+  ws.send(JSON.stringify({
+    id: crypto.randomUUID(),
+    session: sessionId,
+    seq: "1",
+    ts: Date.now().toString(),
+    channel: "SYSTEM",
+    type: "HAI",
+    payload: {
+      haip_version: "1.1.2",
+      accept_major: [1],
+      accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_END"]
+    }
+  }));
+};
+```
+
+### Server-Sent Events Client
+
+```typescript
+const eventSource = new EventSource('/haip/sse?token=jwt-token');
+
+eventSource.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  handleHAIPMessage(message);
+};
+```
+
+### HTTP Streaming Client
+
+```typescript
+const response = await fetch('/haip/stream?token=jwt-token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(handshakeMessage)
+});
+
+const reader = response.body.getReader();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  handleChunk(value);
+}
+```
+
+## Error Handling
+
+HAIP defines standard error codes and recovery strategies:
+
+- **1000**: Normal closure
+- **1001**: Going away
+- **1002**: Protocol error
+- **1003**: Unsupported data
+- **1006**: Abnormal closure
+- **1007**: Invalid frame payload
+- **1008**: Policy violation
+- **1009**: Message too big
+- **1011**: Internal error
+
+## Best Practices
+
+### Client Implementation
+
+1. **Connection Management**
+   - Implement automatic reconnection
+   - Handle connection timeouts gracefully
+   - Use exponential backoff for retries
+
+2. **Message Handling**
+   - Validate message structure
+   - Handle binary frames correctly
+   - Implement proper error recovery
+
+3. **Flow Control**
+   - Respect credit limits
+   - Implement back-pressure handling
+   - Monitor performance metrics
+
+### Server Implementation
+
+1. **Authentication**
+   - Validate JWT tokens
+   - Check required claims
+   - Implement proper error responses
+
+2. **Message Processing**
+   - Validate message schemas
+   - Handle binary data efficiently
+   - Implement proper flow control
+
+3. **Error Handling**
+   - Provide meaningful error messages
+   - Implement proper cleanup
+   - Log errors for debugging
+
+## Testing
+
+Use the provided OpenAPI specification to generate test cases and validate your implementation:
+
+```bash
+# Generate test cases
+openapi-generator generate -i openapi.json -g typescript-fetch
+
+# Validate against specification
+curl -X POST http://localhost:8080/haip/websocket \
+  -H "Authorization: Bearer your-jwt-token" \
+  -d '{"type":"HAI","payload":{"haip_version":"1.1.2"}}'
+```
+
+## Compliance
+
+To ensure HAI Protocol compliance:
+
+1. **Schema Validation**: Validate all messages against the OpenAPI schemas
+2. **Event Handling**: Implement all required event types
+3. **Flow Control**: Respect credit-based flow control
+4. **Error Handling**: Use standard error codes and messages
+5. **Authentication**: Implement JWT token validation
+
+The complete OpenAPI specification provides all the details needed to build fully compliant HAIP implementations. 

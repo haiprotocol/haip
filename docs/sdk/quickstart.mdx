@@ -1,0 +1,274 @@
+---
+title: 'Quick Start'
+description: 'Get up and running with the HAIP SDK in minutes'
+---
+
+
+
+Get started with the HAIP TypeScript SDK in just a few minutes.
+
+## Basic Setup
+
+Create a new project and install the SDK:
+
+```bash
+mkdir haip-example
+cd haip-example
+npm init -y
+npm install @haip/sdk
+```
+
+## Simple Connection
+
+Create your first HAIP client:
+
+```typescript
+import { createHAIPClient } from '@haip/sdk';
+
+// Create a client instance
+const client = createHAIPClient({
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token',
+  transport: 'websocket'
+});
+
+// Connect to the server
+await client.connect();
+console.log('Connected to HAIP server!');
+```
+
+## Send Your First Message
+
+```typescript
+// Start a new run
+const runId = await client.startRun('my-thread-123', {
+  metadata: { user: 'john', session: 'chat-1' }
+});
+
+// Send a text message
+const messageId = await client.sendTextMessage(
+  'USER',           // channel
+  'Hello, world!',  // text content
+  'john',           // author
+  runId             // run ID
+);
+
+console.log(`Message sent with ID: ${messageId}`);
+```
+
+## Listen for Responses
+
+```typescript
+// Listen for incoming messages
+client.on('message', (message) => {
+  console.log('Received message:', message);
+  
+  if (message.type === 'TEXT_MESSAGE_START') {
+    console.log('Agent response:', message.payload.text);
+  }
+});
+
+// Listen for connection events
+client.on('connect', () => {
+  console.log('Connected to server');
+});
+
+client.on('disconnect', (reason) => {
+  console.log('Disconnected:', reason);
+});
+```
+
+## Complete Example
+
+Here's a complete working example:
+
+```typescript
+import { createHAIPClient } from '@haip/sdk';
+
+async function main() {
+  // Create client
+  const client = createHAIPClient({
+    url: 'ws://localhost:8080',
+    token: 'your-jwt-token',
+    transport: 'websocket'
+  });
+
+  // Set up event handlers
+  client.on('connect', () => {
+    console.log('✅ Connected to HAIP server');
+  });
+
+  client.on('disconnect', (reason) => {
+    console.log('❌ Disconnected:', reason);
+  });
+
+  client.on('message', (message) => {
+    if (message.type === 'TEXT_MESSAGE_START') {
+      console.log('🤖 Agent:', message.payload.text);
+    }
+  });
+
+  client.on('error', (error) => {
+    console.error('💥 Error:', error);
+  });
+
+  try {
+    // Connect to server
+    await client.connect();
+
+    // Start a run
+    const runId = await client.startRun('quickstart-thread', {
+      metadata: { example: 'quickstart' }
+    });
+
+    // Send a message
+    const messageId = await client.sendTextMessage(
+      'USER',
+      'Hello! Can you help me with a question?',
+      'user',
+      runId
+    );
+
+    console.log('📤 Message sent:', messageId);
+
+    // Wait a bit for response
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Finish the run
+    await client.finishRun(runId, 'OK', 'Quick start completed');
+
+    // Disconnect
+    await client.disconnect();
+    console.log('👋 Disconnected');
+
+  } catch (error) {
+    console.error('Failed:', error);
+  }
+}
+
+main();
+```
+
+## Browser Example
+
+For browser environments:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HAIP SDK Browser Example</title>
+</head>
+<body>
+    <div id="messages"></div>
+    <input type="text" id="messageInput" placeholder="Type a message...">
+    <button onclick="sendMessage()">Send</button>
+
+    <script type="module">
+        import { createHAIPClient } from 'https://unpkg.com/haip-sdk/dist/haip-sdk.esm.js';
+
+        const client = createHAIPClient({
+            url: 'ws://localhost:8080',
+            token: 'your-jwt-token',
+            transport: 'websocket'
+        });
+
+        let currentRunId = null;
+
+        client.on('connect', () => {
+            console.log('Connected!');
+            startRun();
+        });
+
+        client.on('message', (message) => {
+            if (message.type === 'TEXT_MESSAGE_START') {
+                displayMessage('Agent', message.payload.text);
+            }
+        });
+
+        async function startRun() {
+            currentRunId = await client.startRun('browser-thread');
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value;
+            
+            if (text && currentRunId) {
+                displayMessage('You', text);
+                await client.sendTextMessage('USER', text, 'user', currentRunId);
+                input.value = '';
+            }
+        }
+
+        function displayMessage(sender, text) {
+            const messages = document.getElementById('messages');
+            messages.innerHTML += `<p><strong>${sender}:</strong> ${text}</p>`;
+        }
+
+        // Connect
+        client.connect();
+    </script>
+</body>
+</html>
+```
+
+## Error Handling
+
+Add proper error handling to your application:
+
+```typescript
+const client = createHAIPClient({
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token',
+  transport: 'websocket',
+  // Error handling options
+  maxReconnectAttempts: 5,
+  reconnectDelay: 1000,
+  heartbeatInterval: 30000
+});
+
+client.on('error', (error) => {
+  console.error('Client error:', error);
+  
+  // Handle specific error types
+  if (error.code === 'AUTHENTICATION_FAILED') {
+    console.log('Please check your authentication token');
+  } else if (error.code === 'CONNECTION_FAILED') {
+    console.log('Connection failed, attempting to reconnect...');
+  }
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Client API"
+    href="/sdk/client"
+    icon="code"
+  >
+    Explore the complete client interface and methods.
+  </Card>
+  <Card
+    title="Examples"
+    href="/sdk/examples"
+    icon="book-open"
+  >
+    Browse more comprehensive examples and use cases.
+  </Card>
+  <Card
+    title="Authentication"
+    href="/sdk/authentication"
+    icon="key"
+  >
+    Learn about authentication and security.
+  </Card>
+  <Card
+    title="Transports"
+    href="/sdk/transports"
+    icon="wifi"
+  >
+    Understand different transport options and configurations.
+  </Card>
+</CardGroup> 

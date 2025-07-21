@@ -1,0 +1,568 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Human-Agent Interaction Protocol (HAIP)",
+    "description": "An open standard designed to streamline real-time, multi-modal exchanges between user-facing web, mobile, and voice applications and AI agents. HAIP focuses on the human-agent layer, acting as a universal translator between frontend interfaces and intelligent backends, while MCP governs tool execution. HAIP is transport-agnostic: it runs over WebSockets, Server-Sent Events (SSE), HTTP streaming, or any message bus.",
+    "version": "1.1.2",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "wss://api.haiprotocol.com",
+      "description": "WebSocket endpoint for HAI Protocol"
+    },
+    {
+      "url": "https://api.haiprotocol.com",
+      "description": "HTTP/SSE endpoint for HAI Protocol"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/haip/connect": {
+      "get": {
+        "summary": "Establish HAIP connection via Server-Sent Events",
+        "description": "Initiates a HAIP connection using Server-Sent Events for streaming communication",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Bearer JWT token for authentication",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE connection established",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/HAIPMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/haip/websocket": {
+      "get": {
+        "summary": "Establish HAIP connection via WebSocket",
+        "description": "Initiates a HAIP connection using WebSocket for bidirectional streaming communication",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Bearer JWT token for authentication",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket connection established",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HAIPMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HAIPMessage": {
+        "type": "object",
+        "description": "Base HAIP message envelope",
+        "required": ["id", "session", "seq", "ts", "channel", "type", "payload"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "session": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "seq": {
+            "$ref": "#/components/schemas/UInt64String"
+          },
+          "ack": {
+            "$ref": "#/components/schemas/UInt64String"
+          },
+          "ts": {
+            "$ref": "#/components/schemas/UInt64String"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EventType"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "pv": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "description": "Protocol MAJOR version that generated this message"
+          },
+          "crit": {
+            "type": "boolean",
+            "description": "If true, an unknown field MUST trigger UNSUPPORTED_TYPE"
+          },
+          "bin_len": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Length of binary data in bytes"
+          },
+          "bin_mime": {
+            "type": "string",
+            "description": "MIME type of binary data"
+          },
+          "run_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "thread_id": {
+            "type": "string",
+            "maxLength": 128
+          }
+        }
+      },
+      "UUID": {
+        "type": "string",
+        "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-5][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}$"
+      },
+      "UInt64String": {
+        "type": "string",
+        "pattern": "^[0-9]{1,20}$"
+      },
+      "Channel": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_\\-]{1,128}$"
+      },
+      "EventType": {
+        "type": "string",
+        "enum": [
+          "HAI",
+          "RUN_STARTED",
+          "RUN_FINISHED",
+          "RUN_CANCEL",
+          "RUN_ERROR",
+          "PING",
+          "PONG",
+          "REPLAY_REQUEST",
+          "TEXT_MESSAGE_START",
+          "TEXT_MESSAGE_PART",
+          "TEXT_MESSAGE_END",
+          "AUDIO_CHUNK",
+          "TOOL_CALL",
+          "TOOL_UPDATE",
+          "TOOL_DONE",
+          "TOOL_CANCEL",
+          "TOOL_LIST",
+          "TOOL_SCHEMA",
+          "ERROR",
+          "FLOW_UPDATE",
+          "PAUSE_CHANNEL",
+          "RESUME_CHANNEL"
+        ]
+      },
+      "HAIHandshake": {
+        "type": "object",
+        "description": "HAIP handshake event",
+        "required": ["haip_version", "accept_major", "accept_events"],
+        "properties": {
+          "haip_version": {
+            "type": "string",
+            "description": "Highest version the sender implements"
+          },
+          "accept_major": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "List of MAJOR versions it can parse"
+          },
+          "accept_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventType"
+            },
+            "description": "Explicit whitelist of event types"
+          },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "binary_frames": {
+                "type": "boolean",
+                "description": "Advertises two-frame binary support"
+              },
+              "flow_control": {
+                "type": "object",
+                "properties": {
+                  "initial_credit_messages": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "initial_credit_bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              "max_concurrent_runs": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "last_rx_seq": {
+            "$ref": "#/components/schemas/UInt64String"
+          }
+        }
+      },
+      "RunStarted": {
+        "type": "object",
+        "description": "Begin a new run",
+        "additionalProperties": true
+      },
+      "RunFinished": {
+        "type": "object",
+        "description": "End a run",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["OK", "CANCELLED", "ERROR"]
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "RunCancel": {
+        "type": "object",
+        "description": "Cancel a run",
+        "required": ["run_id"],
+        "properties": {
+          "run_id": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "RunError": {
+        "$ref": "#/components/schemas/Error"
+      },
+      "Ping": {
+        "type": "object",
+        "description": "Ping event for liveness check",
+        "properties": {
+          "nonce": {
+            "type": "string"
+          }
+        }
+      },
+      "Pong": {
+        "$ref": "#/components/schemas/Ping"
+      },
+      "ReplayRequest": {
+        "type": "object",
+        "description": "Request replay of missing frames",
+        "required": ["from_seq"],
+        "properties": {
+          "from_seq": {
+            "$ref": "#/components/schemas/UInt64String"
+          },
+          "to_seq": {
+            "$ref": "#/components/schemas/UInt64String"
+          }
+        }
+      },
+      "TextMessageStart": {
+        "type": "object",
+        "description": "Start streaming text message",
+        "required": ["message_id"],
+        "properties": {
+          "message_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "author": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "TextMessagePart": {
+        "type": "object",
+        "description": "Text message chunk",
+        "required": ["message_id", "text"],
+        "properties": {
+          "message_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "TextMessageEnd": {
+        "type": "object",
+        "description": "End text message",
+        "required": ["message_id"],
+        "properties": {
+          "message_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/UInt64String"
+          }
+        }
+      },
+      "AudioChunk": {
+        "type": "object",
+        "description": "Audio media chunk",
+        "required": ["message_id", "mime"],
+        "properties": {
+          "message_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string",
+            "description": "Base64-encoded audio data"
+          },
+          "duration_ms": {
+            "$ref": "#/components/schemas/UInt64String"
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "description": "Invoke a tool",
+        "required": ["call_id", "tool"],
+        "properties": {
+          "call_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ToolUpdate": {
+        "type": "object",
+        "description": "Tool progress update",
+        "required": ["call_id", "status"],
+        "properties": {
+          "call_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["QUEUED", "RUNNING", "CANCELLING"]
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "partial": {
+            "type": "object"
+          }
+        }
+      },
+      "ToolDone": {
+        "type": "object",
+        "description": "Tool completion",
+        "required": ["call_id"],
+        "properties": {
+          "call_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["OK", "CANCELLED", "ERROR"],
+            "default": "OK"
+          },
+          "result": {
+            "type": "object"
+          }
+        }
+      },
+      "ToolCancel": {
+        "type": "object",
+        "description": "Cancel a tool call",
+        "required": ["call_id"],
+        "properties": {
+          "call_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ToolList": {
+        "type": "object",
+        "description": "Advertise available tools",
+        "required": ["tools"],
+        "properties": {
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ToolSchema": {
+        "type": "object",
+        "description": "Tool schema definition",
+        "required": ["tool", "schema"],
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "object"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "Protocol or runtime error",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "PROTOCOL_VIOLATION",
+              "SEQ_VIOLATION",
+              "FLOW_CONTROL_VIOLATION",
+              "VERSION_INCOMPATIBLE",
+              "RUN_LIMIT_EXCEEDED",
+              "REPLAY_TOO_OLD",
+              "UNSUPPORTED_TYPE",
+              "RESUME_FAILED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "related_id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "detail": {
+            "type": "object"
+          }
+        }
+      },
+      "FlowUpdate": {
+        "type": "object",
+        "description": "Grant flow control credit",
+        "required": ["channel"],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "add_messages": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "add_bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "PauseChannel": {
+        "type": "object",
+        "description": "Pause a channel",
+        "required": ["channel"],
+        "properties": {
+          "channel": {
+            "type": "string"
+          }
+        }
+      },
+      "ResumeChannel": {
+        "$ref": "#/components/schemas/PauseChannel"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer JWT token with exp and iat claims"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Connection",
+      "description": "HAIP connection management"
+    },
+    {
+      "name": "Messaging",
+      "description": "Text and audio message handling"
+    },
+    {
+      "name": "Tools",
+      "description": "Tool invocation and management"
+    },
+    {
+      "name": "Flow Control",
+      "description": "Flow control and back-pressure management"
+    }
+  ]
+}

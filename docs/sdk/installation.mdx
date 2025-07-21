@@ -1,0 +1,124 @@
+---
+title: "Installation"
+description: "Install and set up the HAIP TypeScript SDK"
+---
+
+## Installation
+
+The HAIP SDK is available as a TypeScript package with comprehensive type definitions and extensive test coverage.
+
+### NPM Package
+
+<Note>
+  **Package Status**: The HAIP SDK package is now available on npm and ready for production use.
+</Note>
+
+[![npm version](https://badge.fury.io/js/%40haip%2Fsdk.svg)](https://badge.fury.io/js/%40haip%2Fsdk)
+[![npm downloads](https://img.shields.io/npm/dm/@haip/sdk)](https://www.npmjs.com/package/@haip/sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+```bash
+# Install from npm
+npm install @haip/sdk
+```
+
+### TypeScript Support
+
+The SDK is written in TypeScript and includes comprehensive type definitions:
+
+```typescript
+import { createHAIPClient, HAIPConnectionConfig } from 'haip-sdk';
+
+const config: HAIPConnectionConfig = {
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token'
+};
+
+const client = createHAIPClient(config);
+```
+
+### Browser Usage
+
+<Note>
+  **Browser Distribution**: UMD/ESM builds are planned but not yet available. 
+  For browser usage, you'll need to bundle the SDK with your application.
+</Note>
+
+For browser applications, you can use a bundler like Webpack, Rollup, or Vite:
+
+```bash
+# Install with bundler
+npm install @haip/sdk
+```
+
+Then import in your browser code:
+
+```typescript
+import { createHAIPClient } from 'haip-sdk';
+```
+
+### Development Setup
+
+<Steps>
+  <Step title="Clone Repository">
+    ```bash
+    git clone https://github.com/haiprotocol/haip-sdk-typescript.git
+    cd haip-sdk-typescript
+    ```
+  </Step>
+  <Step title="Install Dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+  <Step title="Build SDK">
+    ```bash
+    npm run build
+    ```
+  </Step>
+  <Step title="Run Tests">
+    ```bash
+    npm test
+    npm run test:coverage
+    ```
+  </Step>
+</Steps>
+
+## Requirements
+
+<CardGroup cols={3}>
+  <Card title="Node.js" icon="code">
+    Version 20.0.0 or higher<br/>
+    Windows, macOS, Linux
+  </Card>
+  <Card title="Browser Support" icon="globe">
+    Chrome 88+, Firefox 85+<br/>
+    Safari 14+, Edge 88+
+  </Card>
+  <Card title="Dependencies" icon="box">
+    ws, uuid, TypeScript 5.2.2+
+  </Card>
+</CardGroup>
+
+## Implementation Status
+
+<CardGroup cols={2}>
+  <Card title="Core SDK" icon="check">
+    Complete TypeScript implementation with full protocol support
+  </Card>
+  <Card title="Type Definitions" icon="check">
+    Comprehensive TypeScript types for all protocol features
+  </Card>
+  <Card title="Test Coverage" icon="check">
+    85% test coverage with comprehensive test suite
+  </Card>
+  <Card title="NPM Package" icon="check">
+    Package published and available on npm
+  </Card>
+  <Card title="Browser Builds" icon="clock">
+    UMD/ESM builds planned
+  </Card>
+  <Card title="Documentation" icon="check">
+    Comprehensive documentation with examples
+  </Card>
+</CardGroup> 

@@ -1,0 +1,182 @@
+---
+title: "Quickstart"
+description: "Get started with HAIP in minutes"
+---
+
+## Get started in three steps
+
+Implement HAIP in your application with this quick guide.
+
+### 📦 **Install Packages**
+
+```bash
+# Install SDK
+npm install @haip/sdk
+
+# Install CLI (optional)
+npm install -g @haip/cli
+
+# Install Server (optional)
+npm install @haip/server
+```
+
+### Step 1: Choose your transport
+
+<AccordionGroup>
+  <Accordion title="WebSocket (Recommended)" icon="plug">
+    For bidirectional real-time communication, use WebSockets:
+
+    ```javascript
+    const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket?token=YOUR_JWT_TOKEN');
+    
+    ws.onopen = () => {
+      // Send HAI handshake
+      ws.send(JSON.stringify({
+        id: generateUUID(),
+        session: generateUUID(),
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          haip_version: "1.1.2",
+          accept_major: [1],
+          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"]
+        }
+      }));
+    };
+    ```
+  </Accordion>
+  <Accordion title="Server-Sent Events" icon="radio">
+    For one-way streaming from server to client:
+
+    ```javascript
+    const eventSource = new EventSource('/haip/connect?token=YOUR_JWT_TOKEN');
+    
+    eventSource.onmessage = (event) => {
+      const haipMessage = JSON.parse(event.data);
+      console.log('Received:', haipMessage);
+    };
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Step 2: Send your first message
+
+<AccordionGroup>
+  <Accordion title="Text Message" icon="message">
+    Send a text message to the agent:
+
+    ```javascript
+    const messageId = generateUUID();
+    
+    // Start message
+    ws.send(JSON.stringify({
+      id: generateUUID(),
+      session: sessionId,
+      seq: "2",
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "TEXT_MESSAGE_START",
+      payload: {
+        message_id: messageId,
+        author: "USER",
+        text: "Hello, agent!"
+      }
+    }));
+    
+    // End message
+    ws.send(JSON.stringify({
+      id: generateUUID(),
+      session: sessionId,
+      seq: "3",
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "TEXT_MESSAGE_END",
+      payload: {
+        message_id: messageId
+      }
+    }));
+    ```
+  </Accordion>
+  <Accordion title="Audio Message" icon="microphone">
+    Send audio data in chunks:
+
+    ```javascript
+    const audioChunk = {
+      id: generateUUID(),
+      session: sessionId,
+      seq: "4",
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "AUDIO_CHUNK",
+      bin_len: audioData.length,
+      bin_mime: "audio/opus",
+      payload: {
+        message_id: messageId,
+        mime: "audio/opus",
+        duration_ms: "120"
+      }
+    };
+    
+    // Send envelope first
+    ws.send(JSON.stringify(audioChunk));
+    // Send binary data in second frame
+    ws.send(audioData);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Step 3: Handle responses
+
+<Accordion title="Process agent responses" icon="reply">
+  Listen for agent responses and handle different event types:
+
+  ```javascript
+  ws.onmessage = (event) => {
+    const haipMessage = JSON.parse(event.data);
+    
+    switch (haipMessage.type) {
+      case 'TEXT_MESSAGE_START':
+        console.log('Agent started responding');
+        break;
+        
+      case 'TEXT_MESSAGE_PART':
+        // Append text chunk to UI
+        appendToChat(haipMessage.payload.text);
+        break;
+        
+      case 'TEXT_MESSAGE_END':
+        console.log('Agent finished responding');
+        break;
+        
+      case 'TOOL_CALL':
+        console.log('Agent is calling tool:', haipMessage.payload.tool);
+        break;
+        
+      case 'ERROR':
+        console.error('HAIP Error:', haipMessage.payload.message);
+        break;
+    }
+  };
+  ```
+</Accordion>
+
+## Next steps
+
+Now that you have a basic HAIP implementation, explore these advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="shield" href="/essentials/authentication">
+    Secure your connections with JWT tokens and proper validation.
+  </Card>
+  <Card title="Tool Integration" icon="wrench" href="/essentials/tools">
+    Enable agents to call external tools and APIs.
+  </Card>
+  <Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
+    Manage back-pressure and prevent system overload.
+  </Card>
+  <Card title="Error Handling" icon="exclamation" href="/essentials/error-handling">
+    Implement robust error handling and recovery.
+  </Card>
+</CardGroup>

@@ -1,0 +1,586 @@
+---
+title: "Monitoring"
+description: "Monitor and observe the HAIP Server performance and health"
+---
+
+The HAIP Server provides comprehensive monitoring capabilities to track performance, health, and usage metrics in real-time.
+
+<CardGroup cols={2}>
+  <Card title="Health Checks" icon="heart">
+    Built-in health check endpoints
+  </Card>
+  <Card title="Real-time Stats" icon="chart-line">
+    Live performance metrics and statistics
+  </Card>
+  <Card title="Event Logging" icon="file">
+    Comprehensive event logging and debugging
+  </Card>
+  <Card title="Performance Metrics" icon="chart-line">
+    Latency, throughput, and error rate tracking
+  </Card>
+</CardGroup>
+
+## Health Check Endpoints
+
+### Basic Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "uptime": 12345,
+  "activeConnections": 5,
+  "totalConnections": 25
+}
+```
+
+### Detailed Statistics
+
+```bash
+curl http://localhost:8080/stats
+```
+
+**Response:**
+```json
+{
+  "totalConnections": 25,
+  "activeConnections": 5,
+  "totalMessages": 1250,
+  "messagesPerSecond": 2.5,
+  "averageLatency": 15,
+  "errorRate": 0.02,
+  "uptime": 12345,
+  "memoryUsage": {
+    "rss": 52428800,
+    "heapUsed": 20971520,
+    "heapTotal": 33554432
+  },
+  "toolExecutions": {
+    "total": 150,
+    "successful": 145,
+    "failed": 5
+  }
+}
+```
+
+## Real-time Monitoring
+
+### Event-Based Monitoring
+
+```typescript
+// Listen for server events
+server.on('started', () => {
+  console.log('✅ Server started successfully');
+});
+
+server.on('stopped', () => {
+  console.log('🛑 Server stopped');
+});
+
+server.on('connect', (sessionId) => {
+  const session = server.getSession(sessionId);
+  console.log(`🔗 User ${session?.userId} connected (${sessionId})`);
+});
+
+server.on('disconnect', (sessionId) => {
+  const session = server.getSession(sessionId);
+  console.log(`🔌 User ${session?.userId} disconnected (${sessionId})`);
+});
+
+server.on('handshake', (sessionId, payload) => {
+  console.log(`🤝 Handshake completed for session ${sessionId}`);
+});
+
+server.on('toolCall', (sessionId, execution) => {
+  console.log(`🔧 Tool call: ${execution.toolName} by session ${sessionId}`);
+});
+
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+});
+```
+
+### Performance Monitoring
+
+```typescript
+// Monitor performance metrics
+setInterval(() => {
+  const stats = server.getStats();
+  
+  console.log('📊 Performance Metrics:');
+  console.log(`  - Active Connections: ${stats.activeConnections}`);
+  console.log(`  - Messages/Second: ${stats.messagesPerSecond}`);
+  console.log(`  - Average Latency: ${stats.averageLatency}ms`);
+  console.log(`  - Error Rate: ${(stats.errorRate * 100).toFixed(2)}%`);
+  console.log(`  - Uptime: ${Math.floor(stats.uptime / 1000)}s`);
+}, 5000);
+```
+
+## Logging Configuration
+
+### Structured Logging
+
+```typescript
+import winston from 'winston';
+
+// Configure structured logging
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'haip-server' },
+  transports: [
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' })
+  ]
+});
+
+// Add console transport for development
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+// Use logger in server
+const server = new HAIPServer({
+  logger: logger
+});
+```
+
+### Request Logging
+
+```typescript
+// Morgan middleware for HTTP request logging
+import morgan from 'morgan';
+
+// Custom morgan format
+morgan.token('haip-session', (req) => {
+  return req.headers['x-haip-session'] || 'unknown';
+});
+
+const logFormat = ':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :haip-session';
+
+app.use(morgan(logFormat));
+```
+
+### WebSocket Logging
+
+```typescript
+// Log WebSocket events
+server.on('connect', (sessionId) => {
+  logger.info('WebSocket connected', {
+    sessionId,
+    timestamp: new Date().toISOString()
+  });
+});
+
+server.on('disconnect', (sessionId) => {
+  logger.info('WebSocket disconnected', {
+    sessionId,
+    timestamp: new Date().toISOString()
+  });
+});
+
+server.on('error', (error) => {
+  logger.error('WebSocket error', {
+    error: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString()
+  });
+});
+```
+
+## Metrics Collection
+
+### Custom Metrics
+
+```typescript
+class MetricsCollector {
+  private metrics = {
+    connections: 0,
+    messages: 0,
+    errors: 0,
+    toolExecutions: 0,
+    averageLatency: 0
+  };
+
+  incrementConnections() {
+    this.metrics.connections++;
+  }
+
+  incrementMessages() {
+    this.metrics.messages++;
+  }
+
+  incrementErrors() {
+    this.metrics.errors++;
+  }
+
+  recordLatency(latency: number) {
+    this.metrics.averageLatency = 
+      (this.metrics.averageLatency + latency) / 2;
+  }
+
+  getMetrics() {
+    return { ...this.metrics };
+  }
+}
+
+const metrics = new MetricsCollector();
+
+// Use metrics in server
+server.on('connect', () => {
+  metrics.incrementConnections();
+});
+
+server.on('message', () => {
+  metrics.incrementMessages();
+});
+```
+
+### Prometheus Metrics
+
+```typescript
+import prometheus from 'prom-client';
+
+// Define metrics
+const connectionsGauge = new prometheus.Gauge({
+  name: 'haip_connections_total',
+  help: 'Total number of active connections'
+});
+
+const messagesCounter = new prometheus.Counter({
+  name: 'haip_messages_total',
+  help: 'Total number of messages processed'
+});
+
+const latencyHistogram = new prometheus.Histogram({
+  name: 'haip_message_latency_seconds',
+  help: 'Message processing latency in seconds',
+  buckets: [0.1, 0.5, 1, 2, 5]
+});
+
+// Expose metrics endpoint
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', prometheus.register.contentType);
+  res.end(await prometheus.register.metrics());
+});
+
+// Update metrics
+server.on('connect', () => {
+  connectionsGauge.inc();
+});
+
+server.on('disconnect', () => {
+  connectionsGauge.dec();
+});
+
+server.on('message', () => {
+  messagesCounter.inc();
+});
+```
+
+## Alerting
+
+### Health Check Alerts
+
+```typescript
+class HealthMonitor {
+  private checkInterval: NodeJS.Timeout;
+  private alertThresholds = {
+    errorRate: 0.05, // 5%
+    latency: 1000, // 1 second
+    memoryUsage: 0.8 // 80%
+  };
+
+  start() {
+    this.checkInterval = setInterval(() => {
+      this.checkHealth();
+    }, 30000); // Check every 30 seconds
+  }
+
+  private checkHealth() {
+    const stats = server.getStats();
+    const memoryUsage = process.memoryUsage();
+
+    // Check error rate
+    if (stats.errorRate > this.alertThresholds.errorRate) {
+      this.sendAlert('HIGH_ERROR_RATE', {
+        errorRate: stats.errorRate,
+        threshold: this.alertThresholds.errorRate
+      });
+    }
+
+    // Check latency
+    if (stats.averageLatency > this.alertThresholds.latency) {
+      this.sendAlert('HIGH_LATENCY', {
+        latency: stats.averageLatency,
+        threshold: this.alertThresholds.latency
+      });
+    }
+
+    // Check memory usage
+    const memoryRatio = memoryUsage.heapUsed / memoryUsage.heapTotal;
+    if (memoryRatio > this.alertThresholds.memoryUsage) {
+      this.sendAlert('HIGH_MEMORY_USAGE', {
+        memoryUsage: memoryRatio,
+        threshold: this.alertThresholds.memoryUsage
+      });
+    }
+  }
+
+  private sendAlert(type: string, data: any) {
+    console.error(`🚨 ALERT: ${type}`, data);
+    // Send to monitoring service (e.g., PagerDuty, Slack)
+  }
+
+  stop() {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+    }
+  }
+}
+
+const healthMonitor = new HealthMonitor();
+healthMonitor.start();
+```
+
+### Connection Alerts
+
+```typescript
+// Monitor connection limits
+server.on('connect', (sessionId) => {
+  const stats = server.getStats();
+  const connectionLimit = 1000;
+  
+  if (stats.activeConnections > connectionLimit * 0.8) {
+    console.warn(`⚠️ High connection count: ${stats.activeConnections}/${connectionLimit}`);
+  }
+  
+  if (stats.activeConnections >= connectionLimit) {
+    console.error(`🚨 Connection limit reached: ${stats.activeConnections}`);
+  }
+});
+```
+
+## Dashboard Integration
+
+### Grafana Dashboard
+
+```json
+{
+  "dashboard": {
+    "title": "HAIP Server Metrics",
+    "panels": [
+      {
+        "title": "Active Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "haip_connections_total",
+            "legendFormat": "Connections"
+          }
+        ]
+      },
+      {
+        "title": "Message Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(haip_messages_total[5m])",
+            "legendFormat": "Messages/sec"
+          }
+        ]
+      },
+      {
+        "title": "Message Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(haip_message_latency_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Custom Dashboard
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HAIP Server Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="dashboard">
+        <h1>HAIP Server Monitoring</h1>
+        
+        <div class="metric">
+            <h3>Active Connections</h3>
+            <div id="connections">-</div>
+        </div>
+        
+        <div class="metric">
+            <h3>Messages/Second</h3>
+            <div id="messageRate">-</div>
+        </div>
+        
+        <div class="metric">
+            <h3>Error Rate</h3>
+            <div id="errorRate">-</div>
+        </div>
+        
+        <canvas id="latencyChart"></canvas>
+    </div>
+
+    <script>
+        // Update metrics every 5 seconds
+        setInterval(async () => {
+            const response = await fetch('/stats');
+            const stats = await response.json();
+            
+            document.getElementById('connections').textContent = stats.activeConnections;
+            document.getElementById('messageRate').textContent = stats.messagesPerSecond.toFixed(2);
+            document.getElementById('errorRate').textContent = (stats.errorRate * 100).toFixed(2) + '%';
+        }, 5000);
+    </script>
+</body>
+</html>
+```
+
+## Performance Profiling
+
+### Memory Profiling
+
+```typescript
+import { performance } from 'perf_hooks';
+
+class PerformanceProfiler {
+  private startTime: number;
+  private measurements: number[] = [];
+
+  start() {
+    this.startTime = performance.now();
+  }
+
+  end() {
+    const duration = performance.now() - this.startTime;
+    this.measurements.push(duration);
+    
+    // Keep only last 100 measurements
+    if (this.measurements.length > 100) {
+      this.measurements.shift();
+    }
+  }
+
+  getAverageLatency() {
+    if (this.measurements.length === 0) return 0;
+    return this.measurements.reduce((a, b) => a + b, 0) / this.measurements.length;
+  }
+
+  getPercentile(percentile: number) {
+    if (this.measurements.length === 0) return 0;
+    
+    const sorted = [...this.measurements].sort((a, b) => a - b);
+    const index = Math.floor((percentile / 100) * sorted.length);
+    return sorted[index];
+  }
+}
+
+const profiler = new PerformanceProfiler();
+
+// Profile message handling
+server.on('message', () => {
+  profiler.start();
+});
+
+server.on('messageProcessed', () => {
+  profiler.end();
+  
+  console.log(`📊 Performance: Avg=${profiler.getAverageLatency().toFixed(2)}ms, P95=${profiler.getPercentile(95).toFixed(2)}ms`);
+});
+```
+
+### CPU Profiling
+
+```typescript
+import { profiler } from 'v8';
+
+// Start CPU profiling
+profiler.startProfiling('haip-server', true);
+
+// Stop profiling after 30 seconds
+setTimeout(() => {
+  const profile = profiler.stopProfiling('haip-server');
+  
+  // Save profile to file
+  const fs = require('fs');
+  fs.writeFileSync('cpu-profile.cpuprofile', JSON.stringify(profile));
+  
+  console.log('📊 CPU profile saved to cpu-profile.cpuprofile');
+}, 30000);
+```
+
+## Troubleshooting
+
+### Common Issues
+
+```typescript
+// Monitor for common issues
+class Troubleshooter {
+  checkCommonIssues() {
+    const stats = server.getStats();
+    
+    // High error rate
+    if (stats.errorRate > 0.1) {
+      console.warn('🔍 High error rate detected. Check server logs.');
+    }
+    
+    // Memory leaks
+    const memoryUsage = process.memoryUsage();
+    if (memoryUsage.heapUsed > 100 * 1024 * 1024) { // 100MB
+      console.warn('🔍 High memory usage detected. Check for memory leaks.');
+    }
+    
+    // Connection issues
+    if (stats.activeConnections === 0 && stats.totalConnections > 0) {
+      console.warn('🔍 All connections dropped. Check network connectivity.');
+    }
+  }
+}
+```
+
+### Debug Mode
+
+```typescript
+// Enable debug mode
+const server = new HAIPServer({
+  enableLogging: true,
+  debug: true
+});
+
+// Debug specific events
+server.on('message', (sessionId, message) => {
+  if (process.env.DEBUG) {
+    console.log(`🔍 Message from ${sessionId}:`, message);
+  }
+});
+```
+
+## Next Steps
+
+- [Deployment](/server/deployment) - Deploy with monitoring configuration
+- [API Reference](/server/api-reference) - Complete API documentation 

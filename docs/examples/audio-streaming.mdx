@@ -1,0 +1,478 @@
+---
+title: "Audio Streaming Example"
+description: "Real-time audio streaming with HAIP binary frames"
+---
+
+## Overview
+
+This example demonstrates real-time audio streaming using HAI Protocol with binary frames for efficient audio transmission.
+
+## Audio Streaming Client
+
+```typescript
+class HAIPAudioClient {
+  private ws: WebSocket | null = null;
+  private sessionId: string;
+  private seqCounter = 1;
+  private audioContext: AudioContext;
+  private mediaStream: MediaStream | null = null;
+  private isRecording = false;
+  
+  constructor(private url: string, private token: string) {
+    this.sessionId = this.generateUUID();
+    this.audioContext = new AudioContext();
+  }
+  
+  async connect(): Promise<void> {
+    const wsUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
+    this.ws = new WebSocket(wsUrl);
+    
+    this.ws.onopen = () => {
+      console.log('Connected to HAIP audio stream');
+      this.sendHandshake();
+    };
+    
+    this.ws.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        this.handleAudioData(event.data);
+      } else {
+        const message = JSON.parse(event.data);
+        this.handleMessage(message);
+      }
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+    
+    this.ws.onclose = () => {
+      console.log('Disconnected from HAIP audio stream');
+      this.stopRecording();
+    };
+  }
+  
+  private sendHandshake() {
+    const handshake = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "AUDIO_CHUNK", "TEXT_MESSAGE_START", 
+          "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"
+        ],
+        capabilities: {
+          binary_frames: true
+        }
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(handshake));
+  }
+  
+  async startRecording(): Promise<void> {
+    if (this.isRecording) return;
+    
+    try {
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 48000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+      
+      this.isRecording = true;
+      this.setupAudioProcessing();
+      
+      console.log('Audio recording started');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      throw error;
+    }
+  }
+  
+  private setupAudioProcessing() {
+    if (!this.mediaStream) return;
+    
+    const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+    const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+    
+    processor.onaudioprocess = (event) => {
+      if (!this.isRecording) return;
+      
+      const audioData = event.inputBuffer.getChannelData(0);
+      const opusData = this.convertToOpus(audioData);
+      
+      this.sendAudioChunk(opusData);
+    };
+    
+    source.connect(processor);
+    processor.connect(this.audioContext.destination);
+  }
+  
+  private convertToOpus(audioData: Float32Array): ArrayBuffer {
+    // Convert Float32Array to Opus format
+    // This is a simplified example - use a proper Opus encoder in production
+    const buffer = new ArrayBuffer(audioData.length * 2);
+    const view = new DataView(buffer);
+    
+    for (let i = 0; i < audioData.length; i++) {
+      view.setInt16(i * 2, audioData[i] * 32767, true);
+    }
+    
+    return buffer;
+  }
+  
+  private sendAudioChunk(audioData: ArrayBuffer) {
+    const messageId = this.generateUUID();
+    
+    // Send envelope
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "AUDIO_CHUNK",
+      bin_len: audioData.byteLength,
+      bin_mime: "audio/opus",
+      payload: {
+        message_id: messageId,
+        mime: "audio/opus",
+        duration_ms: "120",
+        sample_rate: "48000",
+        channels: "1"
+      }
+    };
+    
+    this.ws!.send(JSON.stringify(envelope));
+    
+    // Send binary data
+    this.ws!.send(audioData);
+  }
+  
+  stopRecording(): void {
+    this.isRecording = false;
+    
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
+    }
+    
+    console.log('Audio recording stopped');
+  }
+  
+  private handleMessage(message: any) {
+    switch (message.type) {
+      case 'HAI':
+        console.log('Handshake completed');
+        break;
+      case 'TEXT_MESSAGE_START':
+      case 'TEXT_MESSAGE_PART':
+      case 'TEXT_MESSAGE_END':
+        this.onTextMessage?.(message);
+        break;
+    }
+  }
+  
+  private handleAudioData(audioData: ArrayBuffer) {
+    this.onAudioData?.(audioData);
+  }
+  
+  disconnect() {
+    this.stopRecording();
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+  
+  // Event handlers
+  onTextMessage?: (message: any) => void;
+  onAudioData?: (audioData: ArrayBuffer) => void;
+}
+```
+
+## Audio Playback Implementation
+
+```typescript
+class HAIPAudioPlayer {
+  private audioContext: AudioContext;
+  private audioBuffers = new Map<string, ArrayBuffer[]>();
+  private expectedBinaryData = new Map<string, ExpectedBinaryData>();
+  
+  constructor() {
+    this.audioContext = new AudioContext();
+  }
+  
+  handleBinaryEnvelope(envelope: any) {
+    const { bin_len, bin_mime, payload } = envelope;
+    const { message_id } = payload;
+    
+    // Store expected binary data info
+    this.expectedBinaryData.set(message_id, {
+      expectedSize: bin_len,
+      mimeType: bin_mime,
+      receivedSize: 0,
+      chunks: []
+    });
+  }
+  
+  handleBinaryFrame(binaryData: ArrayBuffer) {
+    // Find the message this binary data belongs to
+    for (const [messageId, expected] of this.expectedBinaryData.entries()) {
+      if (expected.receivedSize < expected.expectedSize) {
+        expected.chunks.push(binaryData);
+        expected.receivedSize += binaryData.byteLength;
+        
+        // Check if we have all the data
+        if (expected.receivedSize >= expected.expectedSize) {
+          this.processCompleteAudio(messageId, expected);
+          this.expectedBinaryData.delete(messageId);
+        }
+        break;
+      }
+    }
+  }
+  
+  private processCompleteAudio(messageId: string, expected: ExpectedBinaryData) {
+    // Combine all chunks
+    const totalSize = expected.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const combinedBuffer = new ArrayBuffer(totalSize);
+    const view = new Uint8Array(combinedBuffer);
+    
+    let offset = 0;
+    for (const chunk of expected.chunks) {
+      view.set(new Uint8Array(chunk), offset);
+      offset += chunk.byteLength;
+    }
+    
+    // Play audio based on MIME type
+    switch (expected.mimeType) {
+      case 'audio/opus':
+        this.playOpusAudio(messageId, combinedBuffer);
+        break;
+      case 'audio/webm':
+        this.playWebMAudio(messageId, combinedBuffer);
+        break;
+      default:
+        console.warn(`Unsupported audio format: ${expected.mimeType}`);
+    }
+  }
+  
+  private playOpusAudio(messageId: string, audioData: ArrayBuffer) {
+    // Decode Opus audio and play
+    this.audioContext.decodeAudioData(audioData).then((audioBuffer) => {
+      const source = this.audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioContext.destination);
+      source.start();
+      
+      console.log(`Playing Opus audio: ${messageId}`);
+    }).catch((error) => {
+      console.error('Audio decode error:', error);
+    });
+  }
+  
+  private playWebMAudio(messageId: string, audioData: ArrayBuffer) {
+    // Create blob and play WebM audio
+    const blob = new Blob([audioData], { type: 'audio/webm' });
+    const url = URL.createObjectURL(blob);
+    
+    const audio = new Audio(url);
+    audio.play().then(() => {
+      console.log(`Playing WebM audio: ${messageId}`);
+    }).catch((error) => {
+      console.error('Audio play error:', error);
+    });
+  }
+}
+
+interface ExpectedBinaryData {
+  expectedSize: number;
+  mimeType: string;
+  receivedSize: number;
+  chunks: ArrayBuffer[];
+}
+```
+
+## Usage Example
+
+```typescript
+// Create audio client
+const audioClient = new HAIPAudioClient('wss://api.haiprotocol.com/haip/websocket', 'your-jwt-token');
+
+// Create audio player
+const audioPlayer = new HAIPAudioPlayer();
+
+// Set up event handlers
+audioClient.onTextMessage = (message) => {
+  console.log('Received text message:', message.payload.text);
+};
+
+audioClient.onAudioData = (audioData) => {
+  // Handle incoming audio data
+  console.log('Received audio data:', audioData.byteLength, 'bytes');
+};
+
+// Connect and start recording
+await audioClient.connect();
+await audioClient.startRecording();
+
+// Stop recording after 10 seconds
+setTimeout(() => {
+  audioClient.stopRecording();
+  audioClient.disconnect();
+}, 10000);
+```
+
+## Server Implementation
+
+```typescript
+import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
+
+class HAIPAudioServer {
+  private wss: WebSocket.Server;
+  private sessions = new Map<string, any>();
+  private expectedBinaryData = new Map<string, ExpectedBinaryData>();
+  
+  constructor(port: number) {
+    this.wss = new WebSocket.Server({ port });
+    this.setupServer();
+  }
+  
+  private setupServer() {
+    this.wss.on('connection', (ws, req) => {
+      const sessionId = uuidv4();
+      this.sessions.set(sessionId, { ws, seqCounter: 1 });
+      
+      ws.on('message', (data) => {
+        if (data instanceof Buffer) {
+          this.handleBinaryFrame(sessionId, data);
+        } else {
+          const message = JSON.parse(data.toString());
+          this.handleMessage(sessionId, message);
+        }
+      });
+      
+      ws.on('close', () => {
+        this.sessions.delete(sessionId);
+      });
+    });
+  }
+  
+  private handleMessage(sessionId: string, message: any) {
+    switch (message.type) {
+      case 'HAI':
+        this.handleHandshake(sessionId, message);
+        break;
+      case 'AUDIO_CHUNK':
+        this.handleAudioChunk(sessionId, message);
+        break;
+    }
+  }
+  
+  private handleBinaryFrame(sessionId: string, binaryData: Buffer) {
+    // Echo audio back to client
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    
+    const responseEnvelope = {
+      id: uuidv4(),
+      session: sessionId,
+      seq: session.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "AGENT",
+      type: "AUDIO_CHUNK",
+      bin_len: binaryData.length,
+      bin_mime: "audio/opus",
+      payload: {
+        message_id: uuidv4(),
+        mime: "audio/opus",
+        duration_ms: "120"
+      }
+    };
+    
+    session.ws.send(JSON.stringify(responseEnvelope));
+    session.ws.send(binaryData);
+  }
+  
+  private handleHandshake(sessionId: string, message: any) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    
+    const response = {
+      id: uuidv4(),
+      session: sessionId,
+      seq: session.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "AUDIO_CHUNK", "TEXT_MESSAGE_START", 
+          "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"
+        ],
+        capabilities: {
+          binary_frames: true
+        }
+      }
+    };
+    
+    session.ws.send(JSON.stringify(response));
+  }
+  
+  private handleAudioChunk(sessionId: string, message: any) {
+    // Store expected binary data info
+    this.expectedBinaryData.set(message.payload.message_id, {
+      expectedSize: message.bin_len,
+      mimeType: message.bin_mime,
+      receivedSize: 0,
+      chunks: []
+    });
+  }
+}
+
+// Start server
+const server = new HAIPAudioServer(8080);
+console.log('HAIP Audio Server running on port 8080');
+```
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Real-time Audio Streaming" icon="microphone">
+    Binary frames for efficient real-time audio transmission with minimal latency.
+  </Card>
+  <Card title="Opus Codec Support" icon="music">
+    Efficient audio compression using Opus codec for bandwidth optimization.
+  </Card>
+  <Card title="WebM Compatibility" icon="play">
+    Browser-compatible WebM format for seamless audio playback.
+  </Card>
+  <Card title="Web Audio API" icon="volume">
+    Automatic audio processing and playback using modern Web Audio API.
+  </Card>
+  <Card title="Binary Frame Handling" icon="database">
+    Optimized binary frame processing for high-performance audio streaming.
+  </Card>
+  <Card title="Session Management" icon="users">
+    Support for multiple concurrent audio streams with session isolation.
+  </Card>
+</CardGroup>
+
+This example demonstrates how to implement real-time audio communication using HAI Protocol's binary frame capabilities. 

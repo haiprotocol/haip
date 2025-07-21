@@ -1,0 +1,441 @@
+---
+title: "Configuration"
+description: "Configure the HAIP CLI for your environment"
+---
+
+The HAIP CLI can be configured using environment variables, configuration files, and command-line options. This page covers all configuration options and best practices.
+
+## Environment Variables
+
+Environment variables provide the most flexible way to configure the CLI. They can be set per session or permanently in your shell profile.
+
+### Server Configuration
+
+```bash
+# Default server URL
+export HAIP_DEFAULT_URL=ws://localhost:8080
+
+# Default transport type
+export HAIP_DEFAULT_TRANSPORT=websocket
+
+# Default authentication token
+export HAIP_DEFAULT_TOKEN=your-jwt-token
+
+# Alternative servers
+export HAIP_DEV_URL=ws://localhost:8080
+export HAIP_STAGING_URL=ws://staging.example.com:8080
+export HAIP_PROD_URL=ws://prod.example.com:8080
+```
+
+### Connection Settings
+
+```bash
+# Connection timeout (milliseconds)
+export HAIP_TIMEOUT=10000
+
+# Reconnection settings
+export HAIP_RECONNECT_ATTEMPTS=3
+export HAIP_RECONNECT_DELAY=1000
+export HAIP_RECONNECT_MAX_DELAY=30000
+
+# Heartbeat settings
+export HAIP_HEARTBEAT_INTERVAL=30000
+export HAIP_HEARTBEAT_TIMEOUT=5000
+```
+
+### Output Settings
+
+```bash
+# Verbose output
+export HAIP_VERBOSE=false
+
+# Colored output
+export HAIP_COLOR=true
+
+# Output format
+export HAIP_OUTPUT_FORMAT=text
+
+# Log level
+export HAIP_LOG_LEVEL=info
+```
+
+### Performance Settings
+
+```bash
+# Test settings
+export HAIP_TEST_MESSAGE_COUNT=100
+export HAIP_TEST_MESSAGE_SIZE=1024
+export HAIP_TEST_DELAY=100
+export HAIP_TEST_TIMEOUT=30000
+
+# Monitor settings
+export HAIP_MONITOR_MAX_LINES=1000
+export HAIP_MONITOR_FOLLOW=true
+```
+
+## Configuration Files
+
+### User Configuration (Future Enhancement)
+
+Create a user configuration file for persistent settings:
+
+```bash
+# Create config directory
+mkdir -p ~/.haip
+
+# Create configuration file
+cat > ~/.haip/config.json << EOF
+{
+  "servers": {
+    "default": {
+      "url": "ws://localhost:8080",
+      "transport": "websocket",
+      "token": "your-jwt-token"
+    },
+    "dev": {
+      "url": "ws://localhost:8080",
+      "transport": "websocket"
+    },
+    "staging": {
+      "url": "ws://staging.example.com:8080",
+      "transport": "websocket",
+      "token": "staging-token"
+    },
+    "prod": {
+      "url": "ws://prod.example.com:8080",
+      "transport": "websocket",
+      "token": "prod-token"
+    }
+  },
+  "connection": {
+    "timeout": 10000,
+    "reconnectAttempts": 3,
+    "reconnectDelay": 1000,
+    "heartbeatInterval": 30000
+  },
+  "output": {
+    "verbose": false,
+    "color": true,
+    "format": "text",
+    "logLevel": "info"
+  },
+  "testing": {
+    "messageCount": 100,
+    "messageSize": 1024,
+    "delay": 100,
+    "timeout": 30000
+  }
+}
+EOF
+```
+
+### Project Configuration (Future Enhancement)
+
+Create a project-specific configuration file:
+
+```bash
+# Create project config
+cat > .haiprc << EOF
+{
+  "server": "dev",
+  "defaults": {
+    "channel": "USER",
+    "author": "cli-user"
+  },
+  "monitoring": {
+    "showTimestamps": true,
+    "showMetadata": false,
+    "filterTypes": ["TEXT_MESSAGE_START", "TOOL_CALL"]
+  }
+}
+EOF
+```
+
+## Shell Profiles
+
+### Bash Configuration
+
+Add to your `~/.bashrc` or `~/.bash_profile`:
+
+```bash
+# HAIP CLI Configuration
+export HAIP_DEFAULT_URL=ws://localhost:8080
+export HAIP_DEFAULT_TRANSPORT=websocket
+export HAIP_VERBOSE=false
+export HAIP_COLOR=true
+
+# Aliases for common commands
+alias haip-health='node dist/index.js health'
+alias haip-connect='node dist/index.js connect'
+alias haip-monitor='node dist/index.js monitor --follow'
+alias haip-test='node dist/index.js test --message-count 100'
+```
+
+### Zsh Configuration
+
+Add to your `~/.zshrc`:
+
+```bash
+# HAIP CLI Configuration
+export HAIP_DEFAULT_URL=ws://localhost:8080
+export HAIP_DEFAULT_TRANSPORT=websocket
+export HAIP_VERBOSE=false
+export HAIP_COLOR=true
+
+# Aliases for common commands
+alias haip-health='node dist/index.js health'
+alias haip-connect='node dist/index.js connect'
+alias haip-monitor='node dist/index.js monitor --follow'
+alias haip-test='node dist/index.js test --message-count 100'
+
+# Function for switching environments
+haip-env() {
+  case $1 in
+    dev)
+      export HAIP_DEFAULT_URL=ws://localhost:8080
+      export HAIP_DEFAULT_TOKEN=""
+      echo "Switched to development environment"
+      ;;
+    staging)
+      export HAIP_DEFAULT_URL=ws://staging.example.com:8080
+      export HAIP_DEFAULT_TOKEN="staging-token"
+      echo "Switched to staging environment"
+      ;;
+    prod)
+      export HAIP_DEFAULT_URL=ws://prod.example.com:8080
+      export HAIP_DEFAULT_TOKEN="prod-token"
+      echo "Switched to production environment"
+      ;;
+    *)
+      echo "Usage: haip-env [dev|staging|prod]"
+      ;;
+  esac
+}
+```
+
+## Command-Line Options
+
+### Global Options
+
+All commands support these global options:
+
+```bash
+# Verbose output
+node dist/index.js --verbose connect ws://localhost:8080
+
+# Help for specific command
+node dist/index.js connect --help
+
+# Version information
+node dist/index.js --version
+```
+
+### Per-Command Options
+
+Each command has specific options that override environment variables:
+
+```bash
+# Override default URL
+node dist/index.js health --url http://my-server:8080
+
+# Override default transport
+node dist/index.js connect ws://localhost:8080 --transport sse
+
+# Override timeout
+node dist/index.js connect ws://localhost:8080 --timeout 5000
+
+# Override authentication
+node dist/index.js send text "Hello" --token my-token
+```
+
+## Configuration Precedence
+
+Configuration options are applied in this order (highest to lowest priority):
+
+1. **Command-line options** - Highest priority
+2. **Environment variables** - Medium priority
+3. **Configuration files** - Low priority
+4. **Default values** - Lowest priority
+
+### Example Precedence
+
+```bash
+# Environment variable
+export HAIP_DEFAULT_URL=ws://localhost:8080
+
+# Command-line option overrides environment variable
+node dist/index.js health --url http://my-server:8080
+
+# Result: Uses http://my-server:8080 (command-line wins)
+```
+
+## Environment-Specific Configurations
+
+### Development Environment
+
+```bash
+# Development settings
+export HAIP_DEFAULT_URL=ws://localhost:8080
+export HAIP_DEFAULT_TRANSPORT=websocket
+export HAIP_VERBOSE=true
+export HAIP_COLOR=true
+export HAIP_LOG_LEVEL=debug
+```
+
+### Staging Environment
+
+```bash
+# Staging settings
+export HAIP_DEFAULT_URL=ws://staging.example.com:8080
+export HAIP_DEFAULT_TRANSPORT=websocket
+export HAIP_DEFAULT_TOKEN=staging-jwt-token
+export HAIP_VERBOSE=false
+export HAIP_COLOR=true
+export HAIP_LOG_LEVEL=info
+```
+
+### Production Environment
+
+```bash
+# Production settings
+export HAIP_DEFAULT_URL=ws://prod.example.com:8080
+export HAIP_DEFAULT_TRANSPORT=websocket
+export HAIP_DEFAULT_TOKEN=prod-jwt-token
+export HAIP_VERBOSE=false
+export HAIP_COLOR=false
+export HAIP_LOG_LEVEL=warn
+export HAIP_TIMEOUT=30000
+export HAIP_RECONNECT_ATTEMPTS=5
+```
+
+## Security Considerations
+
+### Token Management
+
+```bash
+# Store tokens securely
+export HAIP_DEFAULT_TOKEN=$(cat ~/.haip/token)
+
+# Use different tokens for different environments
+export HAIP_DEV_TOKEN=dev-token
+export HAIP_STAGING_TOKEN=staging-token
+export HAIP_PROD_TOKEN=prod-token
+
+# Rotate tokens regularly
+# Update tokens in configuration files and environment variables
+```
+
+### Network Security
+
+```bash
+# Use secure connections in production
+export HAIP_DEFAULT_URL=wss://prod.example.com:443
+
+# Use secure tokens
+export HAIP_DEFAULT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Validate server certificates
+export HAIP_VERIFY_SSL=true
+```
+
+## Troubleshooting Configuration
+
+### Check Current Configuration
+
+```bash
+# Show current environment variables
+env | grep HAIP
+
+# Show configuration file contents
+cat ~/.haip/config.json
+
+# Test configuration
+node dist/index.js info
+```
+
+### Debug Configuration Issues
+
+```bash
+# Enable verbose output
+export HAIP_VERBOSE=true
+
+# Run command with debug info
+node dist/index.js connect ws://localhost:8080 --verbose
+
+# Check configuration precedence
+node dist/index.js health --url test-url --verbose
+```
+
+### Reset Configuration
+
+```bash
+# Unset environment variables
+unset HAIP_DEFAULT_URL
+unset HAIP_DEFAULT_TRANSPORT
+unset HAIP_DEFAULT_TOKEN
+
+# Remove configuration file
+rm ~/.haip/config.json
+
+# Use default values
+node dist/index.js health
+```
+
+## Best Practices
+
+### 1. Use Environment Variables for Secrets
+
+```bash
+# Good: Use environment variables for tokens
+export HAIP_DEFAULT_TOKEN=your-secret-token
+
+# Bad: Hardcode tokens in scripts
+node dist/index.js send text "Hello" --token hardcoded-token
+```
+
+### 2. Use Configuration Files for Complex Settings
+
+```bash
+# Good: Use config files for complex configurations
+cat > ~/.haip/config.json << EOF
+{
+  "servers": {
+    "dev": { "url": "ws://localhost:8080" },
+    "prod": { "url": "wss://prod.example.com:443" }
+  }
+}
+EOF
+```
+
+### 3. Use Aliases for Common Commands
+
+```bash
+# Good: Create aliases for frequently used commands
+alias haip-health='node dist/index.js health'
+alias haip-monitor='node dist/index.js monitor --follow'
+```
+
+### 4. Use Different Configurations for Different Environments
+
+```bash
+# Good: Environment-specific configurations
+haip-env dev    # Switch to development
+haip-env staging # Switch to staging
+haip-env prod   # Switch to production
+```
+
+### 5. Validate Configuration
+
+```bash
+# Good: Validate configuration before use
+node dist/index.js health --url $HAIP_DEFAULT_URL
+
+# Good: Test connection with current configuration
+node dist/index.js connect $HAIP_DEFAULT_URL --timeout 5000
+```
+
+## Next Steps
+
+- [Examples](/cli/examples) - Configuration examples and patterns
+- [API Reference](/cli/api-reference) - Technical configuration details
+- [Commands](/cli/commands) - Command-line configuration options 

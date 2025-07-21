@@ -1,0 +1,409 @@
+---
+title: "Quick Start"
+description: "Get up and running with the HAIP Server in minutes"
+---
+
+Get the HAIP Server running in under 5 minutes with this quick start guide.
+
+## Prerequisites
+
+- Node.js 18.0.0 or higher
+- npm 8.0.0 or higher
+
+## Step 1: Clone and Install
+
+```bash
+# Clone the repository
+git clone https://github.com/haiprotocol/haip-server
+cd haip-server
+
+# Install dependencies
+npm install
+```
+
+## Step 2: Start the Server
+
+```bash
+# Start in development mode
+npm run dev
+```
+
+You should see output like:
+```
+HAIP Server running on 0.0.0.0:8080
+```
+
+## Step 3: Test the Connection
+
+### Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+Expected response:
+```json
+{
+  "status": "ok",
+  "uptime": 1234,
+  "activeConnections": 0,
+  "totalConnections": 0
+}
+```
+
+### WebSocket Connection
+
+Create a simple test client:
+
+```javascript
+// test-client.js
+const WebSocket = require('ws');
+
+// Create a simple JWT token (in production, use proper JWT library)
+const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE2MzQ1Njc4OTAsImV4cCI6MTYzNDY1NDI5MH0.test-signature';
+
+const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
+
+ws.on('open', () => {
+  console.log('Connected to HAIP Server');
+  
+  // Send a handshake message
+  const handshake = {
+    id: 'test-message-1',
+    session: 'test-session',
+    seq: '1',
+    ts: Date.now().toString(),
+    type: 'HAI',
+    channel: 'SYSTEM',
+    payload: {
+      haip_version: '1.1.2',
+      accept_major: [1],
+      accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
+    }
+  };
+  
+  ws.send(JSON.stringify(handshake));
+});
+
+ws.on('message', (data) => {
+  const message = JSON.parse(data.toString());
+  console.log('Received:', message);
+  
+  if (message.type === 'HAI') {
+    console.log('Handshake completed!');
+    
+    // Send a text message
+    const textMessage = {
+      id: 'test-message-2',
+      session: 'test-session',
+      seq: '2',
+      ts: Date.now().toString(),
+      type: 'TEXT_MESSAGE_START',
+      channel: 'USER',
+      payload: {
+        message_id: 'msg-1',
+        content_type: 'text/plain'
+      }
+    };
+    
+    ws.send(JSON.stringify(textMessage));
+  }
+});
+
+ws.on('error', (error) => {
+  console.error('WebSocket error:', error);
+});
+
+ws.on('close', () => {
+  console.log('Disconnected from HAIP Server');
+});
+```
+
+Run the test client:
+
+```bash
+node test-client.js
+```
+
+## Step 4: Test Built-in Tools
+
+The server includes several built-in tools for testing:
+
+### Echo Tool
+
+```javascript
+// Test echo tool
+const echoCall = {
+  id: 'test-tool-1',
+  session: 'test-session',
+  seq: '3',
+  ts: Date.now().toString(),
+  type: 'TOOL_CALL',
+  channel: 'USER',
+  payload: {
+    call_id: 'call-1',
+    tool: 'echo',
+    params: {
+      message: 'Hello, HAIP Server!'
+    }
+  }
+};
+
+ws.send(JSON.stringify(echoCall));
+```
+
+### Add Tool
+
+```javascript
+// Test add tool
+const addCall = {
+  id: 'test-tool-2',
+  session: 'test-session',
+  seq: '4',
+  ts: Date.now().toString(),
+  type: 'TOOL_CALL',
+  channel: 'USER',
+  payload: {
+    call_id: 'call-2',
+    tool: 'add',
+    params: {
+      a: 5,
+      b: 3
+    }
+  }
+};
+
+ws.send(JSON.stringify(addCall));
+```
+
+## Step 5: Monitor Server Statistics
+
+Check server statistics in real-time:
+
+```bash
+curl http://localhost:8080/stats
+```
+
+Expected response:
+```json
+{
+  "totalConnections": 1,
+  "activeConnections": 1,
+  "totalMessages": 5,
+  "messagesPerSecond": 0.5,
+  "averageLatency": 15,
+  "errorRate": 0,
+  "uptime": 12345
+}
+```
+
+## Complete Example
+
+Here's a complete example that demonstrates all major features:
+
+```javascript
+// complete-example.js
+const WebSocket = require('ws');
+
+class HAIPTestClient {
+  constructor() {
+    this.token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE2MzQ1Njc4OTAsImV4cCI6MTYzNDY1NDI5MH0.test-signature';
+    this.sessionId = 'test-session-' + Date.now();
+    this.seqCounter = 1;
+    this.ws = null;
+  }
+
+  connect() {
+    this.ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${this.token}`);
+    
+    this.ws.on('open', () => {
+      console.log('✅ Connected to HAIP Server');
+      this.sendHandshake();
+    });
+
+    this.ws.on('message', (data) => {
+      const message = JSON.parse(data.toString());
+      this.handleMessage(message);
+    });
+
+    this.ws.on('error', (error) => {
+      console.error('❌ WebSocket error:', error);
+    });
+
+    this.ws.on('close', () => {
+      console.log('🔌 Disconnected from HAIP Server');
+    });
+  }
+
+  sendHandshake() {
+    const handshake = {
+      id: this.generateId(),
+      session: this.sessionId,
+      seq: this.getNextSeq(),
+      ts: Date.now().toString(),
+      type: 'HAI',
+      channel: 'SYSTEM',
+      payload: {
+        haip_version: '1.1.2',
+        accept_major: [1],
+        accept_events: [
+          'HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END',
+          'TOOL_CALL', 'TOOL_UPDATE', 'TOOL_DONE', 'PING', 'PONG'
+        ]
+      }
+    };
+
+    this.send(handshake);
+  }
+
+  sendTextMessage(text) {
+    const messageId = this.generateId();
+    
+    // Start message
+    this.send({
+      id: this.generateId(),
+      session: this.sessionId,
+      seq: this.getNextSeq(),
+      ts: Date.now().toString(),
+      type: 'TEXT_MESSAGE_START',
+      channel: 'USER',
+      payload: {
+        message_id: messageId,
+        content_type: 'text/plain'
+      }
+    });
+
+    // Message part
+    this.send({
+      id: this.generateId(),
+      session: this.sessionId,
+      seq: this.getNextSeq(),
+      ts: Date.now().toString(),
+      type: 'TEXT_MESSAGE_PART',
+      channel: 'USER',
+      payload: {
+        message_id: messageId,
+        content: text
+      }
+    });
+
+    // End message
+    this.send({
+      id: this.generateId(),
+      session: this.sessionId,
+      seq: this.getNextSeq(),
+      ts: Date.now().toString(),
+      type: 'TEXT_MESSAGE_END',
+      channel: 'USER',
+      payload: {
+        message_id: messageId
+      }
+    });
+  }
+
+  callTool(toolName, params) {
+    this.send({
+      id: this.generateId(),
+      session: this.sessionId,
+      seq: this.getNextSeq(),
+      ts: Date.now().toString(),
+      type: 'TOOL_CALL',
+      channel: 'USER',
+      payload: {
+        call_id: this.generateId(),
+        tool: toolName,
+        params: params
+      }
+    });
+  }
+
+  sendPing() {
+    this.send({
+      id: this.generateId(),
+      session: this.sessionId,
+      seq: this.getNextSeq(),
+      ts: Date.now().toString(),
+      type: 'PING',
+      channel: 'SYSTEM',
+      payload: {
+        nonce: this.generateId()
+      }
+    });
+  }
+
+  handleMessage(message) {
+    console.log(`📨 Received ${message.type}:`, message.payload);
+    
+    switch (message.type) {
+      case 'HAI':
+        console.log('🤝 Handshake completed!');
+        // Send a text message
+        setTimeout(() => this.sendTextMessage('Hello, HAIP Server!'), 1000);
+        break;
+        
+      case 'TEXT_MESSAGE_START':
+        console.log('📝 Text message started');
+        break;
+        
+      case 'TEXT_MESSAGE_PART':
+        console.log('📝 Text message part received');
+        break;
+        
+      case 'TEXT_MESSAGE_END':
+        console.log('📝 Text message completed');
+        // Test tools
+        setTimeout(() => this.callTool('echo', { message: 'Test echo' }), 1000);
+        setTimeout(() => this.callTool('add', { a: 5, b: 3 }), 2000);
+        break;
+        
+      case 'TOOL_UPDATE':
+        console.log('🔧 Tool update:', message.payload);
+        break;
+        
+      case 'TOOL_DONE':
+        console.log('✅ Tool completed:', message.payload);
+        // Send ping
+        setTimeout(() => this.sendPing(), 1000);
+        break;
+        
+      case 'PONG':
+        console.log('🏓 Pong received');
+        // Close connection after 2 seconds
+        setTimeout(() => this.ws.close(), 2000);
+        break;
+    }
+  }
+
+  send(message) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    }
+  }
+
+  generateId() {
+    return 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+  }
+
+  getNextSeq() {
+    return (this.seqCounter++).toString();
+  }
+}
+
+// Run the example
+const client = new HAIPTestClient();
+client.connect();
+```
+
+Run the complete example:
+
+```bash
+node complete-example.js
+```
+
+## What's Next?
+
+- [Configuration](/server/configuration) - Configure the server for your needs
+- [Transports](/server/transports) - Learn about different transport options
+- [Tools](/server/tools) - Add custom tools to the server
+- [Deployment](/server/deployment) - Deploy to production
+- [API Reference](/server/api-reference) - Complete API documentation 

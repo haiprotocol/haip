@@ -1,0 +1,756 @@
+---
+title: "Deployment"
+description: "Deploy the HAIP Server to production environments"
+---
+
+The HAIP Server is designed for easy deployment across various environments, from development to production. This guide covers deployment strategies, containerization, and production best practices.
+
+<CardGroup cols={2}>
+  <Card title="Docker Support" icon="cube">
+    Containerized deployment with Docker
+  </Card>
+  <Card title="Production Ready" icon="check">
+    Security, monitoring, and scaling features
+  </Card>
+  <Card title="Cloud Native" icon="cloud">
+    Kubernetes and cloud platform support
+  </Card>
+  <Card title="Load Balancing" icon="chart-line">
+    Horizontal scaling and high availability
+  </Card>
+</CardGroup>
+
+## Docker Deployment
+
+### Basic Docker Setup
+
+```dockerfile
+# Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY dist/ ./dist/
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S haip -u 1001
+
+# Change ownership
+RUN chown -R haip:nodejs /app
+USER haip
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Start server
+CMD ["node", "dist/index.js"]
+```
+
+### Build and Run
+
+```bash
+# Build the image
+docker build -t haip-server .
+
+# Run the container
+docker run -p 8080:8080 \
+  -e JWT_SECRET=your-secret-key \
+  -e NODE_ENV=production \
+  haip-server
+```
+
+### Docker Compose
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  haip-server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=8080
+      - MAX_CONNECTIONS=1000
+      - ENABLE_CORS=false
+      - ENABLE_COMPRESSION=true
+      - ENABLE_LOGGING=true
+      - FLOW_CONTROL_ENABLED=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - haip-network
+
+  # Optional: Redis for session storage
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - haip-network
+
+  # Optional: Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - haip-server
+    networks:
+      - haip-network
+
+volumes:
+  redis-data:
+
+networks:
+  haip-network:
+    driver: bridge
+```
+
+### Nginx Configuration
+
+```nginx
+# nginx.conf
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream haip_backend {
+        server haip-server:8080;
+    }
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=haip:10m rate=10r/s;
+
+    server {
+        listen 80;
+        server_name your-domain.com;
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2;
+        server_name your-domain.com;
+
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+        ssl_prefer_server_ciphers off;
+
+        # Security headers
+        add_header X-Frame-Options DENY;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+        # WebSocket support
+        location /haip/websocket {
+            limit_req zone=haip burst=20 nodelay;
+            
+            proxy_pass http://haip_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_read_timeout 86400;
+            proxy_send_timeout 86400;
+        }
+
+        # HTTP endpoints
+        location /haip/ {
+            limit_req zone=haip burst=20 nodelay;
+            
+            proxy_pass http://haip_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Health checks
+        location /health {
+            proxy_pass http://haip_backend;
+            access_log off;
+        }
+
+        # Metrics
+        location /stats {
+            proxy_pass http://haip_backend;
+            access_log off;
+        }
+    }
+}
+```
+
+## Kubernetes Deployment
+
+### Deployment Manifest
+
+```yaml
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haip-server
+  labels:
+    app: haip-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: haip-server
+  template:
+    metadata:
+      labels:
+        app: haip-server
+    spec:
+      containers:
+      - name: haip-server
+        image: haip-protocol/server:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: haip-secrets
+              key: jwt-secret
+        - name: PORT
+          value: "8080"
+        - name: MAX_CONNECTIONS
+          value: "1000"
+        - name: ENABLE_CORS
+          value: "false"
+        - name: ENABLE_COMPRESSION
+          value: "true"
+        - name: ENABLE_LOGGING
+          value: "true"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: logs
+        emptyDir: {}
+```
+
+### Service Manifest
+
+```yaml
+# k8s/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: haip-server-service
+  labels:
+    app: haip-server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: haip-server
+```
+
+### Ingress Manifest
+
+```yaml
+# k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: haip-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/websocket-services: "haip-server-service"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
+spec:
+  tls:
+  - hosts:
+    - haip.yourdomain.com
+    secretName: haip-tls
+  rules:
+  - host: haip.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: haip-server-service
+            port:
+              number: 80
+```
+
+### Secrets
+
+```yaml
+# k8s/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: haip-secrets
+type: Opaque
+data:
+  jwt-secret: <base64-encoded-secret>
+```
+
+### Horizontal Pod Autoscaler
+
+```yaml
+# k8s/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: haip-server-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: haip-server
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+## Cloud Platform Deployment
+
+### AWS ECS
+
+```json
+{
+  "family": "haip-server",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::123456789012:role/haip-server-task-role",
+  "containerDefinitions": [
+    {
+      "name": "haip-server",
+      "image": "haip-protocol/server:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "8080"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:haip-jwt-secret"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/haip-server",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
+```
+
+### Google Cloud Run
+
+```yaml
+# cloud-run.yaml
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: haip-server
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 1000
+      timeoutSeconds: 300
+      containers:
+      - image: gcr.io/your-project/haip-server:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: haip-secrets
+              key: jwt-secret
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "512Mi"
+```
+
+## Production Configuration
+
+### Environment Variables
+
+```bash
+# Production environment variables
+NODE_ENV=production
+JWT_SECRET=your-very-secure-secret-key
+PORT=8080
+HOST=0.0.0.0
+MAX_CONNECTIONS=1000
+HEARTBEAT_INTERVAL=30000
+HEARTBEAT_TIMEOUT=5000
+
+# Flow control
+FLOW_CONTROL_ENABLED=true
+FLOW_CONTROL_INITIAL_CREDITS=1000
+FLOW_CONTROL_MIN_CREDITS=100
+FLOW_CONTROL_MAX_CREDITS=10000
+FLOW_CONTROL_CREDIT_THRESHOLD=200
+FLOW_CONTROL_BACK_PRESSURE_THRESHOLD=0.8
+FLOW_CONTROL_ADAPTIVE_ADJUSTMENT=true
+
+# Security
+ENABLE_CORS=false
+ENABLE_COMPRESSION=true
+ENABLE_LOGGING=true
+
+# Run management
+MAX_CONCURRENT_RUNS=10
+REPLAY_WINDOW_SIZE=1000
+REPLAY_WINDOW_TIME=60000
+```
+
+### Security Configuration
+
+```typescript
+// Production security configuration
+const productionConfig = {
+  // Basic settings
+  port: 8080,
+  host: '0.0.0.0',
+  jwtSecret: process.env.JWT_SECRET,
+  jwtExpiresIn: '1h', // Short expiration for security
+  
+  // Connection limits
+  maxConnections: 1000,
+  
+  // Security features
+  enableCORS: false, // Disable CORS in production
+  enableCompression: true,
+  enableLogging: true,
+  
+  // Flow control
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000,
+    adaptiveAdjustment: true
+  },
+  
+  // Additional security
+  rateLimiting: {
+    enabled: true,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+  }
+};
+```
+
+### Monitoring Setup
+
+```typescript
+// Production monitoring
+import winston from 'winston';
+import { createLogger, format, transports } from 'winston';
+
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.errors({ stack: true }),
+    format.json()
+  ),
+  defaultMeta: { service: 'haip-server' },
+  transports: [
+    new transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new transports.File({ filename: 'logs/combined.log' })
+  ]
+});
+
+// Add cloud logging for production
+if (process.env.NODE_ENV === 'production') {
+  // Google Cloud Logging
+  if (process.env.GOOGLE_CLOUD_PROJECT) {
+    const { LoggingWinston } = require('@google-cloud/logging-winston');
+    logger.add(new LoggingWinston({
+      projectId: process.env.GOOGLE_CLOUD_PROJECT,
+      logName: 'haip-server'
+    }));
+  }
+  
+  // AWS CloudWatch
+  if (process.env.AWS_REGION) {
+    const WinstonCloudWatch = require('winston-cloudwatch');
+    logger.add(new WinstonCloudWatch({
+      logGroupName: 'haip-server',
+      logStreamName: 'production',
+      awsRegion: process.env.AWS_REGION
+    }));
+  }
+}
+
+const server = new HAIPServer({
+  ...productionConfig,
+  logger
+});
+```
+
+## Load Balancing
+
+### Multiple Instances
+
+```yaml
+# docker-compose.scale.yml
+version: '3.8'
+
+services:
+  haip-server:
+    build: .
+    ports:
+      - "8080"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.load-balancer.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - haip-server
+```
+
+### Nginx Load Balancer
+
+```nginx
+# nginx.load-balancer.conf
+upstream haip_backend {
+    least_conn; # Load balancing method
+    server haip-server_1:8080;
+    server haip-server_2:8080;
+    server haip-server_3:8080;
+}
+
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://haip_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    location /haip/websocket {
+        proxy_pass http://haip_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## SSL/TLS Configuration
+
+### Let's Encrypt with Certbot
+
+```bash
+# Install Certbot
+sudo apt-get update
+sudo apt-get install certbot python3-certbot-nginx
+
+# Get SSL certificate
+sudo certbot --nginx -d your-domain.com
+
+# Auto-renewal
+sudo crontab -e
+# Add: 0 12 * * * /usr/bin/certbot renew --quiet
+```
+
+### Self-Signed Certificate (Development)
+
+```bash
+# Generate self-signed certificate
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout private.key -out certificate.crt \
+  -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+
+# Use in development
+const https = require('https');
+const fs = require('fs');
+
+const options = {
+  key: fs.readFileSync('private.key'),
+  cert: fs.readFileSync('certificate.crt')
+};
+
+const server = new HAIPServer(config);
+const httpsServer = https.createServer(options, server.app);
+httpsServer.listen(8443);
+```
+
+## Backup and Recovery
+
+### Database Backup (if using external database)
+
+```bash
+#!/bin/bash
+# backup.sh
+
+# Backup database
+pg_dump $DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Compress backup
+gzip backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Upload to cloud storage
+aws s3 cp backup_$(date +%Y%m%d_%H%M%S).sql.gz s3://your-backup-bucket/
+```
+
+### Configuration Backup
+
+```bash
+#!/bin/bash
+# config-backup.sh
+
+# Backup configuration files
+tar -czf config_backup_$(date +%Y%m%d_%H%M%S).tar.gz \
+  docker-compose.yml \
+  nginx.conf \
+  .env \
+  k8s/
+
+# Upload to cloud storage
+aws s3 cp config_backup_$(date +%Y%m%d_%H%M%S).tar.gz s3://your-backup-bucket/
+```
+
+## Next Steps
+
+- [API Reference](/server/api-reference) - Complete API documentation
+- [Monitoring](/server/monitoring) - Set up monitoring and alerting
+- [Tools](/server/tools) - Add custom tools to the server 

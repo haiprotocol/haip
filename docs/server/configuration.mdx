@@ -1,0 +1,418 @@
+---
+title: "Configuration"
+description: "Configure the HAIP Server for your needs"
+---
+
+# Configuration
+
+The HAIP Server is highly configurable through environment variables, configuration objects, and runtime options. This guide covers all configuration options and their effects.
+
+## Configuration Methods
+
+### 1. Environment Variables
+
+The easiest way to configure the server is through environment variables:
+
+```bash
+# Basic configuration
+JWT_SECRET=your-secret-key
+PORT=8080
+HOST=0.0.0.0
+NODE_ENV=production
+
+# Flow control
+FLOW_CONTROL_ENABLED=true
+FLOW_CONTROL_INITIAL_CREDITS=1000
+
+# Start the server
+npm start
+```
+
+### 2. Configuration Object
+
+For programmatic configuration, pass a configuration object:
+
+```typescript
+import { HAIPServer } from './src/server';
+
+const config = {
+  port: 8080,
+  host: '0.0.0.0',
+  jwtSecret: 'your-secret-key',
+  maxConnections: 1000,
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000
+  }
+};
+
+const server = new HAIPServer(config);
+server.start();
+```
+
+### 3. Configuration File
+
+Create a configuration file for complex setups:
+
+```typescript
+// config/server.ts
+export const serverConfig = {
+  port: process.env.PORT || 8080,
+  host: process.env.HOST || '0.0.0.0',
+  jwtSecret: process.env.JWT_SECRET || 'default-secret',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
+  maxConnections: parseInt(process.env.MAX_CONNECTIONS || '1000'),
+  heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL || '30000'),
+  heartbeatTimeout: parseInt(process.env.HEARTBEAT_TIMEOUT || '5000'),
+  flowControl: {
+    enabled: process.env.FLOW_CONTROL_ENABLED !== 'false',
+    initialCredits: parseInt(process.env.FLOW_CONTROL_INITIAL_CREDITS || '1000'),
+    minCredits: parseInt(process.env.FLOW_CONTROL_MIN_CREDITS || '100'),
+    maxCredits: parseInt(process.env.FLOW_CONTROL_MAX_CREDITS || '10000'),
+    creditThreshold: parseInt(process.env.FLOW_CONTROL_CREDIT_THRESHOLD || '200'),
+    backPressureThreshold: parseFloat(process.env.FLOW_CONTROL_BACK_PRESSURE_THRESHOLD || '0.8'),
+    adaptiveAdjustment: process.env.FLOW_CONTROL_ADAPTIVE_ADJUSTMENT !== 'false',
+    initialCreditMessages: parseInt(process.env.FLOW_CONTROL_INITIAL_CREDIT_MESSAGES || '1000'),
+    initialCreditBytes: parseInt(process.env.FLOW_CONTROL_INITIAL_CREDIT_BYTES || '1048576')
+  },
+  maxConcurrentRuns: parseInt(process.env.MAX_CONCURRENT_RUNS || '10'),
+  replayWindowSize: parseInt(process.env.REPLAY_WINDOW_SIZE || '1000'),
+  replayWindowTime: parseInt(process.env.REPLAY_WINDOW_TIME || '60000'),
+  enableCORS: process.env.ENABLE_CORS !== 'false',
+  enableCompression: process.env.ENABLE_COMPRESSION !== 'false',
+  enableLogging: process.env.ENABLE_LOGGING !== 'false'
+};
+```
+
+## Configuration Options
+
+### Basic Server Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `port` | number | 8080 | Server port |
+| `host` | string | '0.0.0.0' | Server host |
+| `jwtSecret` | string | 'your-secret-key' | JWT secret for token validation |
+| `jwtExpiresIn` | string | '24h' | JWT token expiration time |
+| `maxConnections` | number | 1000 | Maximum concurrent connections |
+| `heartbeatInterval` | number | 30000 | Heartbeat interval in milliseconds |
+| `heartbeatTimeout` | number | 5000 | Heartbeat timeout in milliseconds |
+
+### Flow Control Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `flowControl.enabled` | boolean | true | Enable flow control |
+| `flowControl.initialCredits` | number | 1000 | Initial message credits per channel |
+| `flowControl.minCredits` | number | 100 | Minimum credits before back-pressure |
+| `flowControl.maxCredits` | number | 10000 | Maximum credits per channel |
+| `flowControl.creditThreshold` | number | 200 | Credit threshold for flow updates |
+| `flowControl.backPressureThreshold` | number | 0.8 | Back-pressure threshold (0-1) |
+| `flowControl.adaptiveAdjustment` | boolean | true | Enable adaptive credit adjustment |
+| `flowControl.initialCreditMessages` | number | 1000 | Initial message credits |
+| `flowControl.initialCreditBytes` | number | 1048576 | Initial byte credits (1MB) |
+
+### Run Management Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxConcurrentRuns` | number | 10 | Maximum concurrent runs per session |
+| `replayWindowSize` | number | 1000 | Maximum messages in replay window |
+| `replayWindowTime` | number | 60000 | Replay window time in milliseconds |
+
+### Feature Toggles
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enableCORS` | boolean | true | Enable CORS middleware |
+| `enableCompression` | boolean | true | Enable compression middleware |
+| `enableLogging` | boolean | true | Enable request logging |
+
+## Environment Variables Reference
+
+### Required Variables
+
+```bash
+# JWT secret for token validation (required)
+JWT_SECRET=your-secret-key-here
+```
+
+### Optional Variables
+
+```bash
+# Server configuration
+PORT=8080
+HOST=0.0.0.0
+NODE_ENV=production
+
+# JWT configuration
+JWT_EXPIRES_IN=24h
+
+# Connection limits
+MAX_CONNECTIONS=1000
+
+# Heartbeat configuration
+HEARTBEAT_INTERVAL=30000
+HEARTBEAT_TIMEOUT=5000
+
+# Flow control
+FLOW_CONTROL_ENABLED=true
+FLOW_CONTROL_INITIAL_CREDITS=1000
+FLOW_CONTROL_MIN_CREDITS=100
+FLOW_CONTROL_MAX_CREDITS=10000
+FLOW_CONTROL_CREDIT_THRESHOLD=200
+FLOW_CONTROL_BACK_PRESSURE_THRESHOLD=0.8
+FLOW_CONTROL_ADAPTIVE_ADJUSTMENT=true
+FLOW_CONTROL_INITIAL_CREDIT_MESSAGES=1000
+FLOW_CONTROL_INITIAL_CREDIT_BYTES=1048576
+
+# Run management
+MAX_CONCURRENT_RUNS=10
+REPLAY_WINDOW_SIZE=1000
+REPLAY_WINDOW_TIME=60000
+
+# Feature toggles
+ENABLE_CORS=true
+ENABLE_COMPRESSION=true
+ENABLE_LOGGING=true
+```
+
+## Configuration Examples
+
+### Development Configuration
+
+```typescript
+const devConfig = {
+  port: 8080,
+  host: 'localhost',
+  jwtSecret: 'dev-secret-key',
+  enableLogging: true,
+  enableCORS: true,
+  flowControl: {
+    enabled: false, // Disable flow control for development
+    initialCredits: 10000
+  }
+};
+```
+
+### Production Configuration
+
+```typescript
+const prodConfig = {
+  port: 8080,
+  host: '0.0.0.0',
+  jwtSecret: process.env.JWT_SECRET,
+  maxConnections: 1000,
+  enableLogging: true,
+  enableCORS: false, // Disable CORS in production
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000,
+    adaptiveAdjustment: true
+  }
+};
+```
+
+### High-Performance Configuration
+
+```typescript
+const highPerfConfig = {
+  port: 8080,
+  host: '0.0.0.0',
+  jwtSecret: process.env.JWT_SECRET,
+  maxConnections: 10000,
+  heartbeatInterval: 60000, // Longer heartbeat for high load
+  flowControl: {
+    enabled: true,
+    initialCredits: 5000,
+    maxCredits: 50000,
+    adaptiveAdjustment: true
+  },
+  maxConcurrentRuns: 50
+};
+```
+
+### Docker Configuration
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  haip-server:
+    image: haip-protocol/server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=8080
+      - MAX_CONNECTIONS=1000
+      - ENABLE_CORS=false
+      - ENABLE_COMPRESSION=true
+      - ENABLE_LOGGING=true
+      - FLOW_CONTROL_ENABLED=true
+      - FLOW_CONTROL_INITIAL_CREDITS=1000
+      - FLOW_CONTROL_ADAPTIVE_ADJUSTMENT=true
+    restart: unless-stopped
+```
+
+## Runtime Configuration
+
+### Dynamic Configuration Updates
+
+The server supports some runtime configuration updates:
+
+```typescript
+const server = new HAIPServer(config);
+
+// Update flow control settings
+server.updateFlowControl({
+  enabled: true,
+  initialCredits: 2000
+});
+
+// Update connection limits
+server.updateConnectionLimits({
+  maxConnections: 2000
+});
+
+// Update heartbeat settings
+server.updateHeartbeat({
+  interval: 45000,
+  timeout: 10000
+});
+```
+
+### Configuration Validation
+
+The server validates configuration on startup:
+
+```typescript
+try {
+  const server = new HAIPServer(config);
+  server.start();
+} catch (error) {
+  console.error('Configuration error:', error.message);
+  process.exit(1);
+}
+```
+
+## Security Configuration
+
+### JWT Configuration
+
+```typescript
+const secureConfig = {
+  jwtSecret: process.env.JWT_SECRET, // Use environment variable
+  jwtExpiresIn: '1h', // Short expiration for security
+  enableCORS: false, // Disable CORS in production
+  enableLogging: true
+};
+```
+
+### Rate Limiting
+
+For additional rate limiting, use a reverse proxy like nginx:
+
+```nginx
+# nginx.conf
+http {
+    limit_req_zone $binary_remote_addr zone=haip:10m rate=10r/s;
+    
+    server {
+        listen 80;
+        server_name your-domain.com;
+        
+        location /haip/ {
+            limit_req zone=haip burst=20 nodelay;
+            proxy_pass http://localhost:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+        }
+    }
+}
+```
+
+## Monitoring Configuration
+
+### Health Check Configuration
+
+The server provides built-in health checks:
+
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# Statistics
+curl http://localhost:8080/stats
+```
+
+### Logging Configuration
+
+```typescript
+const loggingConfig = {
+  enableLogging: true,
+  logLevel: process.env.LOG_LEVEL || 'info',
+  logFormat: process.env.LOG_FORMAT || 'combined'
+};
+```
+
+## Best Practices
+
+### 1. Use Environment Variables for Secrets
+
+```bash
+# Never hardcode secrets
+JWT_SECRET=your-secret-key-here
+```
+
+### 2. Configure for Your Environment
+
+```typescript
+// Development
+const config = {
+  enableLogging: true,
+  enableCORS: true,
+  flowControl: { enabled: false }
+};
+
+// Production
+const config = {
+  enableLogging: true,
+  enableCORS: false,
+  flowControl: { enabled: true }
+};
+```
+
+### 3. Monitor Resource Usage
+
+```typescript
+// Set appropriate limits
+const config = {
+  maxConnections: 1000,
+  maxConcurrentRuns: 10,
+  flowControl: {
+    maxCredits: 10000
+  }
+};
+```
+
+### 4. Use HTTPS in Production
+
+```typescript
+// Use reverse proxy for HTTPS
+const config = {
+  port: 8080,
+  host: '0.0.0.0'
+  // Let nginx handle HTTPS
+};
+```
+
+## Next Steps
+
+- [Transports](/server/transports) - Configure different transport options
+- [Tools](/server/tools) - Add custom tools to the server
+- [Monitoring](/server/monitoring) - Set up monitoring and alerting
+- [Deployment](/server/deployment) - Deploy to production 

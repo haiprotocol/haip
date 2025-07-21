@@ -1,0 +1,80 @@
+{
+  "name": "@haip/sdk",
+  "version": "1.0.1",
+  "description": "TypeScript SDK for the Human-Agent Interaction Protocol (HAIP)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "format:check": "prettier --check src/**/*.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "haip",
+    "human-agent-interaction",
+    "protocol",
+    "websocket",
+    "sse",
+    "streaming",
+    "real-time",
+    "typescript",
+    "sdk"
+  ],
+  "author": {
+    "name": "San Digital",
+    "url": "https://sandigital.uk",
+    "email": "office@sandigital.uk"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haiprotocol/haip.git"
+  },
+  "bugs": {
+    "url": "https://github.com/haiprotocol/haip/issues"
+  },
+  "homepage": "https://haiprotocol.com",
+  "dependencies": {
+    "uuid": "^9.0.1",
+    "ws": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.8.10",
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.8",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "jest": "^29.7.0",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "ws": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ws": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,317 @@
+---
+title: "Authentication"
+description: "Secure your HAIP connections with JWT Bearer tokens"
+---
+
+## Overview
+
+HAIP uses JWT Bearer tokens for authentication, providing secure access to the protocol endpoints while supporting session resumption and token refresh.
+
+## JWT Token Requirements
+
+### Required Claims
+
+Your JWT token must include the following claims:
+
+```json
+{
+  "iss": "your-app-id",
+  "aud": "haip-protocol",
+  "sub": "user-id",
+  "iat": 1690000000,
+  "exp": 1690003600,
+  "jti": "unique-token-id"
+}
+```
+
+| Claim | Description | Required |
+|-------|-------------|----------|
+| `iss` | Issuer (your application ID) | Yes |
+| `aud` | Audience (should be "haip-protocol") | Yes |
+| `sub` | Subject (user identifier) | Yes |
+| `iat` | Issued at (Unix timestamp) | Yes |
+| `exp` | Expiration (Unix timestamp) | Yes |
+| `jti` | JWT ID (unique token identifier) | Yes |
+
+### Token Presentation
+
+Present your JWT token in one of these ways:
+
+<AccordionGroup>
+  <Accordion icon="plug" title="WebSocket Query Parameter">
+    ```javascript
+    const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket?token=YOUR_JWT_TOKEN');
+    ```
+  </Accordion>
+  <Accordion icon="radio" title="HTTP/SSE Authorization Header">
+    ```javascript
+    const eventSource = new EventSource('/haip/connect', {
+      headers: {
+        'Authorization': 'Bearer YOUR_JWT_TOKEN'
+      }
+    });
+    ```
+  </Accordion>
+  <Accordion icon="shield" title="WebSocket Protocol">
+    ```javascript
+    const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket', ['haip', 'token.YOUR_JWT_TOKEN']);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Token Validation
+
+### Server-Side Validation
+
+Servers must validate JWT tokens before establishing HAIP connections:
+
+```typescript
+import jwt from 'jsonwebtoken';
+
+interface HAIPToken {
+  iss: string;
+  aud: string;
+  sub: string;
+  iat: number;
+  exp: number;
+  jti: string;
+}
+
+function validateHAIPToken(token: string): HAIPToken | null {
+  try {
+    // Verify signature and decode
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as HAIPToken;
+    
+    // Validate required claims
+    if (decoded.aud !== 'haip-protocol') {
+      throw new Error('Invalid audience');
+    }
+    
+    if (decoded.exp < Date.now() / 1000) {
+      throw new Error('Token expired');
+    }
+    
+    if (decoded.iat > Date.now() / 1000) {
+      throw new Error('Token issued in future');
+    }
+    
+    return decoded;
+  } catch (error) {
+    console.error('Token validation failed:', error);
+    return null;
+  }
+}
+```
+
+### Client-Side Token Management
+
+Implement token refresh and session management:
+
+```typescript
+class HAIPTokenManager {
+  private token: string | null = null;
+  private refreshToken: string | null = null;
+  private expiresAt: number = 0;
+  
+  async getValidToken(): Promise<string> {
+    if (this.isTokenValid()) {
+      return this.token!;
+    }
+    
+    await this.refreshTokenIfNeeded();
+    return this.token!;
+  }
+  
+  private isTokenValid(): boolean {
+    return this.token !== null && Date.now() < this.expiresAt - 60000; // 1 minute buffer
+  }
+  
+  private async refreshTokenIfNeeded(): Promise<void> {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    
+    const response = await fetch('/auth/refresh', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refresh_token: this.refreshToken
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Token refresh failed');
+    }
+    
+    const data = await response.json();
+    this.token = data.access_token;
+    this.refreshToken = data.refresh_token;
+    this.expiresAt = Date.now() + (data.expires_in * 1000);
+  }
+}
+```
+
+## Session Resumption
+
+HAIP supports session resumption using the `last_rx_seq` field in the handshake:
+
+```typescript
+class HAIPSessionManager {
+  private sessionId: string | null = null;
+  private lastRxSeq: number = 0;
+  
+  async resumeSession(): Promise<boolean> {
+    if (!this.sessionId) {
+      return false;
+    }
+    
+    const token = await this.tokenManager.getValidToken();
+    const ws = new WebSocket(`wss://api.haiprotocol.com/haip/websocket?token=${token}`);
+    
+    ws.onopen = () => {
+      // Send handshake with session resumption
+      ws.send(JSON.stringify({
+        id: this.generateUUID(),
+        session: this.sessionId,
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          haip_version: "1.1.2",
+          accept_major: [1],
+          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"],
+          last_rx_seq: this.lastRxSeq.toString()
+        }
+      }));
+    };
+    
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.lastRxSeq = parseInt(message.seq);
+      
+      if (message.type === 'ERROR' && message.payload.code === 'RESUME_FAILED') {
+        // Session resumption failed, start new session
+        this.sessionId = null;
+        this.lastRxSeq = 0;
+      }
+    };
+    
+    return true;
+  }
+}
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+
+<Card title="Token Expiration" icon="clock">
+  Set reasonable expiration times (15-60 minutes) and implement automatic refresh.
+</Card>
+
+<Card title="HTTPS Only" icon="lock">
+  Always use TLS 1.2+ (`https://` or `wss://`) for all HAIP connections.
+</Card>
+
+<Card title="Token Storage" icon="key">
+  Store tokens securely (memory for short-lived, encrypted storage for refresh tokens).
+</Card>
+
+<Card title="Audit Logging" icon="clipboard">
+  Log authentication events for security monitoring and debugging.
+</Card>
+
+</CardGroup>
+
+## Error Handling
+
+Handle authentication errors gracefully:
+
+```typescript
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
+  
+  if (error.message.includes('401')) {
+    // Authentication failed - refresh token and retry
+    this.handleAuthError();
+  }
+};
+
+ws.onclose = (event) => {
+  if (event.code === 1008) {
+    // Invalid token
+    this.handleAuthError();
+  }
+};
+
+private async handleAuthError(): Promise<void> {
+  try {
+    await this.tokenManager.refreshTokenIfNeeded();
+    await this.reconnect();
+  } catch (error) {
+    // Redirect to login
+    window.location.href = '/login';
+  }
+}
+```
+
+## Example Implementation
+
+<Accordion icon="code" title="Complete Authentication Example">
+  ```typescript
+  class HAIPAuthenticatedClient {
+    private ws: WebSocket | null = null;
+    private tokenManager: HAIPTokenManager;
+    private sessionManager: HAIPSessionManager;
+    
+    constructor() {
+      this.tokenManager = new HAIPTokenManager();
+      this.sessionManager = new HAIPSessionManager();
+    }
+    
+    async connect(): Promise<void> {
+      const token = await this.tokenManager.getValidToken();
+      
+      this.ws = new WebSocket(`wss://api.haiprotocol.com/haip/websocket?token=${token}`);
+      
+      this.ws.onopen = () => {
+        this.sendHandshake();
+      };
+      
+      this.ws.onerror = (error) => {
+        this.handleConnectionError(error);
+      };
+      
+      this.ws.onclose = (event) => {
+        this.handleConnectionClose(event);
+      };
+    }
+    
+    private async sendHandshake(): Promise<void> {
+      const handshake = {
+        id: this.generateUUID(),
+        session: this.sessionManager.sessionId || this.generateUUID(),
+        seq: "1",
+        ts: Date.now().toString(),
+        channel: "SYSTEM",
+        type: "HAI",
+        payload: {
+          haip_version: "1.1.2",
+          accept_major: [1],
+          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"],
+          last_rx_seq: this.sessionManager.lastRxSeq > 0 ? this.sessionManager.lastRxSeq.toString() : undefined
+        }
+      };
+      
+      this.ws?.send(JSON.stringify(handshake));
+    }
+    
+    private generateUUID(): string {
+      return crypto.randomUUID();
+    }
+  }
+  ```
+</Accordion> 

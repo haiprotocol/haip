@@ -1,0 +1,512 @@
+---
+title: 'Authentication'
+description: 'JWT authentication, token management, and security best practices for the HAIP SDK'
+---
+
+Secure your HAIP applications with robust JWT authentication. Learn how to implement token-based security, manage authentication state, and follow security best practices for production deployments.
+
+The HAIP SDK uses JWT (JSON Web Token) Bearer token authentication for secure communication with HAIP servers.
+
+## JWT Authentication
+
+### Token Format
+
+HAIP uses standard JWT tokens with the following structure:
+
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+### Token Components
+
+A JWT token consists of three parts:
+
+1. **Header**: Contains the algorithm and token type
+2. **Payload**: Contains claims (user data, permissions, etc.)
+3. **Signature**: Verifies the token's authenticity
+
+### Example Token Payload
+
+```json
+{
+  "sub": "user123",
+  "name": "John Doe",
+  "iat": 1516239022,
+  "exp": 1516242622,
+  "permissions": ["read", "write"],
+  "haip": {
+    "channels": ["USER", "AGENT"],
+    "max_runs": 10
+  }
+}
+```
+
+## Setting Up Authentication
+
+### Basic Authentication
+
+```typescript
+import { createHAIPClient } from 'haip-sdk';
+
+const client = createHAIPClient({
+  url: 'ws://localhost:8080',
+  token: 'your-jwt-token-here',
+  transport: 'websocket'
+});
+```
+
+### Environment Variables
+
+Store your authentication token securely using environment variables:
+
+```bash
+# .env
+HAIP_SERVER_URL=ws://localhost:8080
+HAIP_AUTH_TOKEN=your-jwt-token-here
+```
+
+```typescript
+import { createHAIPClient } from 'haip-sdk';
+
+const client = createHAIPClient({
+  url: process.env.HAIP_SERVER_URL!,
+  token: process.env.HAIP_AUTH_TOKEN!,
+  transport: 'websocket'
+});
+```
+
+### Dynamic Token Management
+
+For applications that need to refresh tokens or use different tokens:
+
+```typescript
+class AuthenticatedClient {
+  private client: any;
+  private tokenProvider: () => Promise<string>;
+
+  constructor(url: string, tokenProvider: () => Promise<string>) {
+    this.tokenProvider = tokenProvider;
+    this.client = null;
+  }
+
+  async connect() {
+    const token = await this.tokenProvider();
+    
+    this.client = createHAIPClient({
+      url: 'ws://localhost:8080',
+      token,
+      transport: 'websocket'
+    });
+
+    await this.client.connect();
+  }
+
+  async refreshToken() {
+    if (this.client) {
+      await this.client.disconnect();
+    }
+    await this.connect();
+  }
+}
+
+// Usage
+const client = new AuthenticatedClient(
+  'ws://localhost:8080',
+  async () => {
+    // Fetch fresh token from your auth service
+    const response = await fetch('/api/auth/token');
+    const { token } = await response.json();
+    return token;
+  }
+);
+```
+
+## Token Validation
+
+### Parsing JWT Tokens
+
+Use the SDK's utility functions to parse and validate tokens:
+
+```typescript
+import { HAIPUtils } from 'haip-sdk';
+
+// Parse token payload
+const payload = HAIPUtils.parseJWT(token);
+console.log('Token payload:', payload);
+
+// Check expiration
+const now = Math.floor(Date.now() / 1000);
+if (payload.exp && payload.exp < now) {
+  console.log('Token has expired');
+}
+```
+
+### Token Validation Example
+
+```typescript
+function validateToken(token: string): boolean {
+  try {
+    const payload = HAIPUtils.parseJWT(token);
+    
+    // Check expiration
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      return false;
+    }
+    
+    // Check required claims
+    if (!payload.sub) {
+      return false;
+    }
+    
+    // Check HAIP-specific claims
+    if (payload.haip) {
+      if (payload.haip.channels && !Array.isArray(payload.haip.channels)) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Token validation failed:', error);
+    return false;
+  }
+}
+```
+
+## Error Handling
+
+### Authentication Errors
+
+Handle authentication-related errors:
+
+```typescript
+client.on('error', (error: Error) => {
+  if (error.message.includes('AUTHENTICATION_FAILED')) {
+    console.log('Authentication failed - check your token');
+    
+    // Attempt to refresh token
+    refreshToken();
+  } else if (error.message.includes('TOKEN_EXPIRED')) {
+    console.log('Token has expired - refreshing...');
+    refreshToken();
+  } else if (error.message.includes('INSUFFICIENT_PERMISSIONS')) {
+    console.log('Insufficient permissions for this operation');
+  }
+});
+```
+
+### Token Refresh Strategy
+
+Implement automatic token refresh:
+
+```typescript
+class TokenManager {
+  private refreshThreshold = 5 * 60 * 1000; // 5 minutes
+  private refreshPromise: Promise<string> | null = null;
+
+  constructor(private tokenProvider: () => Promise<string>) {}
+
+  async getValidToken(): Promise<string> {
+    const token = await this.tokenProvider();
+    const payload = HAIPUtils.parseJWT(token);
+    
+    const now = Math.floor(Date.now() / 1000);
+    const expiresIn = payload.exp ? (payload.exp - now) * 1000 : Infinity;
+    
+    if (expiresIn < this.refreshThreshold) {
+      return this.refreshToken();
+    }
+    
+    return token;
+  }
+
+  private async refreshToken(): Promise<string> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+    
+    this.refreshPromise = this.tokenProvider();
+    
+    try {
+      const token = await this.refreshPromise;
+      return token;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+}
+```
+
+## Security Best Practices
+
+### Token Storage
+
+**✅ Secure Storage Methods:**
+
+```typescript
+// Server-side: Environment variables
+const token = process.env.HAIP_AUTH_TOKEN;
+
+// Browser: Memory only (for sensitive tokens)
+let tokenInMemory: string | null = null;
+
+// Browser: Secure HTTP-only cookies (set by server)
+// No client-side access needed
+
+// Mobile: Secure keychain/keystore
+// Use platform-specific secure storage
+```
+
+**❌ Avoid:**
+
+```typescript
+// Don't store in localStorage (vulnerable to XSS)
+localStorage.setItem('haip_token', token);
+
+// Don't store in sessionStorage (cleared on tab close)
+sessionStorage.setItem('haip_token', token);
+
+// Don't hardcode in source code
+const token = 'hardcoded-token-here';
+```
+
+### Token Rotation
+
+Implement token rotation for enhanced security:
+
+```typescript
+class SecureClient {
+  private client: any;
+  private tokenManager: TokenManager;
+
+  constructor(url: string, tokenProvider: () => Promise<string>) {
+    this.tokenManager = new TokenManager(tokenProvider);
+    
+    this.client = createHAIPClient({
+      url,
+      token: '', // Will be set during connect
+      transport: 'websocket'
+    });
+
+    // Set up automatic token refresh
+    this.setupTokenRefresh();
+  }
+
+  private setupTokenRefresh() {
+    // Refresh token every 4 minutes
+    setInterval(async () => {
+      try {
+        const newToken = await this.tokenManager.getValidToken();
+        // Reconnect with new token
+        await this.reconnectWithToken(newToken);
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+      }
+    }, 4 * 60 * 1000);
+  }
+
+  private async reconnectWithToken(token: string) {
+    if (this.client.isConnected()) {
+      await this.client.disconnect();
+    }
+    
+    // Update client with new token
+    this.client = createHAIPClient({
+      url: this.client.url,
+      token,
+      transport: 'websocket'
+    });
+    
+    await this.client.connect();
+  }
+}
+```
+
+### Network Security
+
+**Use Secure Connections:**
+
+```typescript
+// Production: Always use WSS (WebSocket Secure)
+const client = createHAIPClient({
+  url: 'wss://api.example.com',
+  token: 'your-token',
+  transport: 'websocket'
+});
+
+// Development: Can use WS for local development
+const devClient = createHAIPClient({
+  url: 'ws://localhost:8080',
+  token: 'dev-token',
+  transport: 'websocket'
+});
+```
+
+**Certificate Validation:**
+
+```typescript
+// Node.js: Custom certificate validation
+const client = createHAIPClient({
+  url: 'wss://api.example.com',
+  token: 'your-token',
+  transport: 'websocket',
+  options: {
+    // WebSocket-specific options for certificate validation
+    rejectUnauthorized: true,
+    ca: fs.readFileSync('/path/to/ca-cert.pem')
+  }
+});
+```
+
+## Permission-Based Access
+
+### Channel Permissions
+
+Check channel permissions before sending messages:
+
+```typescript
+function canSendToChannel(token: string, channel: string): boolean {
+  try {
+    const payload = HAIPUtils.parseJWT(token);
+    
+    if (!payload.haip || !payload.haip.channels) {
+      return false;
+    }
+    
+    return payload.haip.channels.includes(channel);
+  } catch (error) {
+    return false;
+  }
+}
+
+// Usage
+if (canSendToChannel(token, 'USER')) {
+  await client.sendTextMessage('USER', 'Hello', 'user', runId);
+} else {
+  console.log('No permission to send to USER channel');
+}
+```
+
+### Run Limits
+
+Enforce run limits based on token permissions:
+
+```typescript
+function checkRunLimit(token: string, currentRuns: number): boolean {
+  try {
+    const payload = HAIPUtils.parseJWT(token);
+    
+    if (!payload.haip || !payload.haip.max_runs) {
+      return currentRuns < 5; // Default limit
+    }
+    
+    return currentRuns < payload.haip.max_runs;
+  } catch (error) {
+    return false;
+  }
+}
+
+// Usage
+if (checkRunLimit(token, client.getActiveRuns().length)) {
+  await client.startRun('new-run');
+} else {
+  console.log('Run limit exceeded');
+}
+```
+
+## Testing Authentication
+
+### Mock Authentication
+
+For testing purposes, create mock tokens:
+
+```typescript
+function createMockToken(claims: Record<string, any> = {}): string {
+  const header = {
+    alg: 'HS256',
+    typ: 'JWT'
+  };
+  
+  const payload = {
+    sub: 'test-user',
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    ...claims
+  };
+  
+  // Note: This creates an unsigned token for testing only
+  const headerB64 = btoa(JSON.stringify(header));
+  const payloadB64 = btoa(JSON.stringify(payload));
+  
+  return `${headerB64}.${payloadB64}.mock-signature`;
+}
+
+// Usage in tests
+const testToken = createMockToken({
+  haip: {
+    channels: ['USER', 'AGENT'],
+    max_runs: 10
+  }
+});
+```
+
+### Authentication Testing
+
+```typescript
+describe('Authentication', () => {
+  test('should connect with valid token', async () => {
+    const client = createHAIPClient({
+      url: 'ws://localhost:8080',
+      token: 'valid-token',
+      transport: 'websocket'
+    });
+    
+    await expect(client.connect()).resolves.not.toThrow();
+    await client.disconnect();
+  });
+  
+  test('should fail with invalid token', async () => {
+    const client = createHAIPClient({
+      url: 'ws://localhost:8080',
+      token: 'invalid-token',
+      transport: 'websocket'
+    });
+    
+    await expect(client.connect()).rejects.toThrow('AUTHENTICATION_FAILED');
+  });
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Client API"
+    href="/sdk/client"
+    icon="code"
+  >
+    Learn about the client interface and methods.
+  </Card>
+  <Card
+    title="Examples"
+    href="/sdk/examples"
+    icon="book-open"
+  >
+    See practical examples of authentication usage.
+  </Card>
+  <Card
+    title="Error Handling"
+    href="/sdk/error-handling"
+    icon="exclamation"
+  >
+    Understand error handling and recovery.
+  </Card>
+  <Card
+    title="API Reference"
+    href="/sdk/api-reference"
+    icon="laptop"
+  >
+    Full API reference documentation.
+  </Card>
+</CardGroup> 

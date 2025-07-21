@@ -1,0 +1,679 @@
+---
+title: "WebSocket Implementation"
+description: "Implement HAIP over WebSocket connections"
+---
+
+## Overview
+
+WebSocket is the recommended transport for HAIP due to its bidirectional, real-time capabilities. This guide covers implementing HAIP over WebSocket connections with proper error handling and reconnection logic.
+
+## Basic WebSocket Setup
+
+### Client-Side Implementation
+
+```typescript
+class HAIPWebSocketClient {
+  private ws: WebSocket | null = null;
+  private sessionId: string;
+  private seqCounter = 1;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private isConnecting = false;
+  
+  constructor(private url: string, private token: string) {
+    this.sessionId = this.generateUUID();
+  }
+  
+  async connect(): Promise<void> {
+    if (this.isConnecting) return;
+    
+    this.isConnecting = true;
+    
+    try {
+      const wsUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
+      this.ws = new WebSocket(wsUrl);
+      
+      this.setupEventHandlers();
+      
+      // Wait for connection to open
+      await this.waitForConnection();
+      
+      // Send handshake
+      await this.sendHandshake();
+      
+      this.isConnecting = false;
+      this.reconnectAttempts = 0;
+      
+    } catch (error) {
+      this.isConnecting = false;
+      throw error;
+    }
+  }
+  
+  private setupEventHandlers() {
+    if (!this.ws) return;
+    
+    this.ws.onopen = () => {
+      console.log('WebSocket connected');
+      this.emit('connected');
+    };
+    
+    this.ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        this.handleMessage(message);
+      } catch (error) {
+        console.error('Failed to parse message:', error);
+      }
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      this.emit('error', error);
+    };
+    
+    this.ws.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason);
+      this.emit('disconnected', event);
+      
+      // Attempt reconnection if not a clean close
+      if (event.code !== 1000) {
+        this.scheduleReconnection();
+      }
+    };
+  }
+  
+  private async waitForConnection(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.ws) {
+        reject(new Error('WebSocket not initialized'));
+        return;
+      }
+      
+      const timeout = setTimeout(() => {
+        reject(new Error('Connection timeout'));
+      }, 10000);
+      
+      this.ws!.onopen = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+      
+      this.ws!.onerror = (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      };
+    });
+  }
+  
+  private async sendHandshake(): Promise<void> {
+    const handshake = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
+          "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
+          "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+          "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
+          "PAUSE_CHANNEL", "RESUME_CHANNEL"
+        ],
+        capabilities: {
+          binary_frames: true,
+          flow_control: {
+            initial_credit_messages: 32,
+            initial_credit_bytes: 262144
+          },
+          max_concurrent_runs: 4
+        }
+      }
+    };
+    
+    await this.sendMessage(handshake);
+  }
+  
+  private async sendMessage(message: any): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected');
+    }
+    
+    return new Promise((resolve, reject) => {
+      try {
+        this.ws!.send(JSON.stringify(message));
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+  
+  private scheduleReconnection() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnection attempts exceeded');
+      this.emit('max_reconnect_attempts_exceeded');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    
+    console.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    
+    setTimeout(() => {
+      this.connect().catch((error) => {
+        console.error('Reconnection failed:', error);
+        this.scheduleReconnection();
+      });
+    }, delay);
+  }
+  
+  disconnect() {
+    if (this.ws) {
+      this.ws.close(1000, 'Client disconnect');
+    }
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+}
+```
+
+### Server-Side Implementation
+
+```typescript
+import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
+
+class HAIPWebSocketServer {
+  private wss: WebSocket.Server;
+  private sessions = new Map<string, HAIPSession>();
+  private tokenValidator: TokenValidator;
+  
+  constructor(port: number, tokenValidator: TokenValidator) {
+    this.wss = new WebSocket.Server({ port });
+    this.tokenValidator = tokenValidator;
+    this.setupServer();
+  }
+  
+  private setupServer() {
+    this.wss.on('connection', async (ws, req) => {
+      try {
+        // Extract token from query parameters
+        const url = new URL(req.url!, `http://${req.headers.host}`);
+        const token = url.searchParams.get('token');
+        
+        if (!token) {
+          ws.close(1008, 'Missing token');
+          return;
+        }
+        
+        // Validate token
+        const user = await this.tokenValidator.validateToken(token);
+        if (!user) {
+          ws.close(1008, 'Invalid token');
+          return;
+        }
+        
+        // Create session
+        const sessionId = uuidv4();
+        const session = new HAIPSession(sessionId, ws, user);
+        this.sessions.set(sessionId, session);
+        
+        // Setup session event handlers
+        this.setupSessionHandlers(session);
+        
+        console.log(`New HAIP session created: ${sessionId} for user: ${user.id}`);
+        
+      } catch (error) {
+        console.error('Error setting up connection:', error);
+        ws.close(1011, 'Internal server error');
+      }
+    });
+  }
+  
+  private setupSessionHandlers(session: HAIPSession) {
+    session.ws.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        this.handleMessage(session, message);
+      } catch (error) {
+        console.error('Failed to parse message:', error);
+        this.sendError(session, 'PROTOCOL_VIOLATION', 'Invalid message format');
+      }
+    });
+    
+    session.ws.on('close', (code, reason) => {
+      console.log(`Session ${session.id} closed: ${code} - ${reason}`);
+      this.cleanupSession(session.id);
+    });
+    
+    session.ws.on('error', (error) => {
+      console.error(`Session ${session.id} error:`, error);
+      this.cleanupSession(session.id);
+    });
+  }
+  
+  private handleMessage(session: HAIPSession, message: any) {
+    // Validate message structure
+    const validation = this.validateMessage(message);
+    if (!validation.isValid) {
+      this.sendError(session, 'PROTOCOL_VIOLATION', validation.errors.join(', '));
+      return;
+    }
+    
+    // Handle different message types
+    switch (message.type) {
+      case 'HAI':
+        this.handleHandshake(session, message);
+        break;
+      case 'TEXT_MESSAGE_START':
+      case 'TEXT_MESSAGE_PART':
+      case 'TEXT_MESSAGE_END':
+        this.handleTextMessage(session, message);
+        break;
+      case 'AUDIO_CHUNK':
+        this.handleAudioChunk(session, message);
+        break;
+      case 'TOOL_CALL':
+        this.handleToolCall(session, message);
+        break;
+      case 'PING':
+        this.handlePing(session, message);
+        break;
+      default:
+        this.sendError(session, 'UNSUPPORTED_TYPE', `Unknown message type: ${message.type}`);
+    }
+  }
+  
+  private handleHandshake(session: HAIPSession, message: any) {
+    const { haip_version, accept_major, accept_events, capabilities } = message.payload;
+    
+    // Validate version compatibility
+    if (!accept_major.includes(1)) {
+      this.sendError(session, 'VERSION_INCOMPATIBLE', 'No compatible major version');
+      return;
+    }
+    
+    // Store session capabilities
+    session.capabilities = capabilities;
+    session.acceptedEvents = accept_events;
+    
+    // Send handshake response
+    const response = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: [
+          "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
+          "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
+          "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+          "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
+          "PAUSE_CHANNEL", "RESUME_CHANNEL"
+        ],
+        capabilities: {
+          binary_frames: true,
+          flow_control: {
+            initial_credit_messages: 32,
+            initial_credit_bytes: 262144
+          },
+          max_concurrent_runs: 4
+        }
+      }
+    };
+    
+    this.sendMessage(session, response);
+  }
+  
+  private sendMessage(session: HAIPSession, message: any) {
+    if (session.ws.readyState === WebSocket.OPEN) {
+      session.ws.send(JSON.stringify(message));
+    }
+  }
+  
+  private sendError(session: HAIPSession, code: string, message: string, relatedId?: string) {
+    const error = {
+      id: uuidv4(),
+      session: session.id,
+      seq: session.getNextSeq(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "ERROR",
+      payload: {
+        code,
+        message,
+        related_id: relatedId
+      }
+    };
+    
+    this.sendMessage(session, error);
+  }
+  
+  private cleanupSession(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.cleanup();
+      this.sessions.delete(sessionId);
+    }
+  }
+}
+
+class HAIPSession {
+  public capabilities: any = {};
+  public acceptedEvents: string[] = [];
+  private seqCounter = 1;
+  
+  constructor(
+    public id: string,
+    public ws: WebSocket,
+    public user: any
+  ) {}
+  
+  getNextSeq(): string {
+    return this.seqCounter++.toString();
+  }
+  
+  cleanup() {
+    // Clean up any resources associated with this session
+  }
+}
+
+interface TokenValidator {
+  validateToken(token: string): Promise<any>;
+}
+```
+
+## Binary Frame Support
+
+### Sending Binary Data
+
+```typescript
+class HAIPBinarySupport {
+  sendAudioChunk(audioData: ArrayBuffer, messageId: string, mimeType: string = 'audio/opus') {
+    // Send envelope first
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "AUDIO_CHUNK",
+      bin_len: audioData.byteLength,
+      bin_mime: mimeType,
+      payload: {
+        message_id: messageId,
+        mime: mimeType,
+        duration_ms: this.calculateDuration(audioData, mimeType).toString()
+      }
+    };
+    
+    // Send envelope as JSON
+    this.ws.send(JSON.stringify(envelope));
+    
+    // Send binary data in second frame
+    this.ws.send(audioData);
+  }
+  
+  sendFileChunk(fileData: ArrayBuffer, messageId: string, mimeType: string) {
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "FILE_CHUNK",
+      bin_len: fileData.byteLength,
+      bin_mime: mimeType,
+      payload: {
+        message_id: messageId,
+        mime: mimeType,
+        filename: "document.pdf"
+      }
+    };
+    
+    this.ws.send(JSON.stringify(envelope));
+    this.ws.send(fileData);
+  }
+  
+  private calculateDuration(audioData: ArrayBuffer, mimeType: string): number {
+    // Calculate duration based on format and data size
+    const sampleRate = 48000; // Opus default
+    const channels = 1;
+    const bytesPerSample = 2;
+    
+    return (audioData.byteLength / (sampleRate * channels * bytesPerSample)) * 1000;
+  }
+}
+```
+
+### Receiving Binary Data
+
+```typescript
+class HAIPBinaryReceiver {
+  private pendingBinaryData = new Map<string, PendingBinaryData>();
+  
+  handleMessage(message: any, binaryData?: ArrayBuffer) {
+    if (message.bin_len && binaryData) {
+      this.handleBinaryMessage(message, binaryData);
+    } else {
+      this.handleTextMessage(message);
+    }
+  }
+  
+  private handleBinaryMessage(message: any, binaryData: ArrayBuffer) {
+    const { message_id, mime } = message.payload;
+    
+    // Store binary data
+    if (!this.pendingBinaryData.has(message_id)) {
+      this.pendingBinaryData.set(message_id, {
+        chunks: [],
+        totalSize: 0,
+        expectedSize: message.bin_len,
+        mimeType: mime
+      });
+    }
+    
+    const pending = this.pendingBinaryData.get(message_id)!;
+    pending.chunks.push(binaryData);
+    pending.totalSize += binaryData.byteLength;
+    
+    // Check if we have all the data
+    if (pending.totalSize >= pending.expectedSize) {
+      this.processCompleteBinaryData(message_id, pending);
+      this.pendingBinaryData.delete(message_id);
+    }
+  }
+  
+  private processCompleteBinaryData(messageId: string, pending: PendingBinaryData) {
+    // Combine all chunks
+    const combinedBuffer = new ArrayBuffer(pending.totalSize);
+    const view = new Uint8Array(combinedBuffer);
+    
+    let offset = 0;
+    for (const chunk of pending.chunks) {
+      view.set(new Uint8Array(chunk), offset);
+      offset += chunk.byteLength;
+    }
+    
+    // Process based on MIME type
+    switch (pending.mimeType) {
+      case 'audio/opus':
+        this.processAudioData(messageId, combinedBuffer);
+        break;
+      case 'application/pdf':
+        this.processFileData(messageId, combinedBuffer);
+        break;
+      default:
+        console.warn(`Unknown MIME type: ${pending.mimeType}`);
+    }
+  }
+  
+  private processAudioData(messageId: string, audioData: ArrayBuffer) {
+    // Decode and play audio
+    this.audioContext.decodeAudioData(audioData).then((audioBuffer) => {
+      const source = this.audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioContext.destination);
+      source.start();
+    }).catch((error) => {
+      console.error('Audio decode error:', error);
+    });
+  }
+  
+  private processFileData(messageId: string, fileData: ArrayBuffer) {
+    // Handle file data (save, process, etc.)
+    const blob = new Blob([fileData]);
+    const url = URL.createObjectURL(blob);
+    
+    // Emit event for application to handle
+    this.emit('file_received', { messageId, url, blob });
+  }
+}
+
+interface PendingBinaryData {
+  chunks: ArrayBuffer[];
+  totalSize: number;
+  expectedSize: number;
+  mimeType: string;
+}
+```
+
+## Connection Management
+
+### Health Monitoring
+
+```typescript
+class HAIPHealthMonitor {
+  private pingInterval: NodeJS.Timeout | null = null;
+  private lastPong: number = 0;
+  private pingTimeout: NodeJS.Timeout | null = null;
+  
+  startHealthCheck() {
+    this.pingInterval = setInterval(() => {
+      this.sendPing();
+    }, 30000); // Ping every 30 seconds
+  }
+  
+  stopHealthCheck() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+  
+  private sendPing() {
+    const ping = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "PING",
+      payload: {
+        nonce: this.generateUUID()
+      }
+    };
+    
+    this.ws.send(JSON.stringify(ping));
+    
+    // Set up timeout for pong response
+    this.pingTimeout = setTimeout(() => {
+      console.warn('Ping timeout - connection may be dead');
+      this.emit('ping_timeout');
+    }, 10000);
+  }
+  
+  handlePong(message: any) {
+    this.lastPong = Date.now();
+    
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+      this.pingTimeout = null;
+    }
+  }
+  
+  isHealthy(): boolean {
+    return Date.now() - this.lastPong < 90000; // 90 seconds
+  }
+}
+```
+
+### Reconnection Logic
+
+```typescript
+class HAIPReconnectionManager {
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private baseDelay = 1000;
+  private maxDelay = 30000;
+  private isReconnecting = false;
+  
+  async reconnect(): Promise<void> {
+    if (this.isReconnecting) return;
+    
+    this.isReconnecting = true;
+    
+    try {
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        throw new Error('Max reconnection attempts exceeded');
+      }
+      
+      this.reconnectAttempts++;
+      const delay = Math.min(this.baseDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxDelay);
+      
+      console.log(`Reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      await this.connect();
+      
+      // Reset on successful reconnection
+      this.reconnectAttempts = 0;
+      this.isReconnecting = false;
+      
+    } catch (error) {
+      this.isReconnecting = false;
+      throw error;
+    }
+  }
+  
+  resetReconnectAttempts() {
+    this.reconnectAttempts = 0;
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+
+<Card title="Connection State" icon="network-wired">
+  Always check WebSocket readyState before sending messages.
+</Card>
+
+<Card title="Error Handling" icon="exclamation">
+  Comprehensive error handling with automatic recovery and user feedback.
+</Card>
+
+<Card title="Reconnection" icon="arrows-rotate">
+  Automatic reconnection with exponential backoff and connection state management.
+</Card>
+
+<Card title="Health Monitoring" icon="heart">
+  Monitor connection health with ping/pong and automatic health checks.
+</Card>
+
+</CardGroup> 

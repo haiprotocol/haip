@@ -1,0 +1,106 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "HAIProtocol (HAIP)",
+  "colors": {
+    "primary": "#EAB308",
+    "light": "#FCD34D",
+    "dark": "#CA8A04"
+  },
+  "favicon": "favicon.ico",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "index",
+          "quickstart",
+          "development"
+        ]
+      },
+      {
+        "group": "TypeScript SDK",
+        "pages": [
+          "sdk/overview",
+          "sdk/installation",
+          "sdk/quickstart",
+          "sdk/client",
+          "sdk/transports",
+          "sdk/authentication",
+          "sdk/messaging",
+          "sdk/tools",
+          "sdk/flow-control",
+          "sdk/error-handling",
+          "sdk/examples",
+          "sdk/api-reference"
+        ]
+      },
+      {
+        "group": "HAIP Server",
+        "pages": [
+          "server/overview",
+          "server/installation",
+          "server/quickstart",
+          "server/configuration",
+          "server/transports",
+          "server/tools",
+          "server/authentication",
+          "server/monitoring",
+          "server/deployment",
+          "server/api-reference"
+        ]
+      },
+      {
+        "group": "HAIP CLI",
+        "pages": [
+          "cli/overview",
+          "cli/installation",
+          "cli/quickstart",
+          "cli/commands",
+          "cli/configuration",
+          "cli/examples",
+          "cli/api-reference"
+        ]
+      },
+      {
+        "group": "Protocol Essentials",
+        "pages": [
+          "essentials/authentication",
+          "essentials/transport",
+          "essentials/messaging",
+          "essentials/tools",
+          "essentials/flow-control",
+          "essentials/error-handling"
+        ]
+      },
+      {
+        "group": "Implementation",
+        "pages": [
+          "essentials/websocket",
+          "essentials/sse",
+          "essentials/http-streaming",
+          "essentials/binary-frames"
+        ]
+      },
+      {
+        "group": "Examples",
+        "pages": [
+          "examples/basic-chat",
+          "examples/audio-streaming",
+          "examples/tool-integration",
+          "examples/flow-control"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/openapi"
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "light.svg",
+    "dark": "dark.svg"
+  }
+} 
