@@ -493,7 +493,9 @@ describe("Transports", () => {
     });
 
     test("should handle disconnection", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      mockEventSource.simulateOpen();
+      await connectPromise;
       
       const disconnectPromise = new Promise<string>((resolve) => {
         transport.onDisconnect((reason) => resolve(reason));
@@ -513,7 +515,9 @@ describe("Transports", () => {
       };
 
       mockFetch.mockResolvedValue(mockResponse);
-      await transport.connect();
+      const connectPromise = transport.connect();
+      mockEventSource.simulateOpen();
+      await connectPromise;
 
       const message: HAIPMessage = {
         id: "test-id",
@@ -548,7 +552,9 @@ describe("Transports", () => {
       };
 
       mockFetch.mockResolvedValue(mockResponse);
-      await transport.connect();
+      const connectPromise = transport.connect();
+      mockEventSource.simulateOpen();
+      await connectPromise;
 
       const data = new ArrayBuffer(8);
       await transport.sendBinary(data);
@@ -614,7 +620,9 @@ describe("Transports", () => {
     });
 
     test("should handle binary events", async () => {
-      await transport.connect();
+      const connectPromise = transport.connect();
+      mockEventSource.simulateOpen();
+      await connectPromise;
       
       const binaryPromise = new Promise<ArrayBuffer>((resolve) => {
         transport.onBinary((data) => resolve(data));
