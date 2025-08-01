@@ -1,3 +1,9 @@
+# Human‑Agent Interaction Protocol (HAIP)
+
+## Documation
+
+* [Documetation](https://haiprotocol.com/)
+
 ## Introduction
 
 The Human‑Agent Interaction Protocol (HAIP) is an open standard designed to streamline real‑time, multi‑modal exchanges between user‑facing web, mobile, and voice applications and AI agents. It complements the Model Context Protocol (MCP): HAIP focuses on the human‑agent layer, acting as a universal translator between front‑end interfaces and intelligent back‑ends, while MCP governs tool execution. HAIP is transport‑agnostic: it runs over WebSockets, Server‑Sent Events (SSE), HTTP streaming, or any message bus.
