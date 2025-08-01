@@ -26,8 +26,8 @@ A reference implementation of the HAIP (Human-Agent Interaction Protocol) server
 
 ```bash
 # Clone the repository
-git clone https://github.com/haiprotocol/haip-server.git
-cd haip-server
+git clone https://github.com/haiprotocol/haip.git
+cd haip/haip-server
 
 # Install dependencies
 npm install
