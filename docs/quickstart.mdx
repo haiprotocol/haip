@@ -13,12 +13,134 @@ Implement HAIP in your application with this quick guide.
 # Install SDK
 npm install @haip/sdk
 
+# Install Server
+npm install @haip/server
+
 # Install CLI (optional)
 npm install -g @haip/cli
-
-# Install Server (optional)
-npm install @haip/server
 ```
+
+### Step 1: Create Server
+
+Save this in server.js
+
+```javascript
+import { HAIPServer } from "../src/server";
+import { HAIPToolSchema } from "haip";
+import { HaipTool } from "../src/tool";
+
+const server = new HAIPServer({
+  port: 8080,
+  host: "0.0.0.0",
+  jwtSecret: "CHANGE_THIS_TO_A_SECRET_STRING",
+  enableCORS: true,
+  enableLogging: true,
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000,
+    minCredits: 100,
+    maxCredits: 10000,
+    creditThreshold: 200,
+    backPressureThreshold: 0.8,
+    adaptiveAdjustment: true,
+  },
+});
+
+server.on("authenticate", (req) => {
+  // Here you should validate your with your auth system
+  if (req.token === "Bearer TOKEN") {
+    return "userid";
+  }
+  return null;
+});
+
+class EchoTool extends HaipTool {
+  schema(): HAIPToolSchema {
+    return {
+      name: "echo",
+      description: "Echo back the input message",
+      inputSchema: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+        },
+        required: ["message"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          echoed: { type: "string" },
+          timestamp: { type: "string" },
+        },
+      },
+    };
+  }
+
+  registerListeners() {
+    this.on("message", () => {});
+  }
+}
+
+server.registerTool(new EchoTool());
+
+server.start();
+```
+
+### Step 2: Create client
+
+Save this in client.js
+
+```javascript
+import { createHAIPClient } from "@haip/sdk";
+
+async function main() {
+  // Create client
+  const client = createHAIPClient({
+    url: "ws://localhost:8080",
+    transport: "websocket",
+  });
+
+  client.on("authenticate", () => {
+    // You should send an auth token/creds here. This can be any object.
+    return {
+      token: "Bearer TOKEN",
+    };
+  });
+
+  try {
+    // Connect to server
+    await client.connect();
+
+    const transaction = await client.startTransaction("echo", {
+      //metadata: { example: 'some data' }
+    });
+
+    transaction.on("message", (message) => {
+      console.log("🤖 Agent:", message.payload.text);
+    });
+
+    transaction.sendTextMessage("Hello! Can you echo this?");
+  } catch (error) {
+    console.error("Error:", error);
+  } finally {
+    // Disconnect
+    await client.disconnect();
+  }
+}
+
+main();
+```
+
+### Step 3: Run Locally
+
+In the client
+
+```bash
+node server.js
+node client.js
+```
+
+# Old
 
 ### Step 1: Choose your transport
 
@@ -28,7 +150,7 @@ npm install @haip/server
 
     ```javascript
     const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket?token=YOUR_JWT_TOKEN');
-    
+
     ws.onopen = () => {
       // Send HAI handshake
       ws.send(JSON.stringify({
@@ -46,18 +168,20 @@ npm install @haip/server
       }));
     };
     ```
+
   </Accordion>
   <Accordion title="Server-Sent Events" icon="radio">
     For one-way streaming from server to client:
 
     ```javascript
     const eventSource = new EventSource('/haip/connect?token=YOUR_JWT_TOKEN');
-    
+
     eventSource.onmessage = (event) => {
       const haipMessage = JSON.parse(event.data);
       console.log('Received:', haipMessage);
     };
     ```
+
   </Accordion>
 </AccordionGroup>
 
@@ -69,7 +193,7 @@ npm install @haip/server
 
     ```javascript
     const messageId = generateUUID();
-    
+
     // Start message
     ws.send(JSON.stringify({
       id: generateUUID(),
@@ -84,7 +208,7 @@ npm install @haip/server
         text: "Hello, agent!"
       }
     }));
-    
+
     // End message
     ws.send(JSON.stringify({
       id: generateUUID(),
@@ -98,6 +222,7 @@ npm install @haip/server
       }
     }));
     ```
+
   </Accordion>
   <Accordion title="Audio Message" icon="microphone">
     Send audio data in chunks:
@@ -118,12 +243,13 @@ npm install @haip/server
         duration_ms: "120"
       }
     };
-    
+
     // Send envelope first
     ws.send(JSON.stringify(audioChunk));
     // Send binary data in second frame
     ws.send(audioData);
     ```
+
   </Accordion>
 </AccordionGroup>
 
@@ -132,34 +258,35 @@ npm install @haip/server
 <Accordion title="Process agent responses" icon="reply">
   Listen for agent responses and handle different event types:
 
-  ```javascript
-  ws.onmessage = (event) => {
-    const haipMessage = JSON.parse(event.data);
-    
-    switch (haipMessage.type) {
-      case 'TEXT_MESSAGE_START':
-        console.log('Agent started responding');
-        break;
-        
-      case 'TEXT_MESSAGE_PART':
-        // Append text chunk to UI
-        appendToChat(haipMessage.payload.text);
-        break;
-        
-      case 'TEXT_MESSAGE_END':
-        console.log('Agent finished responding');
-        break;
-        
-      case 'TOOL_CALL':
-        console.log('Agent is calling tool:', haipMessage.payload.tool);
-        break;
-        
-      case 'ERROR':
-        console.error('HAIP Error:', haipMessage.payload.message);
-        break;
-    }
-  };
-  ```
+```javascript
+ws.onmessage = (event) => {
+  const haipMessage = JSON.parse(event.data);
+
+  switch (haipMessage.type) {
+    case "TEXT_MESSAGE_START":
+      console.log("Agent started responding");
+      break;
+
+    case "TEXT_MESSAGE_PART":
+      // Append text chunk to UI
+      appendToChat(haipMessage.payload.text);
+      break;
+
+    case "TEXT_MESSAGE_END":
+      console.log("Agent finished responding");
+      break;
+
+    case "TOOL_CALL":
+      console.log("Agent is calling tool:", haipMessage.payload.tool);
+      break;
+
+    case "ERROR":
+      console.error("HAIP Error:", haipMessage.payload.message);
+      break;
+  }
+};
+```
+
 </Accordion>
 
 ## Next steps
@@ -176,7 +303,11 @@ Now that you have a basic HAIP implementation, explore these advanced features:
   <Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
     Manage back-pressure and prevent system overload.
   </Card>
-  <Card title="Error Handling" icon="exclamation" href="/essentials/error-handling">
+  <Card
+    title="Error Handling"
+    icon="exclamation"
+    href="/essentials/error-handling"
+  >
     Implement robust error handling and recovery.
   </Card>
 </CardGroup>

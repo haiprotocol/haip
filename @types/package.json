@@ -1,0 +1,14 @@
+{
+  "name": "haip-common",
+  "version": "1.0.0",
+  "description": "Common Packages",
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
+}

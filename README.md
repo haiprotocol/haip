@@ -1,4 +1,4 @@
-# Human‑Agent Interaction Protocol (HAIP)
+#Human‑Agent Interaction Protocol (HAIP)
 
 ## Documation
 
@@ -710,3 +710,62 @@ sequenceDiagram
 ## Summary
 
 HAIP enables intuitive, real‑time human‑agent conversations by standardising streaming, concurrency, tool invocation and flow‑control semantics without tying developers to a particular framework or transport.
+
+
+## Niall's Notes
+
+* What's the USER vs TOOL vs RUN call
+* Authentication
+* How to know the ID
+
+    'HAI',                'RUN_STARTED',
+    'RUN_FINISHED',       'RUN_CANCEL',
+    'RUN_ERROR',          'PING',
+    'PONG',               'REPLAY_REQUEST',
+    'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART',
+    'TEXT_MESSAGE_END',   'AUDIO_CHUNK',
+    'TOOL_CALL',          'TOOL_UPDATE',
+    'TOOL_DONE',          'TOOL_CANCEL',
+    'TOOL_LIST',          'TOOL_SCHEMA',
+    'ERROR',              'FLOW_UPDATE',
+    'PAUSE_CHANNEL',      'RESUME_CHANNEL'
+
+Why is text special? Are LLMs not a tool? Replace the API? History/Chats
+
+> Get history
+TRANSACTION START
+AUTHENTICATE
+  - Some body
+  - Set's an ID & Permissions
+HISTORY_LIST | HISTORY_CALL - Shows all transactions
+TRANSACTION END
+
+> EXAMPLE
+TRANSACTION START
+AUTHENTICATE
+TOOL SELECT
+TEXT SEND (USER)
+...
+TEXT FINISH
+TEXT SEND (AGENT)
+...
+TEXT FINISH
+
+TOOL_FUNC???
+
+TRANSACTION END
+
+> What about human in the loop
+> Remove/Pause/Modify Agents Messages
+MESSAGE_DELETE
+MESSAGE_EDIT
+MESSAGE_PAUSE
+
+MESSAGE_STOP
+
+TRANSACION_STOP
+TRANSACTION_UPDATE
+TRANSACTION_xxx
+
+> Do we need TOOL/RUN?
+> Managers/Customer Support
