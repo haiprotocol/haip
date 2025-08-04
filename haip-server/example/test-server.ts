@@ -1,10 +1,11 @@
-import { HAIPServer } from "./server";
-import { HAIPServerUtils } from "./utils";
+import { HAIPServer } from "../src/server";
+import { HAIPToolSchema } from "haip";
+import { HaipTool } from "../src/tool";
 
 const server = new HAIPServer({
     port: 8080,
     host: "0.0.0.0",
-    jwtSecret: "test-secret-key",
+    jwtSecret: "CHANGE_THIS_TO_A_SECRET_STRING",
     enableCORS: true,
     enableLogging: true,
     flowControl: {
@@ -18,6 +19,46 @@ const server = new HAIPServer({
     },
 });
 
+server.on("authenticate", req => {
+    // Here you should validate your with your auth system
+    if (req.token === "Bearer TOKEN") {
+        return "userid";
+    }
+    return null;
+});
+
+class EchoTool extends HaipTool {
+    schema(): HAIPToolSchema {
+        return {
+            name: "echo",
+            description: "Echo back the input message",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    message: { type: "string" },
+                },
+                required: ["message"],
+            },
+            outputSchema: {
+                type: "object",
+                properties: {
+                    echoed: { type: "string" },
+                    timestamp: { type: "string" },
+                },
+            },
+        };
+    }
+
+    registerListeners() {
+        this.on("message", () => {});
+    }
+}
+
+server.registerTool(new EchoTool());
+
+server.start();
+
+/*
 server.registerTool({
     name: "echo",
     description: "Echo back the input message",
@@ -198,3 +239,4 @@ process.on("SIGTERM", () => {
     server.stop();
     process.exit(0);
 });
+*/

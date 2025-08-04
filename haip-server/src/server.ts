@@ -14,9 +14,10 @@ import {
     HAIPServerStats,
     HAIPHandshakePayload,
     HAIPRun,
-    HAIPToolDefinition,
     HAIPToolExecution,
-} from "./types";
+    HAIPTool,
+    HAIPToolSchema,
+} from "haip";
 import { HAIPServerUtils } from "./utils";
 
 export class HAIPServer extends EventEmitter {
@@ -26,7 +27,7 @@ export class HAIPServer extends EventEmitter {
     private config: HAIPServerConfig;
     private sessions: Map<string, HAIPSession> = new Map();
     private runs: Map<string, HAIPRun> = new Map();
-    private tools: Map<string, HAIPToolDefinition> = new Map();
+    private tools: Map<string, HAIPTool> = new Map();
     private toolExecutions: Map<string, HAIPToolExecution> = new Map();
     private stats: HAIPServerStats;
     private startTime: number;
@@ -739,7 +740,7 @@ export class HAIPServer extends EventEmitter {
     }
 
     private setupDefaultTools(): void {
-        this.registerTool({
+        /*this.registerTool({
             name: "echo",
             description: "Echo back the input",
             inputSchema: {
@@ -774,7 +775,7 @@ export class HAIPServer extends EventEmitter {
                     result: { type: "number" },
                 },
             },
-        });
+        });*/
     }
 
     private startStatsUpdate(): void {
@@ -789,16 +790,16 @@ export class HAIPServer extends EventEmitter {
         }, 1000);
     }
 
-    public registerTool(tool: HAIPToolDefinition): void {
-        this.tools.set(tool.name, tool);
+    public registerTool(tool: HAIPTool): void {
+        this.tools.set(tool.schema().name, tool);
     }
 
     public unregisterTool(toolName: string): void {
         this.tools.delete(toolName);
     }
 
-    public getTools(): HAIPToolDefinition[] {
-        return Array.from(this.tools.values());
+    public getTools(): HAIPToolSchema[] {
+        return Array.from(this.tools.values()).map(tool => tool.schema());
     }
 
     public getSession(sessionId: string): HAIPSession | undefined {
