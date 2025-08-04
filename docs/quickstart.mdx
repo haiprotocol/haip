@@ -16,6 +16,9 @@ npm install @haip/sdk
 # Install Server
 npm install @haip/server
 
+# Install Types
+npm install @types/haip
+
 # Install CLI (optional)
 npm install -g @haip/cli
 ```
@@ -91,17 +94,17 @@ server.start();
 Save this in client.js
 
 ```javascript
-import { createHAIPClient } from "@haip/sdk";
+import { createHAIPClient } from "../src/index";
 
 async function main() {
   // Create client
   const client = createHAIPClient({
     url: "ws://localhost:8080",
-    transport: "websocket",
   });
 
-  client.on("authenticate", () => {
+  client.authenticate(() => {
     // You should send an auth token/creds here. This can be any object.
+    // You need to re-call this if your token changes.
     return {
       token: "Bearer TOKEN",
     };
@@ -115,7 +118,7 @@ async function main() {
       //metadata: { example: 'some data' }
     });
 
-    transaction.on("message", (message) => {
+    transaction.on("message", (message: any) => {
       console.log("🤖 Agent:", message.payload.text);
     });
 
