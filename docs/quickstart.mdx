@@ -49,7 +49,7 @@ const server = new HAIPServer({
   },
 });
 
-server.on("authenticate", (req) => {
+server.authenticate((req) => {
   // Here you should validate your with your auth system
   if (req.token === "Bearer TOKEN") {
     return "userid";
@@ -99,7 +99,10 @@ import { createHAIPClient } from "../src/index";
 async function main() {
   // Create client
   const client = createHAIPClient({
-    url: "ws://localhost:8080",
+    url: "ws://localhost:8080", //,
+    //transport: "websocket",
+    //,
+    //token: ""
   });
 
   client.authenticate(() => {
