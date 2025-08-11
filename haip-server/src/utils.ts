@@ -83,7 +83,7 @@ export class HAIPServerUtils {
         type: HAIPEventType,
         payload: Record<string, any>,
         options: {
-            //id?: string;
+            id?: string;
             seq?: string;
             ts?: string;
             ack?: string;
@@ -96,7 +96,8 @@ export class HAIPServerUtils {
         } = {}
     ): HAIPMessage {
         const message: HAIPMessage = {
-            id: transactionId || 'null',
+            id: options?.id || this.generateUUID(),
+            transaction: transactionId || "null",
             session: sessionId,
             seq: options.seq || this.generateSequenceNumber(),
             ts: options.ts || this.generateTimestamp(),
@@ -127,8 +128,11 @@ export class HAIPServerUtils {
         });
     }
 
-
-    static createTransactionStartMessage(sessionId: string, transactionId: string, payload: HAIPTransactionStartedPayload): HAIPMessage {
+    static createTransactionStartMessage(
+        sessionId: string,
+        transactionId: string,
+        payload: HAIPTransactionStartedPayload
+    ): HAIPMessage {
         return this.createMessage(sessionId, transactionId, "SYSTEM", "TRANSACTION_START", payload);
     }
 
@@ -191,11 +195,12 @@ export class HAIPServerUtils {
 
     static createTextMessageStart(
         sessionId: string,
+        transactionId: string,
         payload: HAIPTextMessageStartPayload,
         runId?: string,
         threadId?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, null, "USER", "TEXT_MESSAGE_START", payload, {
+        return this.createMessage(sessionId, transactionId, "USER", "TEXT_MESSAGE_START", payload, {
             run_id: runId,
             thread_id: threadId,
         });
@@ -203,11 +208,12 @@ export class HAIPServerUtils {
 
     static createTextMessagePart(
         sessionId: string,
+        transactionId: string,
         payload: HAIPTextMessagePartPayload,
         runId?: string,
         threadId?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, null, "USER", "TEXT_MESSAGE_PART", payload, {
+        return this.createMessage(sessionId, transactionId, "USER", "TEXT_MESSAGE_PART", payload, {
             run_id: runId,
             thread_id: threadId,
         });
@@ -215,11 +221,12 @@ export class HAIPServerUtils {
 
     static createTextMessageEnd(
         sessionId: string,
+        transactionId: string,
         payload: HAIPTextMessageEndPayload,
         runId?: string,
         threadId?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, null, "USER", "TEXT_MESSAGE_END", payload, {
+        return this.createMessage(sessionId, transactionId, "USER", "TEXT_MESSAGE_END", payload, {
             run_id: runId,
             thread_id: threadId,
         });
@@ -299,10 +306,11 @@ export class HAIPServerUtils {
 
     static createErrorMessage(
         sessionId: string,
+        transactionId: string | null,
         payload: HAIPErrorPayload,
         relatedId?: string
     ): HAIPMessage {
-        const message = this.createMessage(sessionId, null, "SYSTEM", "ERROR", payload);
+        const message = this.createMessage(sessionId, transactionId, "SYSTEM", "ERROR", payload);
         if (relatedId) {
             (message as any).related_id = relatedId;
         }
@@ -382,29 +390,29 @@ export class HAIPServerUtils {
 }
 
 export const HAIP_EVENT_TYPES = [
-  "HAI",
-  "PING",
-  "PONG",
-  "ERROR",
-  "FLOW_UPDATE",
-  "TRANSACTION_START",
-  "TRANSACTION_END",
-  // MAYBE GET RID OF?
-  "RUN_STARTED",
-  "RUN_FINISHED",
-  "RUN_CANCEL",
-  "RUN_ERROR",
-  "REPLAY_REQUEST",
-  "TEXT_MESSAGE_START",
-  "TEXT_MESSAGE_PART",
-  "TEXT_MESSAGE_END",
-  "AUDIO_CHUNK",
-  "TOOL_CALL",
-  "TOOL_UPDATE",
-  "TOOL_DONE",
-  "TOOL_CANCEL",
-  "TOOL_LIST",
-  "TOOL_SCHEMA",
-  "PAUSE_CHANNEL",
-  "RESUME_CHANNEL"
+    "HAI",
+    "PING",
+    "PONG",
+    "ERROR",
+    "FLOW_UPDATE",
+    "TRANSACTION_START",
+    "TRANSACTION_END",
+    // MAYBE GET RID OF?
+    "RUN_STARTED",
+    "RUN_FINISHED",
+    "RUN_CANCEL",
+    "RUN_ERROR",
+    "REPLAY_REQUEST",
+    "TEXT_MESSAGE_START",
+    "TEXT_MESSAGE_PART",
+    "TEXT_MESSAGE_END",
+    "AUDIO_CHUNK",
+    "TOOL_CALL",
+    "TOOL_UPDATE",
+    "TOOL_DONE",
+    "TOOL_CANCEL",
+    "TOOL_LIST",
+    "TOOL_SCHEMA",
+    "PAUSE_CHANNEL",
+    "RESUME_CHANNEL",
 ] as const;

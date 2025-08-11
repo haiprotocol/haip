@@ -55,6 +55,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     private messageQueue: Map<HAIPChannel, HAIPMessage[]> = new Map();
     private runRegistry: Map<string, HAIPRun> = new Map();
     private authFn: () => Record<string, any>;
+    private transactions: Map<string, HaipTransaction>;
 
     constructor(config: HAIPConnectionConfig) {
         super();
@@ -119,23 +120,43 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.transport = this.createTransport();
         this.setupTransportHandlers();
         this.initializeFlowControl();
+
+        this.transactions = new Map<string, HaipTransaction>();
     }
 
     async startTransaction(
         toolName: string,
         params?: Record<string, any>
     ): Promise<HAIPTransaction> {
-        //this.performHandshake();
-        const transaction1 = HAIPUtils.createTransactionStartMessage(
+        const tempTransactionId = HAIPUtils.generateUUID();
+
+        const transactionMessage = HAIPUtils.createTransactionStartMessage(
             this.state.sessionId,
+            tempTransactionId,
+            toolName,
             this.authFn()
         );
 
-        await this.sendMessage(transaction1);
+        const transaction = new HaipTransaction(tempTransactionId);
 
-        const transaction = new HaipTransaction();
-        //this.transactions.set(transaction.id, transaction);
-        return transaction;
+        this.transactions.set(tempTransactionId, transaction);
+
+        // Create the transaction with the server
+        await this.sendMessage(transactionMessage);
+
+        transaction.on("sendTextMessage", data => {
+            const { text, options } = data;
+
+            this.sendTextMessage(transaction.id, "USER", text);
+        });
+
+        // Wait for the response to mark the transaction as ready
+        return new Promise<HaipTransaction>((resolve, reject) => {
+            const onReady = () => {
+                resolve(transaction);
+            };
+            transaction.once("ready", onReady);
+        });
     }
 
     authenticate(authFn: () => Record<string, any>): void {
@@ -192,11 +213,11 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         });
 
         this.transport.onMessage((message: HAIPMessage) => {
-            //TODO this.handleMessage(message);
+            this.handleMessage(message);
         });
 
         this.transport.onBinary((data: ArrayBuffer) => {
-            //TODO this.handleBinaryData(data);
+            this.handleBinaryData(data);
         });
     }
 
@@ -240,7 +261,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             this.emit("error", error as Error);
         }
     }
-    /*
+
     private handleMessage(message: HAIPMessage): void {
         this.logger.debug("Received message:", message.type);
         this.performanceMetrics.messagesReceived++;
@@ -254,8 +275,31 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.updateReplayWindow(message);
         this.updateAcknowledgment(message);
 
+        if (message.transaction !== null) {
+            const transaction = this.transactions.get(message.transaction);
+            if (transaction) {
+                console.log("Handling message for transaction:", transaction.id);
+                transaction.handleMessage(message);
+                return;
+            }
+
+            if (message.type === "TRANSACTION_START") {
+                this.handleTransactionStart(message);
+                return;
+            }
+
+            if (message.type !== "PING" && message.type !== "PONG") {
+                this.logger.warn("Transaction not found for ID:", message.transaction);
+            }
+        }
+
+        // This should be just messages without a transaction
         switch (message.type) {
             case "HAI":
+            case "TRANSACTION_START":
+                this.logger.warn("Should not receive", message.type, " here");
+                break;
+            /*case "HAI":
                 this.handleHandshake(message.payload);
                 break;
             case "RUN_STARTED":
@@ -270,12 +314,14 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             case "RUN_ERROR":
                 this.handleRunError(message.payload as HAIPRunErrorPayload, message);
                 break;
+                */
             case "PING":
                 this.handlePing(message.payload as HAIPPingPayload, message);
                 break;
             case "PONG":
                 this.handlePong(message.payload as HAIPPongPayload, message);
                 break;
+            /*
             case "REPLAY_REQUEST":
                 this.handleReplayRequest(message.payload as HAIPReplayRequestPayload, message);
                 break;
@@ -316,7 +362,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
                 break;
             case "RESUME_CHANNEL":
                 this.handleChannelResumed(message.payload as HAIPChannelControlPayload, message);
-                break;
+                break;*/
             default:
                 this.logger.warn("Unknown message type:", message.type);
         }
@@ -329,13 +375,32 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.logger.debug("Received binary data, size:", data.byteLength);
     }
 
+    /*
     private handleHandshake(payload: any): void {
         this.logger.info("Handshake completed");
         this.state.handshakeCompleted = true;
         this.emit("handshake", payload);
         this.handlers.onHandshake?.(payload);
         this.startHeartbeat();
+    }*/
+
+    private handleTransactionStart(message: HAIPMessage): void {
+        const transaction = this.transactions.get(message.payload.referenceId);
+
+        if (transaction == null) {
+            this.logger.error("Transaction not found for ID:", message.payload.referenceId);
+            return;
+        }
+
+        transaction?.setId(message.transaction);
+
+        this.transactions.delete(message.payload.referenceId);
+        this.transactions.set(message.transaction, transaction);
+
+        this.logger.info("Transaction started:", message.transaction);
     }
+
+    /*
 
     private handleRunStarted(payload: HAIPRunStartedPayload, message: HAIPMessage): void {
         const runId = payload.run_id || message.run_id || HAIPUtils.generateUUID();
@@ -408,7 +473,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.emit("runError", payload);
         this.handlers.onRunError?.(payload);
     }
-
+*/
     private handlePing(payload: HAIPPingPayload, message: HAIPMessage): void {
         this.emit("ping", payload);
         this.handlers.onPing?.(payload);
@@ -429,7 +494,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.emit("heartbeat", latency);
         this.handlers.onHeartbeat?.(latency);
     }
-
+    /*
     private handleReplayRequest(payload: HAIPReplayRequestPayload, message: HAIPMessage): void {
         this.performanceMetrics.replayRequests++;
         this.emit("replayRequest", payload);
@@ -513,7 +578,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.emit("channelResumed", channel);
         this.handlers.onChannelResumed?.(channel);
         this.processPendingMessages(channel);
-    }
+    }*/
 
     private updateReplayWindow(message: HAIPMessage): void {
         this.state.replayWindow.set(message.seq, message);
@@ -539,22 +604,6 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.state.lastDeliveredSeq = message.seq;
     }
 
-    private async sendReplayMessages(fromSeq: string, toSeq?: string): Promise<void> {
-        const messages: HAIPMessage[] = [];
-
-        for (const [seq, message] of this.state.replayWindow.entries()) {
-            if (seq >= fromSeq && (!toSeq || seq <= toSeq)) {
-                messages.push(message);
-            }
-        }
-
-        messages.sort((a, b) => a.seq.localeCompare(b.seq));
-
-        for (const message of messages) {
-            await this.sendMessage(message);
-        }
-    }
-*/
     private handleDisconnection(reason: string): void {
         this.stopHeartbeat();
         this.clearReconnectTimeout();
@@ -769,7 +818,9 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         await this.sendMessage(message);
     }
 
+    */
     async sendTextMessage(
+        transactionId: string,
         channel: HAIPChannel,
         text: string,
         author?: string,
@@ -780,6 +831,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
         const startMessage = HAIPUtils.createTextMessageStartMessage(
             this.state.sessionId,
+            transactionId,
             channel,
             messageId,
             author
@@ -794,6 +846,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         for (const chunk of chunks) {
             const partMessage = HAIPUtils.createTextMessagePartMessage(
                 this.state.sessionId,
+                transactionId,
                 channel,
                 messageId,
                 chunk
@@ -807,6 +860,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
         const endMessage = HAIPUtils.createTextMessageEndMessage(
             this.state.sessionId,
+            transactionId,
             channel,
             messageId
         );
@@ -818,7 +872,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
         return messageId;
     }
-
+    /*
     async sendAudioChunk(
         channel: HAIPChannel,
         messageId: string,
@@ -1016,7 +1070,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     isConnected(): boolean {
         return this.state.connected && this.state.handshakeCompleted;
     }
-
+*/
     private chunkText(text: string, maxChunkSize: number): string[] {
         const chunks: string[] = [];
         for (let i = 0; i < text.length; i += maxChunkSize) {
@@ -1024,5 +1078,4 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         }
         return chunks;
     }
-        */
 }

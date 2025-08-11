@@ -46,7 +46,17 @@ export class WebSocketTransport extends EventEmitter implements HAIPTransport {
                                 this.emit("error", new Error("Invalid message format"));
                             }
                         } else if (data instanceof Buffer) {
-                            this.emit("binary", data);
+                            const messageStr = data.toString("utf8");
+                            try {
+                                const message = JSON.parse(messageStr);
+                                if (HAIPUtils.validateMessage(message)) {
+                                    this.emit("message", message);
+                                } else {
+                                    this.emit("error", new Error("Invalid message format"));
+                                }
+                            } catch (error) {
+                                this.emit("binary", Buffer.from(data));
+                            }
                         } else if (data instanceof ArrayBuffer) {
                             this.emit("binary", Buffer.from(data));
                         }

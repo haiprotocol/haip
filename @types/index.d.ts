@@ -7,11 +7,12 @@ export type HAIPChannel =
   | "AUDIO_IN"
   | "AUDIO_OUT";
 
-export type { HAIPEventType } from '../constants';
+export type { HAIPEventType } from "../constants";
 
 export interface HAIPTool {
   schema(): HAIPToolSchema;
-  registerListeners(): void;
+  handleMessage(message: HAIPMessage): void;
+  on(event: string, handler: (...args: any[]) => void): this;
 }
 
 export interface HAIPToolSchema {
@@ -233,6 +234,7 @@ export interface HAIPSession {
 export interface HAIPTransactionData {
   id: string;
   status: "started";
+  toolName: string;
 }
 
 export interface HAIPServerStats {
@@ -252,6 +254,7 @@ SDK
 export interface HAIPMessage {
   id: string;
   session: string;
+  transaction: string;
   seq: string;
   ack?: string;
   ts: string;
@@ -628,8 +631,8 @@ export interface HAIPClient {
 }
 
 export interface HAIPTransaction {
+  sendTextMessage(text: string, options?: HAIPMessageOptions);
   on(event: string, handler: (...args: any[]) => void): this;
-  sendTextMessage(text: string, options?: HAIPMessageOptions): Promise<void>;
 }
 
 export interface HAIPTransport {

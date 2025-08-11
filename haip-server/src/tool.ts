@@ -1,16 +1,12 @@
-import { HAIPTool, HAIPToolSchema } from "haip";
+import EventEmitter from "events";
+import { HAIPTool, HAIPToolSchema, HAIPMessage } from "haip";
 
-export class HaipTool implements HAIPTool {
+export class HaipTool extends EventEmitter implements HAIPTool {
     schema(): HAIPToolSchema {
         throw new Error("Method not implemented.");
     }
 
-    registerListeners() {
+    handleMessage(message: HAIPMessage): void {
         throw new Error("Method not implemented.");
-    }
-
-    on(event: string, listener: (...args: any[]) => void): this {
-        // Implement event listener logic here
-        return this;
     }
 }

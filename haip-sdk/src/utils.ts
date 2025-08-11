@@ -121,6 +121,7 @@ export class HAIPUtils {
      */
     static createMessage(
         sessionId: string,
+        transactionId: string | null,
         channel: HAIPChannel,
         type: HAIPEventType,
         payload: Record<string, any>,
@@ -139,6 +140,7 @@ export class HAIPUtils {
     ): HAIPMessage {
         return {
             id: options?.id || this.generateUUID(),
+            transaction: transactionId || "null",
             session: sessionId,
             seq: options?.seq || this.generateSequenceNumber(),
             ts: options?.ts || this.generateTimestamp(),
@@ -158,10 +160,15 @@ export class HAIPUtils {
     /**
      * Create a transaction start message
      */
-    static createTransactionStartMessage(sessionId: string, authFn: object): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "TRANSACTION_START", {
-            transaction_id: this.generateUUID(),
+    static createTransactionStartMessage(
+        sessionId: string,
+        transactionId: string,
+        toolName: string,
+        authFn: object
+    ): HAIPMessage {
+        return this.createMessage(sessionId, transactionId, "SYSTEM", "TRANSACTION_START", {
             auth: authFn,
+            toolName: toolName,
         });
     }
 
@@ -175,7 +182,7 @@ export class HAIPUtils {
         capabilities?: Record<string, any>,
         lastRxSeq?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "HAI", {
+        return this.createMessage(sessionId, null, "SYSTEM", "HAI", {
             haip_version: "1.1.2",
             accept_major: [1],
             accept_events: acceptEvents,
@@ -196,6 +203,7 @@ export class HAIPUtils {
     ): HAIPMessage {
         return this.createMessage(
             sessionId,
+            null,
             "SYSTEM",
             "RUN_STARTED",
             {
@@ -221,6 +229,7 @@ export class HAIPUtils {
     ): HAIPMessage {
         return this.createMessage(
             sessionId,
+            null,
             "SYSTEM",
             "RUN_FINISHED",
             {
@@ -238,6 +247,7 @@ export class HAIPUtils {
     static createRunCancelMessage(sessionId: string, runId: string): HAIPMessage {
         return this.createMessage(
             sessionId,
+            null,
             "SYSTEM",
             "RUN_CANCEL",
             {
@@ -260,6 +270,7 @@ export class HAIPUtils {
     ): HAIPMessage {
         return this.createMessage(
             sessionId,
+            null,
             "SYSTEM",
             "RUN_ERROR",
             {
@@ -277,7 +288,7 @@ export class HAIPUtils {
      * Create a ping message
      */
     static createPingMessage(sessionId: string, nonce?: string): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "PING", {
+        return this.createMessage(sessionId, null, "SYSTEM", "PING", {
             ...(nonce && { nonce }),
         });
     }
@@ -286,7 +297,7 @@ export class HAIPUtils {
      * Create a pong message
      */
     static createPongMessage(sessionId: string, nonce?: string): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "PONG", {
+        return this.createMessage(sessionId, null, "SYSTEM", "PONG", {
             ...(nonce && { nonce }),
         });
     }
@@ -299,7 +310,7 @@ export class HAIPUtils {
         fromSeq: string,
         toSeq?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "REPLAY_REQUEST", {
+        return this.createMessage(sessionId, null, "SYSTEM", "REPLAY_REQUEST", {
             from_seq: fromSeq,
             ...(toSeq && { to_seq: toSeq }),
         });
@@ -310,12 +321,13 @@ export class HAIPUtils {
      */
     static createTextMessageStartMessage(
         sessionId: string,
+        transactionId: string,
         channel: HAIPChannel,
         messageId: string,
         author?: string,
         text?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TEXT_MESSAGE_START", {
+        return this.createMessage(sessionId, transactionId, channel, "TEXT_MESSAGE_START", {
             message_id: messageId,
             ...(author && { author }),
             ...(text && { text }),
@@ -327,11 +339,12 @@ export class HAIPUtils {
      */
     static createTextMessagePartMessage(
         sessionId: string,
+        transactionId: string,
         channel: HAIPChannel,
         messageId: string,
         text: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TEXT_MESSAGE_PART", {
+        return this.createMessage(sessionId, transactionId, channel, "TEXT_MESSAGE_PART", {
             message_id: messageId,
             text,
         });
@@ -342,11 +355,12 @@ export class HAIPUtils {
      */
     static createTextMessageEndMessage(
         sessionId: string,
+        transactionId: string,
         channel: HAIPChannel,
         messageId: string,
         tokens?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TEXT_MESSAGE_END", {
+        return this.createMessage(sessionId, transactionId, channel, "TEXT_MESSAGE_END", {
             message_id: messageId,
             ...(tokens && { tokens }),
         });
@@ -363,7 +377,7 @@ export class HAIPUtils {
         data?: string,
         durationMs?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "AUDIO_CHUNK", {
+        return this.createMessage(sessionId, null, channel, "AUDIO_CHUNK", {
             message_id: messageId,
             mime,
             ...(data && { data }),
@@ -381,7 +395,7 @@ export class HAIPUtils {
         tool: string,
         params?: Record<string, any>
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TOOL_CALL", {
+        return this.createMessage(sessionId, null, channel, "TOOL_CALL", {
             call_id: callId,
             tool,
             ...(params && { params }),
@@ -399,7 +413,7 @@ export class HAIPUtils {
         progress?: number,
         partial?: any
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TOOL_UPDATE", {
+        return this.createMessage(sessionId, null, channel, "TOOL_UPDATE", {
             call_id: callId,
             status,
             ...(progress !== undefined && { progress: progress }),
@@ -417,7 +431,7 @@ export class HAIPUtils {
         status?: "OK" | "CANCELLED" | "ERROR",
         result?: any
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TOOL_DONE", {
+        return this.createMessage(sessionId, null, channel, "TOOL_DONE", {
             call_id: callId,
             ...(status && { status }),
             ...(result !== undefined && { result }),
@@ -433,7 +447,7 @@ export class HAIPUtils {
         callId: string,
         reason?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TOOL_CANCEL", {
+        return this.createMessage(sessionId, null, channel, "TOOL_CANCEL", {
             call_id: callId,
             ...(reason && { reason }),
         });
@@ -447,7 +461,7 @@ export class HAIPUtils {
         channel: HAIPChannel,
         tools: Array<{ name: string; description?: string }>
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TOOL_LIST", {
+        return this.createMessage(sessionId, null, channel, "TOOL_LIST", {
             tools,
         });
     }
@@ -461,7 +475,7 @@ export class HAIPUtils {
         tool: string,
         schema: Record<string, any>
     ): HAIPMessage {
-        return this.createMessage(sessionId, channel, "TOOL_SCHEMA", {
+        return this.createMessage(sessionId, null, channel, "TOOL_SCHEMA", {
             tool,
             schema,
         });
@@ -476,7 +490,7 @@ export class HAIPUtils {
         addMessages?: number,
         addBytes?: number
     ): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "FLOW_UPDATE", {
+        return this.createMessage(sessionId, null, "SYSTEM", "FLOW_UPDATE", {
             channel,
             ...(addMessages !== undefined && { add_messages: addMessages }),
             ...(addBytes !== undefined && { add_bytes: addBytes }),
@@ -487,7 +501,7 @@ export class HAIPUtils {
      * Create a pause channel message
      */
     static createPauseChannelMessage(sessionId: string, channel: string): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "PAUSE_CHANNEL", {
+        return this.createMessage(sessionId, null, "SYSTEM", "PAUSE_CHANNEL", {
             channel,
         });
     }
@@ -496,7 +510,7 @@ export class HAIPUtils {
      * Create a resume channel message
      */
     static createResumeChannelMessage(sessionId: string, channel: string): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "RESUME_CHANNEL", {
+        return this.createMessage(sessionId, null, "SYSTEM", "RESUME_CHANNEL", {
             channel,
         });
     }
@@ -511,7 +525,7 @@ export class HAIPUtils {
         relatedId?: string,
         detail?: Record<string, any>
     ): HAIPMessage {
-        return this.createMessage(sessionId, "SYSTEM", "ERROR", {
+        return this.createMessage(sessionId, null, "SYSTEM", "ERROR", {
             code,
             message,
             ...(relatedId && { related_id: relatedId }),
@@ -738,29 +752,29 @@ export class HAIPUtils {
 }
 
 export const HAIP_EVENT_TYPES = [
-  "HAI",
-  "PING",
-  "PONG",
-  "ERROR",
-  "FLOW_UPDATE",
-  "TRANSACTION_START",
-  "TRANSACTION_END",
-  // MAYBE GET RID OF?
-  "RUN_STARTED",
-  "RUN_FINISHED",
-  "RUN_CANCEL",
-  "RUN_ERROR",
-  "REPLAY_REQUEST",
-  "TEXT_MESSAGE_START",
-  "TEXT_MESSAGE_PART",
-  "TEXT_MESSAGE_END",
-  "AUDIO_CHUNK",
-  "TOOL_CALL",
-  "TOOL_UPDATE",
-  "TOOL_DONE",
-  "TOOL_CANCEL",
-  "TOOL_LIST",
-  "TOOL_SCHEMA",
-  "PAUSE_CHANNEL",
-  "RESUME_CHANNEL"
+    "HAI",
+    "PING",
+    "PONG",
+    "ERROR",
+    "FLOW_UPDATE",
+    "TRANSACTION_START",
+    "TRANSACTION_END",
+    // MAYBE GET RID OF?
+    "RUN_STARTED",
+    "RUN_FINISHED",
+    "RUN_CANCEL",
+    "RUN_ERROR",
+    "REPLAY_REQUEST",
+    "TEXT_MESSAGE_START",
+    "TEXT_MESSAGE_PART",
+    "TEXT_MESSAGE_END",
+    "AUDIO_CHUNK",
+    "TOOL_CALL",
+    "TOOL_UPDATE",
+    "TOOL_DONE",
+    "TOOL_CANCEL",
+    "TOOL_LIST",
+    "TOOL_SCHEMA",
+    "PAUSE_CHANNEL",
+    "RESUME_CHANNEL",
 ] as const;

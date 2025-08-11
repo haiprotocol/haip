@@ -1,5 +1,5 @@
 import { HAIPServer } from "../src/server";
-import { HAIPToolSchema } from "haip";
+import { HAIPMessage, HAIPToolSchema } from "haip";
 import { HaipTool } from "../src/tool";
 
 const server = new HAIPServer({
@@ -49,8 +49,9 @@ class EchoTool extends HaipTool {
         };
     }
 
-    registerListeners() {
-        this.on("message", () => {});
+    handleMessage(message: HAIPMessage) {
+        console.log("Echoing back: ", message.payload);
+        this.emit("sendHAIPMessage", message);
     }
 }
 
