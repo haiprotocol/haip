@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { EventEmitter } from "events";
-import { HAIPTransport, HAIPMessage } from "../types";
+import { HAIPTransport, HAIPMessage } from "haip";
 import { HAIPUtils } from "../utils";
 
 export class WebSocketTransport extends EventEmitter implements HAIPTransport {
@@ -95,7 +95,7 @@ export class WebSocketTransport extends EventEmitter implements HAIPTransport {
                     this.ws = null;
                     resolve();
                 });
-                this.ws.close(1000, "Normal closure");
+                this.ws.close(1000, "Normal closure - Client Requested");
             } else {
                 resolve();
             }

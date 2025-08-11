@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { HAIPConnection } from "../connection";
-import { HAIPCLIConfig, HAIPCLITestOptions } from "../types";
+import { HAIPCLIConfig, HAIPCLITestOptions } from "haip";
 import { HAIPCLIUtils } from "../utils";
 
 export function createTestCommand(): Command {

@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node ./index.ts",
-    "test-server": "ts-node src/test-server.ts",
+    "example": "ts-node ./example/test-server.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -55,10 +55,10 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@types/haip": "file:../@types",
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/haip": "file:../@types",
     "@types/jest": "^29.5.8",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.9",

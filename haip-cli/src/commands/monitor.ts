@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { HAIPConnection } from "../connection";
-import { HAIPCLIConfig, HAIPCLIMonitorOptions } from "../types";
+import { HAIPCLIConfig, HAIPCLIMonitorOptions } from "haip";
 
 export function createMonitorCommand(): Command {
     return new Command("monitor")

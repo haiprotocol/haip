@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { HAIPConnection } from "../connection";
-import { HAIPCLIConfig } from "../types";
+import { HAIPCLIConfig } from "haip";
 import { HAIPCLIUtils } from "../utils";
 
 export function createConnectCommand(): Command {

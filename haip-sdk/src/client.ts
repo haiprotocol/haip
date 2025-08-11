@@ -34,11 +34,13 @@ import {
     HAIPErrorPayload,
     HAIPFlowUpdatePayload,
     HAIPChannelControlPayload,
+    HAIPTransaction,
 } from "haip";
-import { HAIPUtils } from "./utils";
+import { HAIPUtils, HAIP_EVENT_TYPES } from "./utils";
 import { WebSocketTransport } from "./transports/websocket";
 import { SSETransport } from "./transports/sse";
 import { HTTPStreamingTransport } from "./transports/http-streaming";
+import { HaipTransaction } from "./transaction";
 
 export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     private config: HAIPConnectionConfig;
@@ -52,6 +54,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     private pendingAcks: Map<string, { timestamp: number; retries: number }> = new Map();
     private messageQueue: Map<HAIPChannel, HAIPMessage[]> = new Map();
     private runRegistry: Map<string, HAIPRun> = new Map();
+    private authFn: () => Record<string, any>;
 
     constructor(config: HAIPConnectionConfig) {
         super();
@@ -110,16 +113,40 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             error: (msg: string, ...args: any[]) => console.error(`[HAIP] ${msg}`, ...args),
         };
 
+        this.authFn = () => {
+            throw new Error("Authentication function not implemented");
+        };
         this.transport = this.createTransport();
         this.setupTransportHandlers();
         this.initializeFlowControl();
+    }
+
+    async startTransaction(
+        toolName: string,
+        params?: Record<string, any>
+    ): Promise<HAIPTransaction> {
+        //this.performHandshake();
+        const transaction1 = HAIPUtils.createTransactionStartMessage(
+            this.state.sessionId,
+            this.authFn()
+        );
+
+        await this.sendMessage(transaction1);
+
+        const transaction = new HaipTransaction();
+        //this.transactions.set(transaction.id, transaction);
+        return transaction;
+    }
+
+    authenticate(authFn: () => Record<string, any>): void {
+        this.authFn = authFn;
     }
 
     private createTransport(): HAIPTransport {
         const transportConfig: HAIPTransportConfig = {
             type: "websocket",
             url: this.config.url,
-            token: this.config.token,
+            token: "", //this.config.token, //TODO no token here
             options: {},
         };
 
@@ -141,7 +168,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
     private setupTransportHandlers(): void {
         this.transport.onConnect(() => {
-            this.logger.info("Transport connected");
+            this.logger.info("Transport connecting...");
             this.state.connected = true;
             this.state.reconnectAttempts = 0;
             this.emit("connect");
@@ -165,11 +192,11 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         });
 
         this.transport.onMessage((message: HAIPMessage) => {
-            this.handleMessage(message);
+            //TODO this.handleMessage(message);
         });
 
         this.transport.onBinary((data: ArrayBuffer) => {
-            this.handleBinaryData(data);
+            //TODO this.handleBinaryData(data);
         });
     }
 
@@ -187,31 +214,6 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
     private async performHandshake(): Promise<void> {
         try {
-            const acceptEvents: HAIPEventType[] = [
-                "HAI",
-                "RUN_STARTED",
-                "RUN_FINISHED",
-                "RUN_CANCEL",
-                "RUN_ERROR",
-                "PING",
-                "PONG",
-                "REPLAY_REQUEST",
-                "TEXT_MESSAGE_START",
-                "TEXT_MESSAGE_PART",
-                "TEXT_MESSAGE_END",
-                "AUDIO_CHUNK",
-                "TOOL_CALL",
-                "TOOL_UPDATE",
-                "TOOL_DONE",
-                "TOOL_CANCEL",
-                "TOOL_LIST",
-                "TOOL_SCHEMA",
-                "ERROR",
-                "FLOW_UPDATE",
-                "PAUSE_CHANNEL",
-                "RESUME_CHANNEL",
-            ];
-
             const capabilities = {
                 binary_frames: true,
                 flow_control: {
@@ -225,7 +227,8 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
             const handshakeMessage = HAIPUtils.createHandshakeMessage(
                 this.state.sessionId,
-                acceptEvents,
+                this.authFn(),
+                Array.from(HAIP_EVENT_TYPES) as HAIPEventType[],
                 capabilities,
                 this.state.lastAck
             );
@@ -237,7 +240,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             this.emit("error", error as Error);
         }
     }
-
+    /*
     private handleMessage(message: HAIPMessage): void {
         this.logger.debug("Received message:", message.type);
         this.performanceMetrics.messagesReceived++;
@@ -551,7 +554,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             await this.sendMessage(message);
         }
     }
-
+*/
     private handleDisconnection(reason: string): void {
         this.stopHeartbeat();
         this.clearReconnectTimeout();
@@ -587,7 +590,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             this.reconnectTimeout = undefined;
         }
     }
-
+    /*
     private startHeartbeat(): void {
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
@@ -598,14 +601,14 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             this.sendHeartbeat();
         }, interval);
     }
-
+*/
     private stopHeartbeat(): void {
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
             this.heartbeatInterval = undefined;
         }
     }
-
+    /*
     private async sendHeartbeat(): Promise<void> {
         if (!this.state.connected) {
             return;
@@ -646,7 +649,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
                 break;
             }
         }
-    }
+    }*/
 
     async connect(): Promise<void> {
         if (this.state.connected) {
@@ -718,7 +721,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             throw error;
         }
     }
-
+    /*
     async sendBinary(data: ArrayBuffer): Promise<void> {
         if (!this.state.connected) {
             throw new Error("Not connected");
@@ -1021,4 +1024,5 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         }
         return chunks;
     }
+        */
 }

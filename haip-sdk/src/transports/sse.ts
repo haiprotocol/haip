@@ -1,4 +1,4 @@
-import { HAIPTransport, HAIPTransportConfig, HAIPMessage } from "../types";
+import { HAIPTransport, HAIPTransportConfig, HAIPMessage } from "haip";
 import { HAIPUtils } from "../utils";
 
 export class SSETransport implements HAIPTransport {

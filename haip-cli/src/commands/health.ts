@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import fetch from "node-fetch";
-import { HAIPCLIHealthCheck } from "../types";
+import { HAIPCLIHealthCheck } from "haip";
 
 export function createHealthCommand(): Command {
     return new Command("health")

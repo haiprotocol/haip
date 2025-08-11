@@ -17,8 +17,9 @@ import {
     HAIPToolExecution,
     HAIPTool,
     HAIPToolSchema,
+    HAIPEventType,
 } from "haip";
-import { HAIPServerUtils } from "./utils";
+import { HAIPServerUtils, HAIP_EVENT_TYPES } from "./utils";
 
 export class HAIPServer extends EventEmitter {
     private app: express.Application;
@@ -33,6 +34,7 @@ export class HAIPServer extends EventEmitter {
     private startTime: number;
     private statsInterval: NodeJS.Timeout | null = null;
     private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
+    private authFn: (req: any) => string | null;
 
     constructor(config: Partial<HAIPServerConfig> = {}) {
         super();
@@ -84,6 +86,9 @@ export class HAIPServer extends EventEmitter {
         this.setupWebSocket();
         this.setupDefaultTools();
         this.startStatsUpdate();
+        this.authFn = () => {
+            throw new Error("Authentication function not implemented");
+        };
     }
 
     private setupMiddleware(): void {
@@ -120,7 +125,7 @@ export class HAIPServer extends EventEmitter {
         });
 
         this.app.get("/haip/sse", (req, res) => {
-            const token = req.query.token as string;
+            /*const token = req.query.token as string;
             if (!token || !HAIPServerUtils.validateJWT(token)) {
                 res.status(401).json({ error: "Invalid token" });
                 return;
@@ -130,7 +135,7 @@ export class HAIPServer extends EventEmitter {
             if (!userId) {
                 res.status(401).json({ error: "Invalid token" });
                 return;
-            }
+            }*/
 
             res.writeHead(200, {
                 "Content-Type": "text/event-stream",
@@ -140,8 +145,8 @@ export class HAIPServer extends EventEmitter {
                 "Access-Control-Allow-Headers": "Cache-Control",
             });
 
-            const sessionId = this.createSession(userId);
-            const session = this.sessions.get(sessionId)!;
+            const session = this.createSession();
+            const sessionId = session.id;
 
             const handshake = this.createHandshakeResponse(sessionId);
             res.write(`data: ${JSON.stringify(handshake)}\n\n`);
@@ -154,7 +159,7 @@ export class HAIPServer extends EventEmitter {
         });
 
         this.app.post("/haip/stream", (req, res) => {
-            const token = req.headers.authorization?.replace("Bearer ", "");
+            /*const token = req.headers.authorization?.replace("Bearer ", "");
             if (!token || !HAIPServerUtils.validateJWT(token)) {
                 res.status(401).json({ error: "Invalid token" });
                 return;
@@ -164,10 +169,13 @@ export class HAIPServer extends EventEmitter {
             if (!userId) {
                 res.status(401).json({ error: "Invalid token" });
                 return;
-            }
+            }*/
 
-            const sessionId = this.createSession(userId);
-            const session = this.sessions.get(sessionId)!;
+            // TODO - they might be reconnecting to a session
+            const session = this.createSession();
+            const sessionId = session.id;
+            session.req = req;
+            session.httpResponse = res;
 
             res.writeHead(200, {
                 "Content-Type": "application/json",
@@ -181,8 +189,6 @@ export class HAIPServer extends EventEmitter {
             req.on("close", () => {
                 this.handleDisconnect(sessionId);
             });
-
-            session.httpResponse = res;
 
             req.on("data", chunk => {
                 try {
@@ -204,7 +210,7 @@ export class HAIPServer extends EventEmitter {
     private setupWebSocket(): void {
         this.wss.on("connection", (ws: WebSocket, req: any) => {
             const url = new URL(req.url, `http://${req.headers.host}`);
-            const token = url.searchParams.get("token");
+            /*const token = url.searchParams.get("token");
 
             if (!token || !HAIPServerUtils.validateJWT(token)) {
                 ws.close(1008, "Invalid token");
@@ -215,10 +221,10 @@ export class HAIPServer extends EventEmitter {
             if (!userId) {
                 ws.close(1008, "Invalid token");
                 return;
-            }
+            }*/
 
-            const sessionId = this.createSession(userId);
-            const session = this.sessions.get(sessionId)!;
+            const session = this.createSession();
+            const sessionId = session.id;
             session.ws = ws;
 
             this.stats.totalConnections++;
@@ -254,7 +260,8 @@ export class HAIPServer extends EventEmitter {
                 }
             });
 
-            ws.on("close", () => {
+            ws.on("close", (code: number, reason: Buffer) => {
+                console.log(`WebSocket closing. Code: ${code}, Reason: ${reason.toString()}`);
                 this.handleDisconnect(sessionId);
             });
 
@@ -267,11 +274,11 @@ export class HAIPServer extends EventEmitter {
         });
     }
 
-    private createSession(userId: string): string {
+    private createSession(): HAIPSession {
         const sessionId = HAIPServerUtils.generateUUID();
         const session: HAIPSession = {
             id: sessionId,
-            userId,
+            userId: null,
             connected: true,
             handshakeCompleted: false,
             lastActivity: Date.now(),
@@ -295,40 +302,18 @@ export class HAIPServer extends EventEmitter {
             replayWindow: new Map(),
             activeRuns: new Set(),
             pendingMessages: new Map(),
+            transactions: new Map(),
         };
 
         this.sessions.set(sessionId, session);
-        return sessionId;
+        return session;
     }
 
     private createHandshakeResponse(sessionId: string): HAIPMessage {
         const payload: HAIPHandshakePayload = {
             haip_version: "1.1.2",
             accept_major: [1],
-            accept_events: [
-                "HAI",
-                "RUN_STARTED",
-                "RUN_FINISHED",
-                "RUN_CANCEL",
-                "RUN_ERROR",
-                "PING",
-                "PONG",
-                "REPLAY_REQUEST",
-                "TEXT_MESSAGE_START",
-                "TEXT_MESSAGE_PART",
-                "TEXT_MESSAGE_END",
-                "AUDIO_CHUNK",
-                "TOOL_CALL",
-                "TOOL_UPDATE",
-                "TOOL_DONE",
-                "TOOL_CANCEL",
-                "TOOL_LIST",
-                "TOOL_SCHEMA",
-                "ERROR",
-                "FLOW_UPDATE",
-                "PAUSE_CHANNEL",
-                "RESUME_CHANNEL",
-            ],
+            accept_events: Array.from(HAIP_EVENT_TYPES) as HAIPEventType[],
             capabilities: {
                 binary_frames: true,
                 flow_control: {
@@ -344,6 +329,8 @@ export class HAIPServer extends EventEmitter {
     }
 
     private handleMessage(sessionId: string, message: any): void {
+        this.handleAuthentication(sessionId, message);
+
         const session = this.sessions.get(sessionId);
         if (!session) {
             console.log("Session not found for ID:", sessionId);
@@ -371,10 +358,13 @@ export class HAIPServer extends EventEmitter {
 
         switch (message.type) {
             case "HAI":
-                console.log("Routing to handleHandshake");
-                this.handleHandshake(sessionId, message);
+                //console.log("Duplicate HAI:", message.type);
+                //this.sendError(sessionId, "Ignoring HAI", "You have already sent HAI");
                 break;
-            case "RUN_STARTED":
+            case "TRANSACTION_START":
+                this.handleTransactionStart(sessionId, message);
+                break;
+            /*case "RUN_STARTED":
                 this.handleRunStarted(sessionId, message);
                 break;
             case "RUN_FINISHED":
@@ -382,12 +372,12 @@ export class HAIPServer extends EventEmitter {
                 break;
             case "RUN_CANCEL":
                 this.handleRunCancel(sessionId, message);
-                break;
+                break;*/
             case "PING":
                 console.log("Routing to handlePing");
                 this.handlePing(sessionId, message);
                 break;
-            case "REPLAY_REQUEST":
+            /*case "REPLAY_REQUEST":
                 this.handleReplayRequest(sessionId, message);
                 break;
             case "TEXT_MESSAGE_START":
@@ -415,7 +405,7 @@ export class HAIPServer extends EventEmitter {
                 break;
             case "RESUME_CHANNEL":
                 this.handleResumeChannel(sessionId, message);
-                break;
+                break;*/
             default:
                 console.log("Unknown message type:", message.type);
                 this.sendError(
@@ -435,14 +425,63 @@ export class HAIPServer extends EventEmitter {
         this.emit("binary", sessionId, data);
     }
 
-    private handleHandshake(sessionId: string, message: HAIPMessage): void {
+    private handleAuthentication(sessionId: string, message: HAIPMessage): void {
         const session = this.sessions.get(sessionId);
+        if (!session) {
+            console.log("Session not found for ID:", sessionId);
+            throw new Error("Session not found");
+        }
+
+        if (session.userId === null) {
+            if (!HAIPServerUtils.validateMessage(message)) {
+                console.log("Invalid message:", message);
+                this.sendError(sessionId, "INVALID_MESSAGE", "Invalid message format");
+                session.ws?.close(1008, "Invalid token");
+                session.req?.close();
+                throw new Error("Invalid Message");
+            } else {
+                if (message.type === "HAI") {
+                    const userId = this.authFn(message.payload.auth);
+
+                    if (userId === null) {
+                        console.log("Invalid message:", message);
+                        this.sendError(sessionId, "FAILED_AUTH", "Failed Auth");
+                        session.ws?.close(1008, "Invalid token");
+                        session.req?.close();
+                        throw new Error("Failed Auth");
+                    }
+
+                    session.userId = userId;
+                    session.handshakeCompleted = true;
+                    this.emit("handshake", sessionId, message.payload);
+                    // Success
+                    return;
+                } else {
+                    this.sendError(sessionId, "NOT HAI", "First message needs to be HAI");
+                    session.ws?.close(1008, "Invalid token");
+                    session.req?.close();
+                    throw new Error("Not HAI");
+                }
+            }
+        }
+    }
+
+    private handleTransactionStart(sessionId: string, message: HAIPMessage): void {
+        const session = this.sessions.get(sessionId);
+
         if (!session) {
             return;
         }
 
-        session.handshakeCompleted = true;
-        this.emit("handshake", sessionId, message.payload);
+        const referenceId = message.id;
+        const transactionId = HAIPServerUtils.generateUUID();
+
+        session.transactions.set(transactionId, {
+            id: transactionId,
+            status: "started"
+        });
+
+        this.sendMessage(sessionId, HAIPServerUtils.createTransactionStartMessage(sessionId, transactionId, {referenceId: referenceId}));
     }
 
     private handleRunStarted(sessionId: string, message: HAIPMessage): void {
@@ -788,6 +827,10 @@ export class HAIPServer extends EventEmitter {
                     this.stats.totalMessages / (this.stats.uptime / 1000);
             }
         }, 1000);
+    }
+
+    public authenticate(fn: (req: any) => string | null): void {
+        this.authFn = fn;
     }
 
     public registerTool(tool: HAIPTool): void {

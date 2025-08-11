@@ -48,8 +48,8 @@ export { SSETransport } from "./transports/sse";
 export { HTTPStreamingTransport } from "./transports/http-streaming";
 
 export function createHAIPClient(
-    config: import("./types").HAIPConnectionConfig
-): import("./types").HAIPClient {
+    config: import("haip").HAIPConnectionConfig
+): import("haip").HAIPClient {
     const { HAIPClientImpl } = require("./client");
     return new HAIPClientImpl(config);
 }

@@ -1,48 +1,44 @@
-import { createHAIPClient } from '@haip/sdk';
+import { createHAIPClient } from "../src/index";
 
 async function main() {
-  // Create client
-  const client = createHAIPClient({
-    url: 'ws://localhost:8080',
-    transport: 'websocket'
-  });
+    // Create client
+    const client = createHAIPClient({
+        url: "ws://localhost:8080", //,
+        //transport: "websocket",
+        //,
+        //token: ""
+    });
 
+    client.authenticate(() => {
+        // You should send an auth token/creds here. This can be any object.
+        // You need to re-call this if your token changes.
+        return {
+            token: "Bearer TOKEN",
+        };
+    });
 
-  client.on('authenticate', () => {
-    // You should send an auth token/creds here. This can be any object.
-    return {
-      token: 'Bearer TOKEN'
+    try {
+        // Connect to server
+        await client.connect();
+
+        const transaction = await client.startTransaction("echo", {
+            //metadata: { example: 'some data' }
+        });
+
+        transaction.on("message", (message: any) => {
+            console.log("🤖 Agent:", message.payload.text);
+        });
+
+        transaction.sendTextMessage("Hello! Can you echo this?");
+    } catch (error) {
+        console.error("Error:", error);
+        await client.disconnect();
     }
-  });
-
-  try {
-    // Connect to server
-    await client.connect();
-
-    const transaction = await client.startTransaction('echo', {
-      //metadata: { example: 'some data' }
-    });
-
-    transaction.on('message', (message) => {
-      console.log('🤖 Agent:', message.payload.text);
-    });
-
-    transaction.sendTextMessage('Hello! Can you echo this?');
-
-  } catch (error) {
-    console.error('Error:', error);
-  } finally {
-    // Disconnect
-    await client.disconnect();
-  }
 }
 
 main();
 
-
-
-
-  /*
+/*
   // Set up event handlers
   client.on('connect', () => {
     console.log('✅ Connected to HAIP server');

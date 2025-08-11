@@ -19,7 +19,7 @@ const server = new HAIPServer({
     },
 });
 
-server.on("authenticate", req => {
+server.authenticate(req => {
     // Here you should validate your with your auth system
     if (req.token === "Bearer TOKEN") {
         return "userid";
@@ -57,6 +57,18 @@ class EchoTool extends HaipTool {
 server.registerTool(new EchoTool());
 
 server.start();
+
+server.on("connect", sessionId => {
+    console.log(`🔗 Client connected: ${sessionId}`);
+});
+
+server.on("disconnect", sessionId => {
+    console.log(`🔌 Client disconnected: ${sessionId}`);
+});
+
+server.on("handshake", (sessionId, payload) => {
+    console.log(`🤝 Handshake completed: ${sessionId}`, payload);
+});
 
 /*
 server.registerTool({

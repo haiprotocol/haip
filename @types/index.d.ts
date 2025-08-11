@@ -7,29 +7,7 @@ export type HAIPChannel =
   | "AUDIO_IN"
   | "AUDIO_OUT";
 
-export type HAIPEventType =
-  | "HAI"
-  | "RUN_STARTED"
-  | "RUN_FINISHED"
-  | "RUN_CANCEL"
-  | "RUN_ERROR"
-  | "PING"
-  | "PONG"
-  | "REPLAY_REQUEST"
-  | "TEXT_MESSAGE_START"
-  | "TEXT_MESSAGE_PART"
-  | "TEXT_MESSAGE_END"
-  | "AUDIO_CHUNK"
-  | "TOOL_CALL"
-  | "TOOL_UPDATE"
-  | "TOOL_DONE"
-  | "TOOL_CANCEL"
-  | "TOOL_LIST"
-  | "TOOL_SCHEMA"
-  | "ERROR"
-  | "FLOW_UPDATE"
-  | "PAUSE_CHANNEL"
-  | "RESUME_CHANNEL";
+export type { HAIPEventType } from '../constants';
 
 export interface HAIPTool {
   schema(): HAIPToolSchema;
@@ -172,21 +150,6 @@ export interface HAIPChannelControlPayload {
   channel: string;
 }
 
-export interface HAIPConnectionState {
-  connected: boolean;
-  handshakeCompleted: boolean;
-  credits: Map<HAIPChannel, number>;
-  byteCredits: Map<HAIPChannel, number>;
-  pausedChannels: Set<HAIPChannel>;
-  pendingMessages: Map<HAIPChannel, PendingMessage[]>;
-  lastHeartbeat: number;
-  reconnectAttempts: number;
-  lastAck: string;
-  lastDeliveredSeq: string;
-  replayWindow: Map<string, HAIPMessage>;
-  activeRuns: Set<string>;
-}
-
 export interface PendingMessage {
   message: HAIPMessage;
   timestamp: number;
@@ -248,7 +211,7 @@ export interface FlowControlConfig {
 
 export interface HAIPSession {
   id: string;
-  userId: string;
+  userId: string | null;
   connected: boolean;
   handshakeCompleted: boolean;
   lastActivity: number;
@@ -261,8 +224,15 @@ export interface HAIPSession {
   activeRuns: Set<string>;
   pendingMessages: Map<string, HAIPMessage>;
   ws?: WebSocket;
+  req?: Request<{}, any, any, QueryString.ParsedQs, Record<string, any>>;
   sseResponse?: any;
   httpResponse?: any;
+  transactions: Map<string, HAIPTransactionData>;
+}
+
+export interface HAIPTransactionData {
+  id: string;
+  status: "started";
 }
 
 export interface HAIPServerStats {
@@ -311,6 +281,10 @@ export interface HAIPHandshakePayload {
     signed_envelopes?: boolean;
   };
   last_rx_seq?: string;
+}
+
+export interface HAIPTransactionStartedPayload {
+  referenceId: string;
 }
 
 export interface HAIPRunStartedPayload {
@@ -428,7 +402,7 @@ export interface HAIPChannelControlPayload {
 
 export interface HAIPConnectionConfig {
   url: string;
-  token: string;
+  //token: string;
   sessionId?: string;
   reconnectAttempts?: number;
   reconnectDelay?: number;
@@ -563,7 +537,8 @@ export interface HAIPLogger {
 export interface HAIPClient {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  sendMessage(
+  authenticate(authFn: () => Record<string, any>): void;
+  /*sendMessage(
     message: HAIPMessage,
     options?: HAIPMessageOptions
   ): Promise<void>;
@@ -638,14 +613,23 @@ export interface HAIPClient {
     channel: string,
     addMessages?: number,
     addBytes?: number
-  ): Promise<void>;
-  setHandlers(handlers: HAIPEventHandlers): void;
-  getConnectionState(): HAIPConnectionState;
-  getPerformanceMetrics(): HAIPPerformanceMetrics;
-  getActiveRuns(): HAIPRun[];
-  getRun(runId: string): HAIPRun | undefined;
-  isConnected(): boolean;
+  ): Promise<void>;*/
+  //setHandlers(handlers: HAIPEventHandlers): void;
+  //getConnectionState(): HAIPConnectionState;
+  //getPerformanceMetrics(): HAIPPerformanceMetrics;
+  //getActiveRuns(): HAIPRun[];
+  //getRun(runId: string): HAIPRun | undefined;
+  //isConnected(): boolean;
   on(event: string, handler: (...args: any[]) => void): this;
+  startTransaction(
+    toolName: string,
+    params?: Record<string, any>
+  ): Promise<HAIPTransaction>;
+}
+
+export interface HAIPTransaction {
+  on(event: string, handler: (...args: any[]) => void): this;
+  sendTextMessage(text: string, options?: HAIPMessageOptions): Promise<void>;
 }
 
 export interface HAIPTransport {
