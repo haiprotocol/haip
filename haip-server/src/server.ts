@@ -424,10 +424,10 @@ export class HAIPServer extends EventEmitter {
             case "TEXT_MESSAGE_END":
                 const tool = this.tools.get(transaction!.toolName);
                 if (tool) {
-                    // Force the session ID to be correct.
-                    message.session = sessionId;
-
-                    tool.handleMessage(message);
+                    tool.handleMessage(
+                        { sessionId: sessionId, transactionId: transactionId },
+                        message
+                    );
                 }
                 break;
             /*
@@ -926,8 +926,11 @@ export class HAIPServer extends EventEmitter {
     public registerTool(tool: HAIPTool): void {
         this.tools.set(tool.schema().name, tool);
 
-        tool.on("sendHAIPMessage", (message: HAIPMessage) => {
-            this.sendMessage(message.session, message);
+        tool.on("sendHAIPMessage", ({ client, message }) => {
+            message.session = client.sessionId;
+            message.transaction = client.transactionId;
+
+            this.sendMessage(client.sessionId, message);
         });
     }
 

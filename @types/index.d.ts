@@ -9,10 +9,24 @@ export type HAIPChannel =
 
 export type { HAIPEventType } from "../constants";
 
+export type HaipToolClient = {
+  sessionId: string;
+  transactionId: string;
+};
+
 export interface HAIPTool {
   schema(): HAIPToolSchema;
-  handleMessage(message: HAIPMessage): void;
+  handleMessage(client: HaipToolClient, message: HAIPMessage): void;
   on(event: string, handler: (...args: any[]) => void): this;
+
+  // Utility methods
+  getClients(): HaipToolClient[];
+  addClient(client: HaipToolClient): void;
+  removeClient(client: HaipToolClient): void;
+
+  sendHAIPMessage(client: HaipToolClient, message: HAIPMessage): void;
+  sendTextMessage(client: HaipToolClient, message: string): void;
+  broadcastMessage(message: HAIPMessage): void;
 }
 
 export interface HAIPToolSchema {
