@@ -125,18 +125,6 @@ export class HAIPServer extends EventEmitter {
         });
 
         this.app.get("/haip/sse", (req, res) => {
-            /*const token = req.query.token as string;
-            if (!token || !HAIPServerUtils.validateJWT(token)) {
-                res.status(401).json({ error: "Invalid token" });
-                return;
-            }
-
-            const userId = HAIPServerUtils.getUserIdFromToken(token);
-            if (!userId) {
-                res.status(401).json({ error: "Invalid token" });
-                return;
-            }*/
-
             res.writeHead(200, {
                 "Content-Type": "text/event-stream",
                 "Cache-Control": "no-cache",
@@ -159,18 +147,6 @@ export class HAIPServer extends EventEmitter {
         });
 
         this.app.post("/haip/stream", (req, res) => {
-            /*const token = req.headers.authorization?.replace("Bearer ", "");
-            if (!token || !HAIPServerUtils.validateJWT(token)) {
-                res.status(401).json({ error: "Invalid token" });
-                return;
-            }
-
-            const userId = HAIPServerUtils.getUserIdFromToken(token);
-            if (!userId) {
-                res.status(401).json({ error: "Invalid token" });
-                return;
-            }*/
-
             // TODO - they might be reconnecting to a session
             const session = this.createSession();
             const sessionId = session.id;
@@ -210,18 +186,6 @@ export class HAIPServer extends EventEmitter {
     private setupWebSocket(): void {
         this.wss.on("connection", (ws: WebSocket, req: any) => {
             const url = new URL(req.url, `http://${req.headers.host}`);
-            /*const token = url.searchParams.get("token");
-
-            if (!token || !HAIPServerUtils.validateJWT(token)) {
-                ws.close(1008, "Invalid token");
-                return;
-            }
-
-            const userId = HAIPServerUtils.getUserIdFromToken(token);
-            if (!userId) {
-                ws.close(1008, "Invalid token");
-                return;
-            }*/
 
             const session = this.createSession();
             const sessionId = session.id;
@@ -304,7 +268,6 @@ export class HAIPServer extends EventEmitter {
             pausedChannels: new Set(),
             lastAck: "",
             lastDeliveredSeq: "",
-            replayWindow: new Map(),
             activeRuns: new Set(),
             pendingMessages: new Map(),
             transactions: new Map(),
@@ -336,32 +299,6 @@ export class HAIPServer extends EventEmitter {
     private handleMessage(sessionId: string, message: any): void {
         this.handleAuthentication(sessionId, message);
 
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            console.log("Session not found for ID:", sessionId);
-            return;
-        }
-
-        const transactionId = message.transaction || null;
-        const transaction = session.transactions.get(transactionId);
-
-        if (
-            message.type !== "TRANSACTION_START" &&
-            message.type !== "HAI" &&
-            message.type !== "PING"
-        ) {
-            if (!transaction) {
-                console.log("transaction not found for ID:", transactionId);
-                this.sendError(
-                    sessionId,
-                    transactionId,
-                    "TRANSACTION_NOT_FOUND",
-                    "Transaction not found"
-                );
-                return;
-            }
-        }
-
         if (!HAIPServerUtils.validateMessage(message)) {
             console.log("Invalid message:", message);
             this.sendError(
@@ -373,15 +310,11 @@ export class HAIPServer extends EventEmitter {
             return;
         }
 
-        console.log(
-            "Handling message type:",
-            message.type,
-            "for transaction:",
-            transactionId,
-            "(",
-            sessionId,
-            ")"
-        );
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            console.log("Session not found for ID:", sessionId);
+            return;
+        }
 
         session.lastActivity = Date.now();
         this.stats.totalMessages++;
@@ -392,7 +325,12 @@ export class HAIPServer extends EventEmitter {
             }
         }
 
-        session.replayWindow.set(message.seq, message);
+        const transactionId = message.transaction || null;
+        const transaction = transactionId ? session.transactions.get(transactionId) : undefined;
+
+        if (transaction) {
+            transaction.replayWindow.set(message.seq, message);
+        }
 
         switch (message.type) {
             case "HAI":
@@ -422,6 +360,17 @@ export class HAIPServer extends EventEmitter {
             case "TEXT_MESSAGE_START":
             case "TEXT_MESSAGE_PART":
             case "TEXT_MESSAGE_END":
+                if (!transaction || !transactionId) {
+                    console.log("transaction not found for ID:", transactionId);
+                    this.sendError(
+                        sessionId,
+                        transactionId,
+                        "TRANSACTION_NOT_FOUND",
+                        "Transaction not found"
+                    );
+                    return;
+                }
+
                 const tool = this.tools.get(transaction!.toolName);
                 if (tool) {
                     tool.handleMessage(
@@ -550,6 +499,8 @@ export class HAIPServer extends EventEmitter {
             id: transactionId,
             status: "started",
             toolName: toolName,
+            toolParams: message.payload.params || {},
+            replayWindow: new Map(),
         });
 
         this.sendMessage(

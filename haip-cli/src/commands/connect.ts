@@ -78,8 +78,8 @@ export function createConnectCommand(): Command {
                 if (config.verbose) {
                     console.log(chalk.gray("\nConnection state:"));
                     console.log(chalk.gray(`  Connected: ${state.connected}`));
-                    console.log(chalk.gray(`  Transport: ${state.transport}`));
-                    console.log(chalk.gray(`  Last Activity: ${state.lastActivity.toISOString()}`));
+                    console.log(chalk.gray(`  Transport: ${config.transport}`));
+                    //console.log(chalk.gray(`  Last Activity: ${state.lastActivity.toISOString()}`));
                     console.log(chalk.gray(`  Reconnect Attempts: ${state.reconnectAttempts}`));
                 }
 

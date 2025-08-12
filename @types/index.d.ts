@@ -235,7 +235,6 @@ export interface HAIPSession {
   pausedChannels: Set<HAIPChannel>;
   lastAck: string;
   lastDeliveredSeq: string;
-  replayWindow: Map<string, HAIPMessage>;
   activeRuns: Set<string>;
   pendingMessages: Map<string, HAIPMessage>;
   ws?: WebSocket;
@@ -247,8 +246,11 @@ export interface HAIPSession {
 
 export interface HAIPTransactionData {
   id: string;
-  status: "started";
+  status: "started" | "pending";
   toolName: string;
+  toolParams?: Record<string, any>;
+
+  replayWindow: Map<string, HAIPMessage>;
 }
 
 export interface HAIPServerStats {
@@ -268,7 +270,7 @@ SDK
 export interface HAIPMessage {
   id: string;
   session: string;
-  transaction: string;
+  transaction: string | null;
   seq: string;
   ack?: string;
   ts: string;
@@ -455,7 +457,6 @@ export interface HAIPConnectionState {
   reconnectAttempts: number;
   lastAck: string;
   lastDeliveredSeq: string;
-  replayWindow: Map<string, HAIPMessage>;
   activeRuns: Set<string>;
 }
 
@@ -680,4 +681,59 @@ export interface HAIPRun {
   metadata: Record<string, any> | undefined;
   summary: string | undefined;
   error: string | undefined;
+}
+
+export interface HAIPCLIConfig {
+  url: string;
+  token?: string;
+  transport?: HAIPTransportType;
+  verbose?: boolean;
+  timeout?: number;
+  reconnectAttempts?: number;
+  reconnectDelay?: number;
+}
+
+export interface HAIPCLIStats {
+  messagesSent: number;
+  messagesReceived: number;
+  bytesSent: number;
+  bytesReceived: number;
+  connectionTime: number;
+  reconnectAttempts: number;
+  errors: number;
+}
+
+export interface HAIPCLIHealthCheck {
+  status: "healthy" | "unhealthy" | "degraded";
+  uptime: number;
+  activeConnections: number;
+  totalConnections: number;
+  errors: number;
+  warnings: number;
+  lastError?: string;
+  lastWarning?: string;
+}
+
+export interface HAIPCLIMonitorOptions {
+  showTimestamps?: boolean;
+  showMetadata?: boolean;
+  filterTypes?: string[];
+  filterChannels?: string[];
+  maxLines?: number;
+  follow?: boolean;
+}
+
+export interface HAIPCLITestOptions {
+  messageCount?: number;
+  messageSize?: number;
+  delay?: number;
+  timeout?: number;
+  validateResponses?: boolean;
+}
+
+export interface HAIPCLIOutput {
+  type: "info" | "success" | "warning" | "error" | "debug";
+  message: string;
+  data?: any;
+  timestamp: Date;
 }

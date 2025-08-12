@@ -54,6 +54,33 @@ class EchoTool extends HaipTool {
     }
 }
 
+class LLMTool extends HaipTool {
+    schema(): HAIPToolSchema {
+        return {
+            name: "llm",
+            description: "Interact with a large language model",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    prompt: { type: "string" },
+                },
+                required: ["prompt"],
+            },
+            outputSchema: {
+                type: "object",
+                properties: {
+                    response: { type: "string" },
+                },
+            },
+        };
+    }
+
+    handleMessage(client: HaipToolClient, message: HAIPMessage) {
+        this.sendHAIPMessage(client, message);
+    }
+}
+
+server.registerTool(new LLMTool());
 server.registerTool(new EchoTool());
 
 server.start();

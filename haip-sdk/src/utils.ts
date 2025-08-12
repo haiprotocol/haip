@@ -164,11 +164,13 @@ export class HAIPUtils {
         sessionId: string,
         transactionId: string,
         toolName: string,
-        authFn: object
+        authFn: object,
+        params?: Record<string, any>
     ): HAIPMessage {
         return this.createMessage(sessionId, transactionId, "SYSTEM", "TRANSACTION_START", {
             auth: authFn,
             toolName: toolName,
+            params: params || {},
         });
     }
 

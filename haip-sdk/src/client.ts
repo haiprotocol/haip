@@ -91,7 +91,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             reconnectAttempts: 0,
             lastAck: "",
             lastDeliveredSeq: "",
-            replayWindow: new Map(),
+            //replayWindow: new Map(),
             activeRuns: new Set(),
         };
 
@@ -126,7 +126,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
 
     async startTransaction(
         toolName: string,
-        params?: Record<string, any>
+        toolParams?: Record<string, any>
     ): Promise<HAIPTransaction> {
         const tempTransactionId = HAIPUtils.generateUUID();
 
@@ -134,10 +134,11 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             this.state.sessionId,
             tempTransactionId,
             toolName,
-            this.authFn()
+            this.authFn(),
+            toolParams
         );
 
-        const transaction = new HaipTransaction(tempTransactionId);
+        const transaction = new HaipTransaction(tempTransactionId, toolName, toolParams);
 
         this.transactions.set(tempTransactionId, transaction);
 
@@ -155,7 +156,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             const onReady = () => {
                 resolve(transaction);
             };
-            transaction.once("ready", onReady);
+            transaction.once("started", onReady);
         });
     }
 
@@ -272,32 +273,19 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             return;
         }
 
-        this.updateReplayWindow(message);
         this.updateAcknowledgment(message);
 
-        if (message.transaction !== null) {
-            const transaction = this.transactions.get(message.transaction);
-            if (transaction) {
-                console.log("Handling message for transaction:", transaction.id);
-                transaction.handleMessage(message);
-                return;
-            }
+        const transactionId = message.transaction || null;
+        const transaction = transactionId ? this.transactions.get(transactionId) : undefined;
 
-            if (message.type === "TRANSACTION_START") {
-                this.handleTransactionStart(message);
-                return;
-            }
-
-            if (message.type !== "PING" && message.type !== "PONG") {
-                this.logger.warn("Transaction not found for ID:", message.transaction);
-            }
-        }
-
-        // This should be just messages without a transaction
         switch (message.type) {
             case "HAI":
             case "TRANSACTION_START":
-                this.logger.warn("Should not receive", message.type, " here");
+                if (transactionId) {
+                    this.handleTransactionStart(message);
+                } else {
+                    this.logger.warn("Received HAI message without transaction ID: ", message.type);
+                }
                 break;
             /*case "HAI":
                 this.handleHandshake(message.payload);
@@ -325,11 +313,22 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             case "REPLAY_REQUEST":
                 this.handleReplayRequest(message.payload as HAIPReplayRequestPayload, message);
                 break;
+                */
             case "TEXT_MESSAGE_START":
             case "TEXT_MESSAGE_PART":
             case "TEXT_MESSAGE_END":
-                this.handleTextMessage(message.payload, message);
+                if (transaction) {
+                    console.log("Handling message for transaction:", transaction.id);
+                    transaction.handleMessage(message, this.config);
+                    return;
+                } else {
+                    this.logger.warn(
+                        "Received text message without transaction ID: ",
+                        message.type
+                    );
+                }
                 break;
+            /*
             case "AUDIO_CHUNK":
                 this.handleAudioChunk(message.payload as HAIPAudioChunkPayload, message);
                 break;
@@ -351,9 +350,11 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             case "TOOL_SCHEMA":
                 this.handleToolSchema(message.payload as HAIPToolSchemaPayload, message);
                 break;
+            */
             case "ERROR":
                 this.handleError(message.payload as HAIPErrorPayload, message);
                 break;
+            /*
             case "FLOW_UPDATE":
                 this.handleFlowUpdate(message.payload as HAIPFlowUpdatePayload, message);
                 break;
@@ -542,6 +543,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.emit("toolSchema", payload);
         this.handlers.onToolSchema?.(payload);
     }
+        */
 
     private handleError(payload: HAIPErrorPayload, message: HAIPMessage): void {
         this.logger.error("Protocol error:", payload);
@@ -549,6 +551,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.handlers.onError?.(payload);
     }
 
+    /*
     private handleFlowUpdate(payload: HAIPFlowUpdatePayload, message: HAIPMessage): void {
         const channel = payload.channel as HAIPChannel;
         if (this.state.credits.has(channel)) {
@@ -579,21 +582,6 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         this.handlers.onChannelResumed?.(channel);
         this.processPendingMessages(channel);
     }*/
-
-    private updateReplayWindow(message: HAIPMessage): void {
-        this.state.replayWindow.set(message.seq, message);
-
-        const windowSize = this.config.replayWindowSize || 1000;
-        const windowTime = this.config.replayWindowTime || 300000;
-        const now = Date.now();
-
-        for (const [seq, msg] of this.state.replayWindow.entries()) {
-            const messageTime = parseInt(msg.ts);
-            if (this.state.replayWindow.size > windowSize || now - messageTime > windowTime) {
-                this.state.replayWindow.delete(seq);
-            }
-        }
-    }
 
     private updateAcknowledgment(message: HAIPMessage): void {
         if (message.ack) {
