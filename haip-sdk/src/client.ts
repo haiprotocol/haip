@@ -388,7 +388,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     private handleTransactionStart(message: HAIPMessage): void {
         const transaction = this.transactions.get(message.payload.referenceId);
 
-        if (transaction == null) {
+        if (transaction == null || message.transaction == null) {
             this.logger.error("Transaction not found for ID:", message.payload.referenceId);
             return;
         }

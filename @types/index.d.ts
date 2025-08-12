@@ -303,7 +303,7 @@ export interface HAIPHandshakePayload {
 }
 
 export interface HAIPTransactionStartedPayload {
-  referenceId: string;
+  referenceId: string | null;
 }
 
 export interface HAIPRunStartedPayload {
