@@ -345,10 +345,17 @@ export class HAIPServer extends EventEmitter {
                 console.log("Routing to handlePing");
                 this.handlePing(sessionId, message);
                 break;
+            case "PONG":
+                break;
             case "REPLAY_REQUEST":
                 if (!transaction || !transactionId) {
                     console.log("transaction not found for ID:", transactionId);
-                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
+                    this.sendError(
+                        sessionId,
+                        transactionId,
+                        "TRANSACTION_NOT_FOUND",
+                        "Transaction not found"
+                    );
                     return;
                 }
                 this.handleReplayRequest({ transactionId, sessionId }, message);
@@ -358,7 +365,12 @@ export class HAIPServer extends EventEmitter {
             case "MESSAGE_END":
                 if (!transaction || !transactionId) {
                     console.log("transaction not found for ID:", transactionId);
-                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
+                    this.sendError(
+                        sessionId,
+                        transactionId,
+                        "TRANSACTION_NOT_FOUND",
+                        "Transaction not found"
+                    );
                     return;
                 }
 
@@ -374,7 +386,12 @@ export class HAIPServer extends EventEmitter {
             case "AUDIO_CHUNK":
                 if (!transaction || !transactionId) {
                     console.log("transaction not found for ID:", transactionId);
-                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
+                    this.sendError(
+                        sessionId,
+                        transactionId,
+                        "TRANSACTION_NOT_FOUND",
+                        "Transaction not found"
+                    );
                     return;
                 }
 
@@ -435,7 +452,6 @@ export class HAIPServer extends EventEmitter {
             case "FLOW_UPDATE":
                 // Optionally handle FLOW_UPDATE messages here
                 break;
-            case "PONG":
             default:
                 console.warn("Unknown message type:", message.type);
                 this.sendError(
@@ -531,6 +547,10 @@ export class HAIPServer extends EventEmitter {
         const referenceId = message.transaction;
         const transactionId = HAIPServerUtils.generateUUID();
 
+        console.info(
+            `Starting transaction ${transactionId} for session ${sessionId} with tool ${toolName}`
+        );
+
         session.transactions.set(transactionId, {
             id: transactionId,
             status: "started",
@@ -571,7 +591,12 @@ export class HAIPServer extends EventEmitter {
         const transaction = session.transactions.get(message.transaction || "");
 
         if (!transaction) {
-            this.sendError(client.sessionId, message.transaction, "ERROR", "Transaction not found");
+            this.sendError(
+                client.sessionId,
+                message.transaction,
+                "TRANSACTION_NOT_FOUND",
+                "Transaction not found"
+            );
             return;
         }
 
@@ -753,8 +778,6 @@ export class HAIPServer extends EventEmitter {
             console.log("Couldn't find session for ID:", sessionId);
             return;
         }
-
-        console.log("Sending message to session:", sessionId, "Message:", message);
 
         const messageStr = JSON.stringify(message);
 

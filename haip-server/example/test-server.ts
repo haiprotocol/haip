@@ -1,6 +1,7 @@
 import { HAIPServer } from "../src/server";
 import { HAIPMessage, HAIPSessionTransaction, HAIPToolSchema } from "haip";
 import { HaipTool } from "../src/tool";
+import OpenAI from "openai";
 
 const server = new HAIPServer({
     port: 8080,
@@ -55,6 +56,15 @@ class EchoTool extends HaipTool {
 }
 
 class LLMTool extends HaipTool {
+    private openai: OpenAI;
+
+    constructor() {
+        super();
+        this.openai = new OpenAI({
+            apiKey: process.env["OPENAI_API_KEY"],
+        });
+    }
+
     schema(): HAIPToolSchema {
         return {
             name: "llm",
@@ -75,8 +85,18 @@ class LLMTool extends HaipTool {
         };
     }
 
-    handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
-        this.sendHAIPMessage(client, message);
+    async handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
+        if (message.payload.text && message.payload.text.length > 0) {
+            const response = await this.openai.responses.create({
+                model: "gpt-4o",
+                instructions: "You talk like a piarate.",
+                input: message.payload.text,
+            });
+
+            console.log("LLM response:", response);
+
+            this.sendTextMessage(client, response.output_text || "No response from LLM");
+        }
     }
 }
 

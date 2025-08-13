@@ -38,10 +38,12 @@ export class HaipTransaction extends EventEmitter implements HAIPTransaction {
         }
     }
 
-    handleMessage(message: any, config?: HAIPConnectionConfig): void {
+    handleMessage(message: HAIPMessage, config?: HAIPConnectionConfig): void {
         this.updateReplayWindow(message, config?.replayWindowSize, config?.replayWindowSize);
 
-        this.emit("message", message);
+        if (message.type === "MESSAGE_PART") {
+            this.emit("message", message);
+        }
     }
 
     sendTextMessage(text: string, options?: HAIPMessageOptions) {
@@ -49,6 +51,10 @@ export class HaipTransaction extends EventEmitter implements HAIPTransaction {
             text: text,
             options: options || {},
         });
+    }
+
+    async close(): Promise<void> {
+        this.emit("close");
     }
 
     private updateReplayWindow(message: HAIPMessage, windowSize = 1000, windowTime = 300000): void {

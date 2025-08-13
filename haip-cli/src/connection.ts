@@ -1,4 +1,4 @@
-import WebSocket from "ws";
+/*import WebSocket from "ws";
 import { EventEmitter } from "events";
 import { HAIPCLIConfig, HAIPConnectionState, HAIPMessage, HAIPCLIStats } from "haip";
 import { HAIPCLIUtils } from "./utils";
@@ -335,3 +335,4 @@ export class HAIPConnection extends EventEmitter {
         return this.sessionId;
     }
 }
+*/

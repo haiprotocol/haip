@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from "uuid";
+/*import { v4 as uuidv4 } from "uuid";
 import chalk from "chalk";
 import { HAIPMessage, HAIPCLIOutput, HAIPCLIStats, HAIPChannel } from "haip";
 
@@ -225,7 +225,7 @@ Errors:           ${chalk.red(stats.errors)}
                 run_id: runId,
             },
         };
-    }*/
+    }
 
     static createPingMessage(): HAIPMessage {
         return {
@@ -297,3 +297,4 @@ Errors:           ${chalk.red(stats.errors)}
         };
     }
 }
+*/

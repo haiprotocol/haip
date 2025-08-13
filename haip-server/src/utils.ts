@@ -192,46 +192,119 @@ export class HAIPServerUtils {
     ): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "REPLAY_REQUEST", payload);
     }
-
-    static createTextMessageStart(
+*/
+    static createTextMessageStartMessage(
         sessionId: string,
         transactionId: string,
-        payload: HAIPTextMessageStartPayload,
-        runId?: string,
-        threadId?: string
+        channel: HAIPChannel,
+        messageId: string,
+        author?: string,
+        text?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, "USER", "MESSAGE_START", payload, {
-            run_id: runId,
-            thread_id: threadId,
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_START", {
+            message_id: messageId,
+            ...(author && { author }),
+            ...(text && { text }),
         });
     }
 
-    static createTextMessagePart(
+    /**
+     * Create a text message part
+     */
+    static createTextMessagePartMessage(
         sessionId: string,
         transactionId: string,
-        payload: HAIPTextMessagePartPayload,
-        runId?: string,
-        threadId?: string
+        channel: HAIPChannel,
+        messageId: string,
+        text: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, "USER", "MESSAGE_PART", payload, {
-            run_id: runId,
-            thread_id: threadId,
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_PART", {
+            message_id: messageId,
+            text,
         });
     }
 
-    static createTextMessageEnd(
+    /**
+     * Create a text message end
+     */
+    static createTextMessageEndMessage(
         sessionId: string,
         transactionId: string,
-        payload: HAIPTextMessageEndPayload,
-        runId?: string,
-        threadId?: string
+        channel: HAIPChannel,
+        messageId: string,
+        tokens?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, "USER", "MESSAGE_END", payload, {
-            run_id: runId,
-            thread_id: threadId,
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_END", {
+            message_id: messageId,
+            ...(tokens && { tokens }),
         });
     }
 
+    static async sendTextMessage(
+        sessionId: string,
+        transactionId: string,
+        channel: HAIPChannel,
+        text: string,
+        author?: string,
+        runId?: string,
+        threadId?: string
+    ): Promise<HAIPMessage[]> {
+        const messages = [];
+
+        const messageId = HAIPServerUtils.generateUUID();
+
+        const startMessage = HAIPServerUtils.createTextMessageStartMessage(
+            sessionId,
+            transactionId,
+            channel,
+            messageId,
+            author
+        );
+
+        if (runId) startMessage.run_id = runId;
+        if (threadId) startMessage.thread_id = threadId;
+
+        messages.push(startMessage);
+
+        const chunks = this.chunkText(text, 1000);
+        for (const chunk of chunks) {
+            const partMessage = HAIPServerUtils.createTextMessagePartMessage(
+                sessionId,
+                transactionId,
+                channel,
+                messageId,
+                chunk
+            );
+
+            if (runId) partMessage.run_id = runId;
+            if (threadId) partMessage.thread_id = threadId;
+
+            messages.push(partMessage);
+        }
+
+        const endMessage = HAIPServerUtils.createTextMessageEndMessage(
+            sessionId,
+            transactionId,
+            channel,
+            messageId
+        );
+
+        if (runId) endMessage.run_id = runId;
+        if (threadId) endMessage.thread_id = threadId;
+
+        messages.push(endMessage);
+
+        return messages;
+    }
+
+    static chunkText(text: string, maxChunkSize: number): string[] {
+        const chunks: string[] = [];
+        for (let i = 0; i < text.length; i += maxChunkSize) {
+            chunks.push(text.slice(i, i + maxChunkSize));
+        }
+        return chunks;
+    }
+    /*
     static createAudioChunkMessage(
         sessionId: string,
         payload: HAIPAudioChunkPayload,

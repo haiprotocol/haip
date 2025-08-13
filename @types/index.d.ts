@@ -591,6 +591,7 @@ export interface HAIPClient {
 export interface HAIPTransaction {
   sendTextMessage(text: string, options?: HAIPMessageOptions);
   on(event: string, handler: (...args: any[]) => void): this;
+  close(): Promise<void>;
 }
 
 export interface HAIPTransport {
@@ -611,7 +612,6 @@ export type HAIPTransportType = "websocket" | "sse" | "http-streaming";
 export interface HAIPTransportConfig {
   type: HAIPTransportType;
   url: string;
-  token: string;
   options?: Record<string, any>;
 }
 
@@ -647,7 +647,7 @@ export interface HAIPCLIStats {
 }
 
 export interface HAIPCLIHealthCheck {
-  status: "healthy" | "unhealthy" | "degraded";
+  status: "ok" | "unhealthy" | "degraded";
   uptime: number;
   activeConnections: number;
   totalConnections: number;

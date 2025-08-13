@@ -46,7 +46,7 @@ function displayHealthResults(health: HAIPCLIHealthCheck): void {
     console.log(chalk.gray("─".repeat(40)));
 
     const statusIcon =
-        health.status === "healthy"
+        health.status === "ok"
             ? chalk.green("✓")
             : health.status === "degraded"
               ? chalk.yellow("⚠")
@@ -60,8 +60,8 @@ function displayHealthResults(health: HAIPCLIHealthCheck): void {
     console.log(`  Total: ${chalk.white(health.totalConnections)}`);
 
     console.log(chalk.cyan("\nErrors & Warnings:"));
-    console.log(`  Errors: ${chalk.white(health.errors)}`);
-    console.log(`  Warnings: ${chalk.white(health.warnings)}`);
+    console.log(`  Errors: ${chalk.white(health.errors ?? "None")}`);
+    console.log(`  Warnings: ${chalk.white(health.warnings ?? "None")}`);
 
     if (health.lastError) {
         console.log(`  Last Error: ${chalk.red(health.lastError)}`);
@@ -71,9 +71,9 @@ function displayHealthResults(health: HAIPCLIHealthCheck): void {
         console.log(`  Last Warning: ${chalk.yellow(health.lastWarning)}`);
     }
 
-    console.log(chalk.gray("\n─".repeat(40)));
+    console.log(chalk.gray("\n─".repeat(2)));
 
-    if (health.status === "healthy") {
+    if (health.status === "ok") {
         console.log(chalk.green("✓ Server is healthy"));
     } else if (health.status === "degraded") {
         console.log(chalk.yellow("⚠ Server is degraded"));

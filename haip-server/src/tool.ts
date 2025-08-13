@@ -1,5 +1,6 @@
 import EventEmitter from "events";
 import { HAIPTool, HAIPToolSchema, HAIPMessage, HAIPSessionTransaction } from "haip";
+import { HAIPServerUtils } from "./utils";
 
 export class HaipTool extends EventEmitter implements HAIPTool {
     handleAudioChunk(client: HAIPSessionTransaction, message: HAIPMessage): void {
@@ -27,8 +28,16 @@ export class HaipTool extends EventEmitter implements HAIPTool {
         this.emit("sendHAIPMessage", { client: client, message: message });
     }
 
-    sendTextMessage(client: HAIPSessionTransaction, message: string): void {
-        //this.emit("sendHAIPMessage", { text: message, ...req });
+    async sendTextMessage(client: HAIPSessionTransaction, message: string): Promise<void> {
+        const messages = await HAIPServerUtils.sendTextMessage(
+            client.sessionId,
+            client.transactionId,
+            "USER",
+            message
+        );
+        for (const msg of messages) {
+            this.emit("sendHAIPMessage", { client: client, message: msg });
+        }
     }
 
     broadcastMessage(message: HAIPMessage): void {

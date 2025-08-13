@@ -6,7 +6,6 @@ import { HAIPUtils } from "../utils";
 export class WebSocketTransport extends EventEmitter implements HAIPTransport {
     private ws: WebSocket | null = null;
     private url: string;
-    private token: string;
     private options: Record<string, any>;
     private reconnectAttempts = 0;
     private maxReconnectAttempts = 5;
@@ -16,18 +15,16 @@ export class WebSocketTransport extends EventEmitter implements HAIPTransport {
     private heartbeatIntervalMs = 30000;
     private heartbeatTimeoutMs = 5000;
 
-    constructor(url: string, token: string, options: Record<string, any> = {}) {
+    constructor(url: string, options: Record<string, any> = {}) {
         super();
         this.url = url;
-        this.token = token;
         this.options = options;
     }
 
     async connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                const wsUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
-                this.ws = new WebSocket(wsUrl, this.options);
+                this.ws = new WebSocket(this.url, this.options);
 
                 this.ws.on("open", () => {
                     this.reconnectAttempts = 0;

@@ -27,7 +27,6 @@ export class SSETransport implements HAIPTransport {
 
         try {
             const url = new URL(this.config.url);
-            url.searchParams.set("token", this.config.token);
 
             if (HAIPUtils.isBrowser()) {
                 this.eventSource = new EventSource(url.toString());
@@ -188,7 +187,6 @@ export class SSETransport implements HAIPTransport {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${this.config.token}`,
                     "X-HAIP-Message": "true",
                 },
                 body: JSON.stringify(message),
@@ -214,7 +212,6 @@ export class SSETransport implements HAIPTransport {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/octet-stream",
-                    Authorization: `Bearer ${this.config.token}`,
                     "X-HAIP-Binary": "true",
                 },
                 body: base64Data,

@@ -168,17 +168,12 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
         const transportConfig: HAIPTransportConfig = {
             type: "websocket",
             url: this.config.url,
-            token: "", //this.config.token, //TODO no token here
             options: {},
         };
 
         switch (transportConfig.type) {
             case "websocket":
-                return new WebSocketTransport(
-                    transportConfig.url,
-                    transportConfig.token,
-                    transportConfig.options
-                );
+                return new WebSocketTransport(transportConfig.url, transportConfig.options);
             case "sse":
                 return new SSETransport(transportConfig);
             case "http-streaming":
@@ -318,7 +313,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             case "MESSAGE_PART":
             case "MESSAGE_END":
                 if (transaction) {
-                    console.log("Handling message for transaction:", transaction.id);
+                    this.logger.debug("Handling message for transaction:", transaction.id);
                     transaction.handleMessage(message, this.config);
                     return;
                 } else {

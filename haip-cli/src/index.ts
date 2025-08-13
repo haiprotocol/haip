@@ -3,11 +3,10 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import figlet from "figlet";
-import { createConnectCommand } from "./commands/connect";
-import { createSendCommand } from "./commands/send";
-import { createMonitorCommand } from "./commands/monitor";
-import { createTestCommand } from "./commands/test";
+//import { createMonitorCommand } from "./commands/monitor";
+//import { createTestCommand } from "./commands/test";
 import { createHealthCommand } from "./commands/health";
+import { createChatCommand } from "./commands/chat";
 
 const program = new Command();
 
@@ -25,10 +24,9 @@ program
         );
     });
 
-program.addCommand(createConnectCommand());
-program.addCommand(createSendCommand());
-program.addCommand(createMonitorCommand());
-program.addCommand(createTestCommand());
+program.addCommand(createChatCommand());
+//program.addCommand(createMonitorCommand());
+//program.addCommand(createTestCommand());
 program.addCommand(createHealthCommand());
 
 program.addCommand(
