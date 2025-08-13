@@ -329,7 +329,7 @@ export class HAIPUtils {
         author?: string,
         text?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, channel, "TEXT_MESSAGE_START", {
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_START", {
             message_id: messageId,
             ...(author && { author }),
             ...(text && { text }),
@@ -346,7 +346,7 @@ export class HAIPUtils {
         messageId: string,
         text: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, channel, "TEXT_MESSAGE_PART", {
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_PART", {
             message_id: messageId,
             text,
         });
@@ -362,7 +362,7 @@ export class HAIPUtils {
         messageId: string,
         tokens?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, channel, "TEXT_MESSAGE_END", {
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_END", {
             message_id: messageId,
             ...(tokens && { tokens }),
         });
@@ -762,21 +762,22 @@ export const HAIP_EVENT_TYPES = [
     "TRANSACTION_START",
     "TRANSACTION_END",
     // MAYBE GET RID OF?
-    "RUN_STARTED",
-    "RUN_FINISHED",
-    "RUN_CANCEL",
-    "RUN_ERROR",
+    //"RUN_STARTED",
+    //"RUN_FINISHED",
+    //"RUN_CANCEL",
+    //"RUN_ERROR",
     "REPLAY_REQUEST",
-    "TEXT_MESSAGE_START",
-    "TEXT_MESSAGE_PART",
-    "TEXT_MESSAGE_END",
+    "MESSAGE_START",
+    "MESSAGE_PART",
+    "MESSAGE_END",
     "AUDIO_CHUNK",
-    "TOOL_CALL",
-    "TOOL_UPDATE",
-    "TOOL_DONE",
-    "TOOL_CANCEL",
+    //"TOOL_CALL",
+    //"TOOL_UPDATE",
+    //"TOOL_DONE",
+    //"TOOL_CANCEL",
+    "INFO",
     "TOOL_LIST",
-    "TOOL_SCHEMA",
-    "PAUSE_CHANNEL",
-    "RESUME_CHANNEL",
+    //"TOOL_SCHEMA",
+    //"PAUSE_CHANNEL",
+    //"RESUME_CHANNEL"
 ] as const;

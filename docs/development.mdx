@@ -11,34 +11,17 @@ Set up your development environment for HAIP implementation.
 
 <AccordionGroup>
   <Accordion icon="code" title="Node.js Setup">
-    Install Node.js 18+ and npm for JavaScript/TypeScript development:
-    
-    ```bash
-    # Install Node.js (using nvm recommended)
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-    nvm install 18
-    nvm use 18
-    
-    # Verify installation
-    node --version
-    npm --version
-    ```
+    Install Node.js 18+ and npm for JavaScript/TypeScript development: ```bash #
+    Install Node.js (using nvm recommended) curl -o-
+    https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash nvm
+    install 18 nvm use 18 # Verify installation node --version npm --version ```
   </Accordion>
   <Accordion icon="code" title="Python Setup">
-    For Python implementations, use Python 3.8+:
-    
-    ```bash
-    # Install Python (using pyenv recommended)
-    pyenv install 3.11.0
-    pyenv global 3.11.0
-    
-    # Create virtual environment
-    python -m venv haip-env
-    source haip-env/bin/activate  # On Windows: haip-env\Scripts\activate
-    
-    # Install dependencies
-    pip install websockets asyncio
-    ```
+    For Python implementations, use Python 3.8+: ```bash # Install Python (using
+    pyenv recommended) pyenv install 3.11.0 pyenv global 3.11.0 # Create virtual
+    environment python -m venv haip-env source haip-env/bin/activate # On
+    Windows: haip-env\Scripts\activate # Install dependencies pip install
+    websockets asyncio ```
   </Accordion>
 </AccordionGroup>
 
@@ -46,48 +29,22 @@ Set up your development environment for HAIP implementation.
 
 <AccordionGroup>
   <Accordion icon="server" title="HAIP Server">
-    Run the complete HAIP server for development:
-    
-    ```bash
-    # Clone HAIP server
-    git clone https://github.com/haiprotocol/haip
-    cd haip/haip-server
-    
-    # Install dependencies
-    npm install
-    
-    # Build the project
-    npm run build
-    
-    # Start server
-    npm run dev
-    ```
-    
-    The server will be available at:
-    - **WebSocket**: `ws://localhost:8080/haip/websocket`
-    - **SSE**: `http://localhost:8080/haip/sse`
-    - **HTTP Streaming**: `http://localhost:8080/haip/stream`
-    - **Health Check**: `http://localhost:8080/health`
-    - **Statistics**: `http://localhost:8080/stats`
-    
-    See the [HAIP Server documentation](/server/overview) for complete setup and configuration.
+    Run the complete HAIP server for development: ```bash # Clone HAIP server
+    git clone https://github.com/haiprotocol/haip cd haip/haip-server # Install
+    dependencies npm install # Build the project npm run build # Start server
+    npm run dev ``` The server will be available at: - **WebSocket**:
+    `ws://localhost:8080/haip/websocket` - **SSE**:
+    `http://localhost:8080/haip/sse` - **HTTP Streaming**:
+    `http://localhost:8080/haip/stream` - **Health Check**:
+    `http://localhost:8080/health` - **Statistics**:
+    `http://localhost:8080/stats` See the [HAIP Server
+    documentation](/server/overview) for complete setup and configuration.
   </Accordion>
   <Accordion icon="wrench" title="HAIP CLI">
-    Use the HAIP CLI for testing and debugging:
-    
-    ```bash
-    # Install HAIP CLI
-    npm install -g @haip/cli
-    
-    # Test connection
-    haip connect ws://localhost:8080/haip/websocket
-    
-    # Send test message
-    haip send-text "Hello, agent!"
-    
-    # Monitor events
-    haip monitor
-    ```
+    Use the HAIP CLI for testing and debugging: ```bash # Install HAIP CLI npm
+    install -g @haip/cli # Test connection haip connect
+    ws://localhost:8080/haip/websocket # Send test message haip send-text
+    "Hello, agent!" # Monitor events haip monitor ```
   </Accordion>
 </AccordionGroup>
 
@@ -122,7 +79,7 @@ Set up your development environment for HAIP implementation.
           payload: {
             haip_version: "1.1.2",
             accept_major: [1],
-            accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"]
+            accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"]
           }
         });
       }
@@ -144,7 +101,7 @@ Set up your development environment for HAIP implementation.
         
         // Start message
         this.send({
-          type: "TEXT_MESSAGE_START",
+          type: "MESSAGE_START",
           channel: "USER",
           payload: {
             message_id: messageId,
@@ -155,7 +112,7 @@ Set up your development environment for HAIP implementation.
         
         // End message
         this.send({
-          type: "TEXT_MESSAGE_END",
+          type: "MESSAGE_END",
           channel: "USER",
           payload: {
             message_id: messageId
@@ -213,7 +170,7 @@ Set up your development environment for HAIP implementation.
           sendMessage("HAI", {
             haip_version: "1.1.2",
             accept_major: [1],
-            accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"]
+            accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"]
           });
         };
         
@@ -304,6 +261,7 @@ The HAIP Server provides a complete, production-ready implementation of the HAI 
     - Production-ready with Docker support
 
     See the [HAIP Server documentation](/server/overview) for complete setup and configuration.
+
   </Accordion>
 </AccordionGroup>
 
@@ -338,10 +296,10 @@ The HAIP Server provides a complete, production-ready implementation of the HAI 
       
       expect(mockWs.send).toHaveBeenCalledTimes(2);
       expect(mockWs.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"TEXT_MESSAGE_START"')
+        expect.stringContaining('"type":"MESSAGE_START"')
       );
       expect(mockWs.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"TEXT_MESSAGE_END"')
+        expect.stringContaining('"type":"MESSAGE_END"')
       );
     });
   });
@@ -379,8 +337,13 @@ The HAIP Server provides a complete, production-ready implementation of the HAI 
 
 <CardGroup cols={2}>
 
-<Card title="Error Handling" icon="exclamation" href="/essentials/error-handling">
-  Implement comprehensive error handling for network issues and protocol violations.
+<Card
+  title="Error Handling"
+  icon="exclamation"
+  href="/essentials/error-handling"
+>
+  Implement comprehensive error handling for network issues and protocol
+  violations.
 </Card>
 
 <Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
@@ -400,37 +363,21 @@ The HAIP Server provides a complete, production-ready implementation of the HAI 
 ## Development Tools
 
 <Note>
-  **Development Status**: Some development tools are still in development. 
-  The SDK itself is fully functional and can be used for development and testing.
+  **Development Status**: Some development tools are still in development. The
+  SDK itself is fully functional and can be used for development and testing.
 </Note>
 
 ### HAIP CLI
 
 <Accordion icon="wrench" title="HAIP CLI">
-  Use the HAIP CLI for testing and debugging:
-  
-  ```bash
-  # Install HAIP CLI
-  git clone https://github.com/haiprotocol/haip-cli.git
-  cd haip-cli
-  npm install
-  npm run build
-  
-  # Test connection
-  node dist/index.js connect ws://localhost:8080
-  
-  # Send test message
-  node dist/index.js send text "Hello, HAIP!"
-  
-  # Monitor events
-  node dist/index.js monitor --follow
-  
-  # Test performance
-  node dist/index.js test --message-count 100
-  ```
-  
+  Use the HAIP CLI for testing and debugging: ```bash # Install HAIP CLI git
+  clone https://github.com/haiprotocol/haip-cli.git cd haip-cli npm install npm
+  run build # Test connection node dist/index.js connect ws://localhost:8080 #
+  Send test message node dist/index.js send text "Hello, HAIP!" # Monitor events
+  node dist/index.js monitor --follow # Test performance node dist/index.js test
+  --message-count 100 ```
   <Note>
-    The HAIP CLI is now fully implemented and ready for use. 
-    See the [CLI documentation](/cli/overview) for complete usage guide.
+    The HAIP CLI is now fully implemented and ready for use. See the [CLI
+    documentation](/cli/overview) for complete usage guide.
   </Note>
 </Accordion>

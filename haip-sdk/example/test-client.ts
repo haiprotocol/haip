@@ -49,7 +49,7 @@ main();
   });
 
   client.on('message', (message) => {
-    if (message.type === 'TEXT_MESSAGE_START') {
+    if (message.type === 'MESSAGE_START') {
       console.log('🤖 Agent:', message.payload.text);
     }
   });

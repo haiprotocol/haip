@@ -169,7 +169,7 @@ node client.js
         payload: {
           haip_version: "1.1.2",
           accept_major: [1],
-          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"]
+          accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"]
         }
       }));
     };
@@ -207,7 +207,7 @@ node client.js
       seq: "2",
       ts: Date.now().toString(),
       channel: "USER",
-      type: "TEXT_MESSAGE_START",
+      type: "MESSAGE_START",
       payload: {
         message_id: messageId,
         author: "USER",
@@ -222,7 +222,7 @@ node client.js
       seq: "3",
       ts: Date.now().toString(),
       channel: "USER",
-      type: "TEXT_MESSAGE_END",
+      type: "MESSAGE_END",
       payload: {
         message_id: messageId
       }
@@ -269,16 +269,16 @@ ws.onmessage = (event) => {
   const haipMessage = JSON.parse(event.data);
 
   switch (haipMessage.type) {
-    case "TEXT_MESSAGE_START":
+    case "MESSAGE_START":
       console.log("Agent started responding");
       break;
 
-    case "TEXT_MESSAGE_PART":
+    case "MESSAGE_PART":
       // Append text chunk to UI
       appendToChat(haipMessage.payload.text);
       break;
 
-    case "TEXT_MESSAGE_END":
+    case "MESSAGE_END":
       console.log("Agent finished responding");
       break;
 

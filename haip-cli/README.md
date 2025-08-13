@@ -80,6 +80,7 @@ haip test --message-count 100
 Connect to a HAIP server and maintain an interactive connection.
 
 **Options:**
+
 - `-t, --transport <type>` - Transport type (websocket, sse, http-streaming)
 - `--token <token>` - JWT authentication token
 - `--timeout <ms>` - Connection timeout in milliseconds
@@ -88,6 +89,7 @@ Connect to a HAIP server and maintain an interactive connection.
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Connect via WebSocket
 haip connect ws://localhost:8080
@@ -108,6 +110,7 @@ Send messages to a HAIP server.
 Send a text message.
 
 **Options:**
+
 - `-u, --url <url>` - Server URL
 - `-t, --transport <type>` - Transport type
 - `--token <token>` - JWT authentication token
@@ -118,6 +121,7 @@ Send a text message.
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Send a simple message
 haip send text "Hello, world!"
@@ -134,6 +138,7 @@ haip send text "Hello" --run-id run-123 --thread-id thread-456
 Call a tool with parameters.
 
 **Options:**
+
 - `-u, --url <url>` - Server URL
 - `-t, --transport <type>` - Transport type
 - `--token <token>` - JWT authentication token
@@ -143,6 +148,7 @@ Call a tool with parameters.
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Call echo tool
 haip send tool echo message="Hello World"
@@ -159,6 +165,7 @@ haip send tool weather location="London" units="celsius"
 Start a new run.
 
 **Options:**
+
 - `-u, --url <url>` - Server URL
 - `-t, --transport <type>` - Transport type
 - `--token <token>` - JWT authentication token
@@ -167,6 +174,7 @@ Start a new run.
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Start a simple run
 haip send run
@@ -183,6 +191,7 @@ haip send run --metadata '{"user":"alice","session":"chat-1"}'
 Monitor HAIP server events in real-time.
 
 **Options:**
+
 - `-u, --url <url>` - Server URL
 - `-t, --transport <type>` - Transport type
 - `--token <token>` - JWT authentication token
@@ -195,12 +204,13 @@ Monitor HAIP server events in real-time.
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Basic monitoring
 haip monitor
 
 # Monitor with filtering
-haip monitor --filter-types TEXT_MESSAGE_START,TOOL_CALL
+haip monitor --filter-types MESSAGE_START,TOOL_CALL
 
 # Monitor specific channels
 haip monitor --filter-channels USER,AGENT
@@ -214,6 +224,7 @@ haip monitor --follow --show-metadata
 Test HAIP server connectivity and performance.
 
 **Options:**
+
 - `-u, --url <url>` - Server URL
 - `-t, --transport <type>` - Transport type
 - `--token <token>` - JWT authentication token
@@ -225,6 +236,7 @@ Test HAIP server connectivity and performance.
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Basic performance test
 haip test
@@ -244,11 +256,13 @@ haip test --validate-responses
 Check HAIP server health status.
 
 **Options:**
+
 - `-u, --url <url>` - Server URL
 - `--timeout <ms>` - Request timeout in milliseconds
 - `--format <format>` - Output format (text, json)
 
 **Examples:**
+
 ```bash
 # Check health
 haip health
@@ -366,4 +380,4 @@ MIT License - see LICENSE file for details.
 
 ## Protocol Version
 
-This SDK implements HAIP version 1.1.2. For protocol documentation, see the [HAI Protocol Specification](https://github.com/haiprotocol/specification). 
+This SDK implements HAIP version 1.1.2. For protocol documentation, see the [HAI Protocol Specification](https://github.com/haiprotocol/specification).

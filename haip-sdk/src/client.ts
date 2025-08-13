@@ -314,9 +314,9 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
                 this.handleReplayRequest(message.payload as HAIPReplayRequestPayload, message);
                 break;
                 */
-            case "TEXT_MESSAGE_START":
-            case "TEXT_MESSAGE_PART":
-            case "TEXT_MESSAGE_END":
+            case "MESSAGE_START":
+            case "MESSAGE_PART":
+            case "MESSAGE_END":
                 if (transaction) {
                     console.log("Handling message for transaction:", transaction.id);
                     transaction.handleMessage(message, this.config);

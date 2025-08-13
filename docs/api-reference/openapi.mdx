@@ -42,17 +42,20 @@ All HAIP messages follow a consistent envelope structure:
 ### Event Types
 
 #### Core Events
+
 - `HAI` - Protocol handshake
 - `ERROR` - Error reporting
 - `FLOW_UPDATE` - Flow control updates
 
 #### Messaging Events
-- `TEXT_MESSAGE_START` - Text message beginning
-- `TEXT_MESSAGE_PART` - Text message continuation
-- `TEXT_MESSAGE_END` - Text message completion
+
+- `MESSAGE_START` - Text message beginning
+- `MESSAGE_PART` - Text message continuation
+- `MESSAGE_END` - Text message completion
 - `AUDIO_CHUNK` - Audio data transmission
 
 #### Tool Events
+
 - `TOOL_CALL` - Tool invocation
 - `TOOL_UPDATE` - Tool progress updates
 - `TOOL_DONE` - Tool completion
@@ -60,6 +63,7 @@ All HAIP messages follow a consistent envelope structure:
 - `TOOL_CANCELLED` - Tool cancellation
 
 #### Flow Control Events
+
 - `PAUSE_CHANNEL` - Channel pause
 - `RESUME_CHANNEL` - Channel resume
 
@@ -100,30 +104,34 @@ Credit-based back-pressure management:
 ### WebSocket Client
 
 ```typescript
-const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket?token=jwt-token');
+const ws = new WebSocket(
+  "wss://api.haiprotocol.com/haip/websocket?token=jwt-token"
+);
 
 ws.onopen = () => {
   // Send handshake
-  ws.send(JSON.stringify({
-    id: crypto.randomUUID(),
-    session: sessionId,
-    seq: "1",
-    ts: Date.now().toString(),
-    channel: "SYSTEM",
-    type: "HAI",
-    payload: {
-      haip_version: "1.1.2",
-      accept_major: [1],
-      accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_END"]
-    }
-  }));
+  ws.send(
+    JSON.stringify({
+      id: crypto.randomUUID(),
+      session: sessionId,
+      seq: "1",
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "HAI",
+      payload: {
+        haip_version: "1.1.2",
+        accept_major: [1],
+        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_END"],
+      },
+    })
+  );
 };
 ```
 
 ### Server-Sent Events Client
 
 ```typescript
-const eventSource = new EventSource('/haip/sse?token=jwt-token');
+const eventSource = new EventSource("/haip/sse?token=jwt-token");
 
 eventSource.onmessage = (event) => {
   const message = JSON.parse(event.data);
@@ -134,10 +142,10 @@ eventSource.onmessage = (event) => {
 ### HTTP Streaming Client
 
 ```typescript
-const response = await fetch('/haip/stream?token=jwt-token', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(handshakeMessage)
+const response = await fetch("/haip/stream?token=jwt-token", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(handshakeMessage),
 });
 
 const reader = response.body.getReader();
@@ -167,11 +175,13 @@ HAIP defines standard error codes and recovery strategies:
 ### Client Implementation
 
 1. **Connection Management**
+
    - Implement automatic reconnection
    - Handle connection timeouts gracefully
    - Use exponential backoff for retries
 
 2. **Message Handling**
+
    - Validate message structure
    - Handle binary frames correctly
    - Implement proper error recovery
@@ -184,11 +194,13 @@ HAIP defines standard error codes and recovery strategies:
 ### Server Implementation
 
 1. **Authentication**
+
    - Validate JWT tokens
    - Check required claims
    - Implement proper error responses
 
 2. **Message Processing**
+
    - Validate message schemas
    - Handle binary data efficiently
    - Implement proper flow control
@@ -222,4 +234,4 @@ To ensure HAI Protocol compliance:
 4. **Error Handling**: Use standard error codes and messages
 5. **Authentication**: Implement JWT token validation
 
-The complete OpenAPI specification provides all the details needed to build fully compliant HAIP implementations. 
+The complete OpenAPI specification provides all the details needed to build fully compliant HAIP implementations.

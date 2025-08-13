@@ -8,11 +8,7 @@ description: "Complete TypeScript SDK for the Human-Agent Interaction Protocol"
 The HAIP TypeScript SDK provides a complete implementation of the Human-Agent Interaction Protocol, enabling developers to build real-time, multi-modal applications with AI agents. The SDK is production-ready with comprehensive test coverage and supports all major transport protocols.
 
 <CardGroup cols={2}>
-  <Card
-    title="Protocol Compliant"
-    icon="bolt"
-    href="/sdk/client"
-  >
+  <Card title="Protocol Compliant" icon="bolt" href="/sdk/client">
     Full HAIP 1.1.2 protocol implementation with comprehensive event handling.
   </Card>
   <Card
@@ -22,32 +18,16 @@ The HAIP TypeScript SDK provides a complete implementation of the Human-Agent In
   >
     WebSocket, SSE, and HTTP streaming transports with automatic fallback.
   </Card>
-  <Card
-    title="Tool Integration"
-    icon="wrench"
-    href="/sdk/tools"
-  >
+  <Card title="Tool Integration" icon="wrench" href="/sdk/tools">
     Built-in support for Model Context Protocol (MCP) tool lifecycle management.
   </Card>
-  <Card
-    title="Flow Control"
-    icon="sliders"
-    href="/sdk/flow-control"
-  >
+  <Card title="Flow Control" icon="sliders" href="/sdk/flow-control">
     Credit-based flow control with automatic back-pressure management.
   </Card>
-  <Card
-    title="Error Handling"
-    icon="circle-xmark"
-    href="/sdk/error-handling"
-  >
+  <Card title="Error Handling" icon="circle-xmark" href="/sdk/error-handling">
     Comprehensive error handling with automatic recovery and reconnection.
   </Card>
-  <Card
-    title="Performance Monitoring"
-    icon="chart-bar"
-    href="/sdk/client"
-  >
+  <Card title="Performance Monitoring" icon="chart-bar" href="/sdk/client">
     Real-time performance metrics and connection state monitoring.
   </Card>
 </CardGroup>
@@ -59,17 +39,17 @@ npm install @haip/sdk
 ```
 
 ```typescript
-import { createHAIPClient } from '@haip/sdk';
+import { createHAIPClient } from "@haip/sdk";
 
 const client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket'
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
 });
 
 await client.connect();
-const runId = await client.startRun('thread-123');
-await client.sendTextMessage('USER', 'Hello, world!', 'user', runId);
+const runId = await client.startRun("thread-123");
+await client.sendTextMessage("USER", "Hello, world!", "user", runId);
 ```
 
 ## Architecture
@@ -78,13 +58,15 @@ The SDK is built with a modular architecture that separates concerns and provide
 
 <Steps>
   <Step title="Client Layer">
-    High-level client interface that manages connection lifecycle, handshakes, and protocol state.
+    High-level client interface that manages connection lifecycle, handshakes,
+    and protocol state.
   </Step>
   <Step title="Transport Layer">
     Pluggable transport implementations for different communication protocols.
   </Step>
   <Step title="Protocol Layer">
-    Core protocol implementation with message validation, flow control, and event handling.
+    Core protocol implementation with message validation, flow control, and
+    event handling.
   </Step>
   <Step title="Utility Layer">
     Helper functions for message creation, validation, and common operations.
@@ -100,26 +82,28 @@ The SDK is built with a modular architecture that separates concerns and provide
 
 ## Transport Options
 
-| Transport | Node.js | Browser | Features |
-|-----------|---------|---------|----------|
-| WebSocket | ✅ | ✅ | Real-time, bidirectional, binary support |
-| SSE | ❌ | ✅ | Server-sent events, HTTP POST for sending |
-| HTTP Streaming | ✅ | ✅ | Fetch-based streaming, universal compatibility |
+| Transport      | Node.js | Browser | Features                                       |
+| -------------- | ------- | ------- | ---------------------------------------------- |
+| WebSocket      | ✅      | ✅      | Real-time, bidirectional, binary support       |
+| SSE            | ❌      | ✅      | Server-sent events, HTTP POST for sending      |
+| HTTP Streaming | ✅      | ✅      | Fetch-based streaming, universal compatibility |
 
 ## Protocol Support
 
 The SDK implements the complete HAIP v1.1.2 specification:
 
 ### Event Types
+
 - **Connection**: HAI (handshake), PING/PONG (heartbeat)
 - **Run Lifecycle**: RUN_STARTED, RUN_FINISHED, RUN_CANCEL, RUN_ERROR
-- **Messaging**: TEXT_MESSAGE_START, TEXT_MESSAGE_PART, TEXT_MESSAGE_END
+- **Messaging**: MESSAGE_START, MESSAGE_PART, MESSAGE_END
 - **Audio**: AUDIO_CHUNK for streaming audio data
 - **Tools**: TOOL_CALL, TOOL_UPDATE, TOOL_DONE, TOOL_CANCEL, TOOL_LIST, TOOL_SCHEMA
 - **Control**: FLOW_UPDATE, PAUSE_CHANNEL, RESUME_CHANNEL, REPLAY_REQUEST
 - **Error**: ERROR for protocol and application errors
 
 ### Channels
+
 - **USER**: User messages and interactions
 - **AGENT**: Agent responses and actions
 - **SYSTEM**: Protocol control messages
@@ -139,32 +123,16 @@ The SDK implements the complete HAIP v1.1.2 specification:
 Choose your next step:
 
 <CardGroup cols={2}>
-  <Card
-    title="Installation"
-    href="/sdk/installation"
-    icon="download"
-  >
+  <Card title="Installation" href="/sdk/installation" icon="download">
     Learn how to install and configure the SDK in your project.
   </Card>
-  <Card
-    title="Quick Start Guide"
-    href="/sdk/quickstart"
-    icon="play"
-  >
+  <Card title="Quick Start Guide" href="/sdk/quickstart" icon="play">
     Get up and running with a simple example in minutes.
   </Card>
-  <Card
-    title="Client API"
-    href="/sdk/client"
-    icon="code"
-  >
+  <Card title="Client API" href="/sdk/client" icon="code">
     Explore the main client interface and its methods.
   </Card>
-  <Card
-    title="Examples"
-    href="/sdk/examples"
-    icon="book-open"
-  >
+  <Card title="Examples" href="/sdk/examples" icon="book-open">
     Browse complete examples for common use cases.
   </Card>
-</CardGroup> 
+</CardGroup>{" "}

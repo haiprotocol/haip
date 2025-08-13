@@ -135,7 +135,7 @@ export class HAIPServerUtils {
     ): HAIPMessage {
         return this.createMessage(sessionId, transactionId, "SYSTEM", "TRANSACTION_START", payload);
     }
-
+    /*
     static createRunStartedMessage(
         sessionId: string,
         payload: HAIPRunStartedPayload,
@@ -177,7 +177,7 @@ export class HAIPServerUtils {
             run_id: runId,
         });
     }
-
+*/
     static createPingMessage(sessionId: string, payload: HAIPPingPayload): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "PING", payload);
     }
@@ -185,7 +185,7 @@ export class HAIPServerUtils {
     static createPongMessage(sessionId: string, payload: HAIPPongPayload): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "PONG", payload);
     }
-
+    /*
     static createReplayRequestMessage(
         sessionId: string,
         payload: HAIPReplayRequestPayload
@@ -200,7 +200,7 @@ export class HAIPServerUtils {
         runId?: string,
         threadId?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, "USER", "TEXT_MESSAGE_START", payload, {
+        return this.createMessage(sessionId, transactionId, "USER", "MESSAGE_START", payload, {
             run_id: runId,
             thread_id: threadId,
         });
@@ -213,7 +213,7 @@ export class HAIPServerUtils {
         runId?: string,
         threadId?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, "USER", "TEXT_MESSAGE_PART", payload, {
+        return this.createMessage(sessionId, transactionId, "USER", "MESSAGE_PART", payload, {
             run_id: runId,
             thread_id: threadId,
         });
@@ -226,7 +226,7 @@ export class HAIPServerUtils {
         runId?: string,
         threadId?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, "USER", "TEXT_MESSAGE_END", payload, {
+        return this.createMessage(sessionId, transactionId, "USER", "MESSAGE_END", payload, {
             run_id: runId,
             thread_id: threadId,
         });
@@ -295,13 +295,21 @@ export class HAIPServerUtils {
             thread_id: threadId,
         });
     }
-
-    static createToolListMessage(sessionId: string, payload: HAIPToolListPayload): HAIPMessage {
-        return this.createMessage(sessionId, null, "SYSTEM", "TOOL_LIST", payload);
+*/
+    static createToolListMessage(
+        sessionId: string,
+        transactionId: string | null,
+        payload: HAIPToolListPayload
+    ): HAIPMessage {
+        return this.createMessage(sessionId, transactionId, "SYSTEM", "TOOL_LIST", payload);
     }
 
-    static createToolSchemaMessage(sessionId: string, payload: HAIPToolSchemaPayload): HAIPMessage {
-        return this.createMessage(sessionId, null, "SYSTEM", "TOOL_SCHEMA", payload);
+    static createToolSchemaMessage(
+        sessionId: string,
+        transactionId: string | null,
+        payload: HAIPToolSchemaPayload
+    ): HAIPMessage {
+        return this.createMessage(sessionId, transactionId, "SYSTEM", "TOOL_SCHEMA", payload);
     }
 
     static createErrorMessage(
@@ -316,7 +324,7 @@ export class HAIPServerUtils {
         }
         return message;
     }
-
+    /*
     static createFlowUpdateMessage(sessionId: string, payload: HAIPFlowUpdatePayload): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "FLOW_UPDATE", payload);
     }
@@ -387,6 +395,7 @@ export class HAIPServerUtils {
         const seconds = ((ms % 60000) / 1000).toFixed(1);
         return `${minutes}m ${seconds}s`;
     }
+        */
 }
 
 export const HAIP_EVENT_TYPES = [
@@ -397,22 +406,14 @@ export const HAIP_EVENT_TYPES = [
     "FLOW_UPDATE",
     "TRANSACTION_START",
     "TRANSACTION_END",
-    // MAYBE GET RID OF?
-    "RUN_STARTED",
-    "RUN_FINISHED",
-    "RUN_CANCEL",
-    "RUN_ERROR",
     "REPLAY_REQUEST",
-    "TEXT_MESSAGE_START",
-    "TEXT_MESSAGE_PART",
-    "TEXT_MESSAGE_END",
+    "MESSAGE_START",
+    "MESSAGE_PART",
+    "MESSAGE_END",
     "AUDIO_CHUNK",
-    "TOOL_CALL",
-    "TOOL_UPDATE",
-    "TOOL_DONE",
-    "TOOL_CANCEL",
+    "INFO",
     "TOOL_LIST",
     "TOOL_SCHEMA",
-    "PAUSE_CHANNEL",
-    "RESUME_CHANNEL",
+    //"PAUSE_CHANNEL",
+    //"RESUME_CHANNEL"
 ] as const;

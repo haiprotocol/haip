@@ -18,6 +18,8 @@ import {
     HAIPTool,
     HAIPToolSchema,
     HAIPEventType,
+    HAIPClient,
+    HAIPSessionTransaction,
 } from "haip";
 import { HAIPServerUtils, HAIP_EVENT_TYPES } from "./utils";
 
@@ -265,7 +267,6 @@ export class HAIPServer extends EventEmitter {
                 ["AUDIO_IN", this.config.flowControl.initialCreditBytes || 1024 * 1024],
                 ["AUDIO_OUT", this.config.flowControl.initialCreditBytes || 1024 * 1024],
             ]),
-            pausedChannels: new Set(),
             lastAck: "",
             lastDeliveredSeq: "",
             activeRuns: new Set(),
@@ -340,34 +341,24 @@ export class HAIPServer extends EventEmitter {
             case "TRANSACTION_START":
                 this.handleTransactionStart(sessionId, message);
                 break;
-            /*case "RUN_STARTED":
-                this.handleRunStarted(sessionId, message);
-                break;
-            case "RUN_FINISHED":
-                this.handleRunFinished(sessionId, message);
-                break;
-            case "RUN_CANCEL":
-                this.handleRunCancel(sessionId, message);
-                break;*/
             case "PING":
                 console.log("Routing to handlePing");
                 this.handlePing(sessionId, message);
                 break;
-            /*case "REPLAY_REQUEST":
-                this.handleReplayRequest(sessionId, message);
-                break;
-                */
-            case "TEXT_MESSAGE_START":
-            case "TEXT_MESSAGE_PART":
-            case "TEXT_MESSAGE_END":
+            case "REPLAY_REQUEST":
                 if (!transaction || !transactionId) {
                     console.log("transaction not found for ID:", transactionId);
-                    this.sendError(
-                        sessionId,
-                        transactionId,
-                        "TRANSACTION_NOT_FOUND",
-                        "Transaction not found"
-                    );
+                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
+                    return;
+                }
+                this.handleReplayRequest({ transactionId, sessionId }, message);
+                break;
+            case "MESSAGE_START":
+            case "MESSAGE_PART":
+            case "MESSAGE_END":
+                if (!transaction || !transactionId) {
+                    console.log("transaction not found for ID:", transactionId);
+                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
                     return;
                 }
 
@@ -379,36 +370,81 @@ export class HAIPServer extends EventEmitter {
                     );
                 }
                 break;
-            /*
+
             case "AUDIO_CHUNK":
-                this.handleAudioChunk(sessionId, message);
+                if (!transaction || !transactionId) {
+                    console.log("transaction not found for ID:", transactionId);
+                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
+                    return;
+                }
+
+                const tool_audio = this.tools.get(transaction!.toolName);
+                if (tool_audio) {
+                    tool_audio.handleAudioChunk(
+                        { sessionId: sessionId, transactionId: transactionId },
+                        message
+                    );
+                }
                 break;
-            case "TOOL_CALL":
-                this.handleToolCall(sessionId, message);
+            case "INFO":
+                console.log(
+                    "INFO message received:",
+                    message,
+                    " - ",
+                    transactionId,
+                    "(",
+                    sessionId,
+                    ")"
+                );
                 break;
-            case "TOOL_UPDATE":
-                this.handleToolUpdate(sessionId, message);
+            case "ERROR":
+                console.error(
+                    "ERROR message received:",
+                    message,
+                    " - ",
+                    transactionId,
+                    "(",
+                    sessionId,
+                    ")"
+                );
                 break;
-            case "TOOL_DONE":
-                this.handleToolDone(sessionId, message);
+            case "TRANSACTION_END":
+                if (!transaction || !transactionId) {
+                    console.log("transaction not found for ID:", transactionId);
+                    this.sendError(sessionId, transactionId, "ERROR", "Transaction not found");
+                    return;
+                }
                 break;
-            case "TOOL_CANCEL":
-                this.handleToolCancel(sessionId, message);
+            case "TOOL_LIST":
+                const toolNames = Array.from(this.tools.values()).map(tool => ({
+                    name: tool.schema().name,
+                    description: tool.schema().description,
+                }));
+                const toolListMessage = HAIPServerUtils.createToolListMessage(
+                    sessionId,
+                    transactionId,
+                    {
+                        tools: toolNames,
+                    }
+                );
+                this.sendMessage(sessionId, toolListMessage);
                 break;
-            case "PAUSE_CHANNEL":
-                this.handlePauseChannel(sessionId, message);
+            case "TOOL_SCHEMA":
+                // Optionally handle TOOL_SCHEMA messages here
                 break;
-            case "RESUME_CHANNEL":
-                this.handleResumeChannel(sessionId, message);
-                break;*/
+            case "FLOW_UPDATE":
+                // Optionally handle FLOW_UPDATE messages here
+                break;
+            case "PONG":
             default:
-                console.log("Unknown message type:", message.type);
+                console.warn("Unknown message type:", message.type);
                 this.sendError(
                     sessionId,
                     message.transaction || null,
                     "UNSUPPORTED_TYPE",
                     `Unknown message type: ${message.type}`
                 );
+                break;
         }
     }
 
@@ -510,80 +546,7 @@ export class HAIPServer extends EventEmitter {
             })
         );
     }
-    /*
-    private handleRunStarted(sessionId: string, message: HAIPMessage): void {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            return;
-        }
 
-        const runId = message.payload.run_id || HAIPServerUtils.generateUUID();
-        const run: HAIPRun = {
-            runId,
-            threadId: message.payload.thread_id,
-            status: "active",
-            startTime: Date.now(),
-            endTime: undefined,
-            metadata: message.payload.metadata,
-            summary: undefined,
-            error: undefined,
-        };
-
-        this.runs.set(runId, run);
-        session.activeRuns.add(runId);
-
-        this.emit("runStarted", sessionId, run);
-    }
-
-    private handleRunFinished(sessionId: string, message: HAIPMessage): void {
-        const runId = message.payload.run_id;
-        if (!runId) {
-            this.sendError(sessionId, "MISSING_RUN_ID", "Run ID is required");
-            return;
-        }
-
-        const run = this.runs.get(runId);
-        if (!run) {
-            this.sendError(sessionId, "RUN_NOT_FOUND", "Run not found");
-            return;
-        }
-
-        run.status = message.payload.status || "finished";
-        run.endTime = Date.now();
-        run.summary = message.payload.summary;
-
-        const session = this.sessions.get(sessionId);
-        if (session) {
-            session.activeRuns.delete(runId);
-        }
-
-        this.emit("runFinished", sessionId, run);
-    }
-
-    private handleRunCancel(sessionId: string, message: HAIPMessage): void {
-        const runId = message.payload.run_id;
-        if (!runId) {
-            this.sendError(sessionId, "MISSING_RUN_ID", "Run ID is required");
-            return;
-        }
-
-        const run = this.runs.get(runId);
-        if (!run) {
-            this.sendError(sessionId, "RUN_NOT_FOUND", "Run not found");
-            return;
-        }
-
-        run.status = "cancelled";
-        run.endTime = Date.now();
-
-        const session = this.sessions.get(sessionId);
-        if (session) {
-            session.activeRuns.delete(runId);
-        }
-
-        this.emit("runCancelled", sessionId, run);
-    }
-*/
     private handlePing(sessionId: string, message: HAIPMessage): void {
         console.log(
             "handlePing called for session:",
@@ -598,140 +561,29 @@ export class HAIPServer extends EventEmitter {
         this.sendMessage(sessionId, pong);
         console.log("Pong message sent");
     }
-    /*
-    private handleReplayRequest(sessionId: string, message: HAIPMessage): void {
-        const session = this.sessions.get(sessionId);
+
+    private handleReplayRequest(client: HAIPSessionTransaction, message: HAIPMessage): void {
+        const session = this.sessions.get(client.sessionId);
         if (!session) {
+            return;
+        }
+
+        const transaction = session.transactions.get(message.transaction || "");
+
+        if (!transaction) {
+            this.sendError(client.sessionId, message.transaction, "ERROR", "Transaction not found");
             return;
         }
 
         const fromSeq = message.payload.from_seq;
         const toSeq = message.payload.to_seq;
 
-        for (const [seq, msg] of session.replayWindow) {
+        for (const [seq, msg] of transaction.replayWindow) {
             if (seq >= fromSeq && (!toSeq || seq <= toSeq)) {
-                this.sendMessage(sessionId, msg);
+                this.sendMessage(client.sessionId, msg);
             }
         }
     }
-
-    private handleTextMessage(sessionId: string, message: HAIPMessage): void {
-        this.emit("textMessage", sessionId, message);
-    }
-
-    private handleAudioChunk(sessionId: string, message: HAIPMessage): void {
-        this.emit("audioChunk", sessionId, message);
-    }
-
-    private handleToolCall(sessionId: string, message: HAIPMessage): void {
-        const callId = message.payload.call_id;
-        const toolName = message.payload.tool;
-        const params = message.payload.params;
-
-        const tool = this.tools.get(toolName);
-        if (!tool) {
-            this.sendError(sessionId, "TOOL_NOT_FOUND", `Tool ${toolName} not found`);
-            return;
-        }
-
-        const execution: HAIPToolExecution = {
-            callId,
-            toolName,
-            arguments: params || {},
-            status: "pending",
-            startTime: Date.now(),
-        };
-
-        this.toolExecutions.set(callId, execution);
-
-        setTimeout(() => {
-            execution.status = "running";
-            this.sendToolUpdate(sessionId, callId, "RUNNING", 50);
-
-            setTimeout(() => {
-                execution.status = "completed";
-                execution.endTime = Date.now();
-
-                let result: any;
-
-                switch (toolName) {
-                    case "echo":
-                        result = { echoed: params?.message || "No message provided" };
-                        break;
-                    case "add": {
-                        const a = params?.a || 0;
-                        const b = params?.b || 0;
-                        result = { result: a + b };
-                        break;
-                    }
-                    case "weather":
-                        result = {
-                            temperature: "22°C",
-                            condition: "Sunny",
-                            location: params?.location || "Unknown",
-                        };
-                        break;
-                    default:
-                        result = { success: true, data: "Tool execution completed" };
-                }
-
-                execution.result = result;
-                this.sendToolDone(sessionId, callId, "OK", result);
-            }, 100);
-        }, 50);
-
-        this.emit("toolCall", sessionId, execution);
-    }
-
-    private handleToolUpdate(sessionId: string, message: HAIPMessage): void {
-        const callId = message.payload.call_id;
-        const execution = this.toolExecutions.get(callId);
-        if (execution) {
-            execution.status = message.payload.status;
-            execution.progress = message.payload.progress;
-            execution.partial = message.payload.partial;
-        }
-    }
-
-    private handleToolDone(sessionId: string, message: HAIPMessage): void {
-        const callId = message.payload.call_id;
-        const execution = this.toolExecutions.get(callId);
-        if (execution) {
-            execution.status = message.payload.status || "completed";
-            execution.endTime = Date.now();
-            execution.result = message.payload.result;
-        }
-    }
-
-    private handleToolCancel(sessionId: string, message: HAIPMessage): void {
-        const callId = message.payload.call_id;
-        const execution = this.toolExecutions.get(callId);
-        if (execution) {
-            execution.status = "cancelled";
-            execution.endTime = Date.now();
-        }
-    }
-
-    private handlePauseChannel(sessionId: string, message: HAIPMessage): void {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            return;
-        }
-
-        const channel = message.payload.channel;
-        session.pausedChannels.add(channel as HAIPChannel);
-    }
-
-    private handleResumeChannel(sessionId: string, message: HAIPMessage): void {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            return;
-        }
-
-        const channel = message.payload.channel;
-        session.pausedChannels.delete(channel as HAIPChannel);
-    }
-        */
 
     private checkFlowControl(sessionId: string, message: HAIPMessage): boolean {
         const session = this.sessions.get(sessionId);
@@ -769,23 +621,6 @@ export class HAIPServer extends EventEmitter {
         this.sendMessage(sessionId, error);
     }
 
-    /*
-
-    private sendToolUpdate(
-        sessionId: string,
-        callId: string,
-        status: string,
-        progress?: number
-    ): void {
-        const update = HAIPServerUtils.createToolUpdateMessage(sessionId, {
-            call_id: callId,
-            status: status as any,
-            progress,
-        });
-        this.sendMessage(sessionId, update);
-    }
-
-    */
     private setupHeartbeat(sessionId: string): void {
         const interval = setInterval(() => {
             const session = this.sessions.get(sessionId);
@@ -931,15 +766,6 @@ export class HAIPServer extends EventEmitter {
         } else if (session.httpResponse) {
             session.httpResponse.write(messageStr + "\n");
         }
-    }
-
-    public sendToolDone(sessionId: string, callId: string, status: string, result?: any): void {
-        const done = HAIPServerUtils.createToolDoneMessage(sessionId, {
-            call_id: callId,
-            status: status as any,
-            result,
-        });
-        this.sendMessage(sessionId, done);
     }
 
     public start(): void {

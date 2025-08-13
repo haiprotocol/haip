@@ -175,7 +175,7 @@ function createTestMessage(index: number, size: number): any {
         seq: HAIPCLIUtils.generateSequence(),
         ts: HAIPCLIUtils.formatTimestamp(),
         channel: "SYSTEM",
-        type: "TEXT_MESSAGE_START",
+        type: "MESSAGE_START",
         payload,
     };
 }

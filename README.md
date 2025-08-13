@@ -2,7 +2,7 @@
 
 ## Documation
 
-* [Documetation](https://haiprotocol.com/)
+- [Documetation](https://haiprotocol.com/)
 
 ## Introduction
 
@@ -58,13 +58,28 @@ Each side’s initial `HAI` payload **MUST** include:
     "haip_version": "1.1.2",
     "accept_major": [1],
     "accept_events": [
-      "HAI","RUN_STARTED","RUN_FINISHED","RUN_CANCEL","RUN_ERROR",
-      "PING","PONG","REPLAY_REQUEST",
-      "TEXT_MESSAGE_START","TEXT_MESSAGE_PART","TEXT_MESSAGE_END",
+      "HAI",
+      "RUN_STARTED",
+      "RUN_FINISHED",
+      "RUN_CANCEL",
+      "RUN_ERROR",
+      "PING",
+      "PONG",
+      "REPLAY_REQUEST",
+      "MESSAGE_START",
+      "MESSAGE_PART",
+      "MESSAGE_END",
       "AUDIO_CHUNK",
-      "TOOL_CALL","TOOL_UPDATE","TOOL_DONE","TOOL_CANCEL",
-      "TOOL_LIST","TOOL_SCHEMA",
-      "ERROR","FLOW_UPDATE","PAUSE_CHANNEL","RESUME_CHANNEL"
+      "TOOL_CALL",
+      "TOOL_UPDATE",
+      "TOOL_DONE",
+      "TOOL_CANCEL",
+      "TOOL_LIST",
+      "TOOL_SCHEMA",
+      "ERROR",
+      "FLOW_UPDATE",
+      "PAUSE_CHANNEL",
+      "RESUME_CHANNEL"
     ],
     "capabilities": {
       "binary_frames": true,
@@ -76,7 +91,6 @@ Each side’s initial `HAI` payload **MUST** include:
     "last_rx_seq": "42"
   }
 }
-
 ```
 
 - `haip_version`: highest version the sender implements.
@@ -93,10 +107,10 @@ Each side’s initial `HAI` payload **MUST** include:
 
 **Envelope Extension Fields**
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `pv` | integer | ✖ | Protocol MAJOR that generated this message (default 0 during draft). |
-| `crit` | boolean | ✖ | If true an unknown field **MUST** trigger `UNSUPPORTED_TYPE`, otherwise the receiver may ignore it. |
+| Field  | Type    | Required | Description                                                                                         |
+| ------ | ------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `pv`   | integer | ✖        | Protocol MAJOR that generated this message (default 0 during draft).                                |
+| `crit` | boolean | ✖        | If true an unknown field **MUST** trigger `UNSUPPORTED_TYPE`, otherwise the receiver may ignore it. |
 
 **Deprecation**: deprecated items remain valid for one MAJOR cycle; senders **SHOULD** avoid them; receivers **MUST** accept them.
 
@@ -104,8 +118,8 @@ Each side’s initial `HAI` payload **MUST** include:
 
 1. **Client authentication:** Bearer JWT (`exp` and `iat` claims); servers validate signature, issuer, audience, expiry and issued‑at.
 2. **Token presentation:**
-    - HTTP/SSE: `Authorization: Bearer <token>` header
-    - WebSocket: `?token=…` query or `Sec‑WebSocket‑Protocol`
+   - HTTP/SSE: `Authorization: Bearer <token>` header
+   - WebSocket: `?token=…` query or `Sec‑WebSocket‑Protocol`
 3. **Session resumption:** reuse a still‑valid token or start a new session.
 4. **Transport security:** TLS 1.2+ (`https://` or `wss://`) only.
 5. **Optional signing:** JWS detached or inline HMAC; advertise `signed_envelopes`; verify signatures.
@@ -169,30 +183,30 @@ Flow control is credit‑based per channel.
 
 ## Event Catalogue
 
-| Type | Purpose | Required | Optional |
-| --- | --- | --- | --- |
-| **HAI** | Handshake | `haip_version`,`accept_major`,`accept_events` | `capabilities`,`last_rx_seq` |
-| **RUN_STARTED** | Begin run | – | metadata |
-| **RUN_FINISHED** | End run | – | `status`,`summary` |
-| **RUN_CANCEL** | Abort run | `run_id` | – |
-| **RUN_ERROR** | Run error | – | same as ERROR payload |
-| **PING/PONG** | Liveness | – | `nonce` |
-| **REPLAY_REQUEST** | Replay missing frames | `from_seq` | `to_seq` |
-| **TEXT_MESSAGE_START** | Start streaming text | `message_id` | `author`,`text` |
-| **TEXT_MESSAGE_PART** | Text chunk | `message_id`,`text` | – |
-| **TEXT_MESSAGE_END** | End text | `message_id` | `tokens` |
-| **AUDIO_CHUNK** | Media chunk | `message_id`,`mime` | `bin_len`,`bin_mime`,
-`duration_ms` |
-| **TOOL_CALL** | Invoke tool | `call_id`,`tool` | `params` |
-| **TOOL_UPDATE** | Tool progress | `call_id`,`status` | `progress`,`partial` |
-| **TOOL_DONE** | Tool completion | `call_id` | `result`,`status` |
-| **TOOL_CANCEL** | Cancel tool | `call_id` | `reason` |
-| **TOOL_LIST** | Advertise tools | `tools` | – |
-| **TOOL_SCHEMA** | Tool schema | `tool`,`schema` | – |
-| **ERROR** | Protocol/runtime error | `code`,`message` | `related_id`,`detail` |
-| **FLOW_UPDATE** | Grant credit | `channel` | `add_messages`,`add_bytes` |
-| **PAUSE_CHANNEL** | Pause channel | `channel` | – |
-| **RESUME_CHANNEL** | Resume channel | `channel` | – |
+| Type               | Purpose                | Required                                      | Optional                     |
+| ------------------ | ---------------------- | --------------------------------------------- | ---------------------------- |
+| **HAI**            | Handshake              | `haip_version`,`accept_major`,`accept_events` | `capabilities`,`last_rx_seq` |
+| **RUN_STARTED**    | Begin run              | –                                             | metadata                     |
+| **RUN_FINISHED**   | End run                | –                                             | `status`,`summary`           |
+| **RUN_CANCEL**     | Abort run              | `run_id`                                      | –                            |
+| **RUN_ERROR**      | Run error              | –                                             | same as ERROR payload        |
+| **PING/PONG**      | Liveness               | –                                             | `nonce`                      |
+| **REPLAY_REQUEST** | Replay missing frames  | `from_seq`                                    | `to_seq`                     |
+| **MESSAGE_START**  | Start streaming text   | `message_id`                                  | `author`,`text`              |
+| **MESSAGE_PART**   | Text chunk             | `message_id`,`text`                           | –                            |
+| **MESSAGE_END**    | End text               | `message_id`                                  | `tokens`                     |
+| **AUDIO_CHUNK**    | Media chunk            | `message_id`,`mime`                           | `bin_len`,`bin_mime`,        |
+| `duration_ms`      |
+| **TOOL_CALL**      | Invoke tool            | `call_id`,`tool`                              | `params`                     |
+| **TOOL_UPDATE**    | Tool progress          | `call_id`,`status`                            | `progress`,`partial`         |
+| **TOOL_DONE**      | Tool completion        | `call_id`                                     | `result`,`status`            |
+| **TOOL_CANCEL**    | Cancel tool            | `call_id`                                     | `reason`                     |
+| **TOOL_LIST**      | Advertise tools        | `tools`                                       | –                            |
+| **TOOL_SCHEMA**    | Tool schema            | `tool`,`schema`                               | –                            |
+| **ERROR**          | Protocol/runtime error | `code`,`message`                              | `related_id`,`detail`        |
+| **FLOW_UPDATE**    | Grant credit           | `channel`                                     | `add_messages`,`add_bytes`   |
+| **PAUSE_CHANNEL**  | Pause channel          | `channel`                                     | –                            |
+| **RESUME_CHANNEL** | Resume channel         | `channel`                                     | –                            |
 
 ## Message Envelope
 
@@ -242,26 +256,26 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
   "additionalProperties": false,
 
   "properties": {
-    "id":        { "$ref": "#/definitions/uuid" },
-    "session":   { "$ref": "#/definitions/uuid" },
-    "seq":       { "$ref": "#/definitions/uint64str" },
-    "ack":       { "$ref": "#/definitions/uint64str" },
-    "ts":        { "$ref": "#/definitions/uint64str" },
-    "channel":   { "$ref": "#/definitions/channel" },
-    "type":      { "$ref": "#/definitions/eventType" },
-    "payload":   { "type": "object" },
+    "id": { "$ref": "#/definitions/uuid" },
+    "session": { "$ref": "#/definitions/uuid" },
+    "seq": { "$ref": "#/definitions/uint64str" },
+    "ack": { "$ref": "#/definitions/uint64str" },
+    "ts": { "$ref": "#/definitions/uint64str" },
+    "channel": { "$ref": "#/definitions/channel" },
+    "type": { "$ref": "#/definitions/eventType" },
+    "payload": { "type": "object" },
 
-    "pv":        { "type": "integer", "minimum": 0, "maximum": 255 },
-    "crit":      { "type": "boolean" },
+    "pv": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "crit": { "type": "boolean" },
 
-    "bin_len":   { "type": "integer", "minimum": 0 },
-    "bin_mime":  { "type": "string" },
+    "bin_len": { "type": "integer", "minimum": 0 },
+    "bin_mime": { "type": "string" },
 
-    "run_id":    { "$ref": "#/definitions/uuid" },
+    "run_id": { "$ref": "#/definitions/uuid" },
     "thread_id": { "type": "string", "maxLength": 128 }
   },
 
-  "required": [ "id", "session", "seq", "ts", "channel", "type", "payload" ],
+  "required": ["id", "session", "seq", "ts", "channel", "type", "payload"],
 
   /* ------------------------------------------------------------------ */
   /*  Payload specialisations – each branch imposes its rules only      */
@@ -270,92 +284,134 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
   /* ------------------------------------------------------------------ */
   "allOf": [
     {
-      "if":   { "properties": { "type": { "const": "HAI" } } },
+      "if": { "properties": { "type": { "const": "HAI" } } },
       "then": { "properties": { "payload": { "$ref": "#/definitions/HAI" } } }
     },
     {
-      "if":   { "properties": { "type": { "const": "RUN_STARTED" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/RunStarted" } } }
+      "if": { "properties": { "type": { "const": "RUN_STARTED" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/RunStarted" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "RUN_FINISHED" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/RunFinished" } } }
+      "if": { "properties": { "type": { "const": "RUN_FINISHED" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/RunFinished" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "RUN_CANCEL" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/RunCancel" } } }
+      "if": { "properties": { "type": { "const": "RUN_CANCEL" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/RunCancel" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "RUN_ERROR" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/RunError" } } }
+      "if": { "properties": { "type": { "const": "RUN_ERROR" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/RunError" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "PING" } } },
+      "if": { "properties": { "type": { "const": "PING" } } },
       "then": { "properties": { "payload": { "$ref": "#/definitions/Ping" } } }
     },
     {
-      "if":   { "properties": { "type": { "const": "PONG" } } },
+      "if": { "properties": { "type": { "const": "PONG" } } },
       "then": { "properties": { "payload": { "$ref": "#/definitions/Pong" } } }
     },
     {
-      "if":   { "properties": { "type": { "const": "REPLAY_REQUEST" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ReplayRequest" } } }
+      "if": { "properties": { "type": { "const": "REPLAY_REQUEST" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ReplayRequest" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TEXT_MESSAGE_START" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/TextMessageStart" } } }
+      "if": { "properties": { "type": { "const": "MESSAGE_START" } } },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/definitions/TextMessageStart" }
+        }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TEXT_MESSAGE_PART" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/TextMessagePart" } } }
+      "if": { "properties": { "type": { "const": "MESSAGE_PART" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/TextMessagePart" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TEXT_MESSAGE_END" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/TextMessageEnd" } } }
+      "if": { "properties": { "type": { "const": "MESSAGE_END" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/TextMessageEnd" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "AUDIO_CHUNK" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/AudioChunk" } } }
+      "if": { "properties": { "type": { "const": "AUDIO_CHUNK" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/AudioChunk" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TOOL_CALL" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ToolCall" } } }
+      "if": { "properties": { "type": { "const": "TOOL_CALL" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ToolCall" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TOOL_UPDATE" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ToolUpdate" } } }
+      "if": { "properties": { "type": { "const": "TOOL_UPDATE" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ToolUpdate" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TOOL_DONE" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ToolDone" } } }
+      "if": { "properties": { "type": { "const": "TOOL_DONE" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ToolDone" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TOOL_CANCEL" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ToolCancel" } } }
+      "if": { "properties": { "type": { "const": "TOOL_CANCEL" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ToolCancel" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TOOL_LIST" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ToolList" } } }
+      "if": { "properties": { "type": { "const": "TOOL_LIST" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ToolList" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "TOOL_SCHEMA" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ToolSchema" } } }
+      "if": { "properties": { "type": { "const": "TOOL_SCHEMA" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ToolSchema" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "ERROR" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ErrorEvt" } } }
+      "if": { "properties": { "type": { "const": "ERROR" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/ErrorEvt" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "FLOW_UPDATE" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/FlowUpdateEvt" } } }
+      "if": { "properties": { "type": { "const": "FLOW_UPDATE" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/FlowUpdateEvt" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "PAUSE_CHANNEL" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/PauseChannelEvt" } } }
+      "if": { "properties": { "type": { "const": "PAUSE_CHANNEL" } } },
+      "then": {
+        "properties": { "payload": { "$ref": "#/definitions/PauseChannelEvt" } }
+      }
     },
     {
-      "if":   { "properties": { "type": { "const": "RESUME_CHANNEL" } } },
-      "then": { "properties": { "payload": { "$ref": "#/definitions/ResumeChannelEvt" } } }
+      "if": { "properties": { "type": { "const": "RESUME_CHANNEL" } } },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/definitions/ResumeChannelEvt" }
+        }
+      }
     }
   ],
 
@@ -378,20 +434,35 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
     "eventType": {
       "type": "string",
       "enum": [
-        "HAI","RUN_STARTED","RUN_FINISHED","RUN_CANCEL","RUN_ERROR",
-        "PING","PONG","REPLAY_REQUEST",
-        "TEXT_MESSAGE_START","TEXT_MESSAGE_PART","TEXT_MESSAGE_END",
+        "HAI",
+        "RUN_STARTED",
+        "RUN_FINISHED",
+        "RUN_CANCEL",
+        "RUN_ERROR",
+        "PING",
+        "PONG",
+        "REPLAY_REQUEST",
+        "MESSAGE_START",
+        "MESSAGE_PART",
+        "MESSAGE_END",
         "AUDIO_CHUNK",
-        "TOOL_CALL","TOOL_UPDATE","TOOL_DONE","TOOL_CANCEL",
-        "TOOL_LIST","TOOL_SCHEMA",
-        "ERROR","FLOW_UPDATE","PAUSE_CHANNEL","RESUME_CHANNEL"
+        "TOOL_CALL",
+        "TOOL_UPDATE",
+        "TOOL_DONE",
+        "TOOL_CANCEL",
+        "TOOL_LIST",
+        "TOOL_SCHEMA",
+        "ERROR",
+        "FLOW_UPDATE",
+        "PAUSE_CHANNEL",
+        "RESUME_CHANNEL"
       ]
     },
 
     /* -------- handshake -------- */
     "HAI": {
       "type": "object",
-      "required": [ "haip_version", "accept_major", "accept_events" ],
+      "required": ["haip_version", "accept_major", "accept_events"],
       "properties": {
         "haip_version": { "type": "string" },
         "accept_major": {
@@ -406,26 +477,26 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
           "type": "object",
           "additionalProperties": true
         },
-        "binary_frames":       { "type": "boolean" },
+        "binary_frames": { "type": "boolean" },
         "max_concurrent_runs": { "type": "integer", "minimum": 1 },
-        "last_rx_seq":         { "$ref": "#/definitions/uint64str" }
+        "last_rx_seq": { "$ref": "#/definitions/uint64str" }
       },
       "additionalProperties": false
     },
 
     /* -------- run lifecycle -------- */
-    "RunStarted":  { "type": "object", "additionalProperties": true },
+    "RunStarted": { "type": "object", "additionalProperties": true },
     "RunFinished": {
       "type": "object",
       "properties": {
-        "status":  { "type": "string", "enum": ["OK","CANCELLED","ERROR"] },
+        "status": { "type": "string", "enum": ["OK", "CANCELLED", "ERROR"] },
         "summary": { "type": "string" }
       },
       "additionalProperties": false
     },
     "RunCancel": {
       "type": "object",
-      "required": [ "run_id" ],
+      "required": ["run_id"],
       "properties": { "run_id": { "$ref": "#/definitions/uuid" } },
       "additionalProperties": false
     },
@@ -440,10 +511,10 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
     "Pong": { "$ref": "#/definitions/Ping" },
     "ReplayRequest": {
       "type": "object",
-      "required": [ "from_seq" ],
+      "required": ["from_seq"],
       "properties": {
         "from_seq": { "$ref": "#/definitions/uint64str" },
-        "to_seq":   { "$ref": "#/definitions/uint64str" }
+        "to_seq": { "$ref": "#/definitions/uint64str" }
       },
       "additionalProperties": false
     },
@@ -451,39 +522,39 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
     /* -------- text & audio -------- */
     "TextMessageStart": {
       "type": "object",
-      "required": [ "message_id" ],
+      "required": ["message_id"],
       "properties": {
         "message_id": { "$ref": "#/definitions/uuid" },
-        "author":     { "type": "string" },
-        "text":       { "type": "string" }
+        "author": { "type": "string" },
+        "text": { "type": "string" }
       },
       "additionalProperties": false
     },
     "TextMessagePart": {
       "type": "object",
-      "required": [ "message_id", "text" ],
+      "required": ["message_id", "text"],
       "properties": {
         "message_id": { "$ref": "#/definitions/uuid" },
-        "text":       { "type": "string" }
+        "text": { "type": "string" }
       },
       "additionalProperties": false
     },
     "TextMessageEnd": {
       "type": "object",
-      "required": [ "message_id" ],
+      "required": ["message_id"],
       "properties": {
         "message_id": { "$ref": "#/definitions/uuid" },
-        "tokens":     { "$ref": "#/definitions/uint64str" }
+        "tokens": { "$ref": "#/definitions/uint64str" }
       },
       "additionalProperties": false
     },
     "AudioChunk": {
       "type": "object",
-      "required": [ "message_id", "mime" ],
+      "required": ["message_id", "mime"],
       "properties": {
         "message_id": { "$ref": "#/definitions/uuid" },
-        "mime":        { "type": "string" },
-        "data":        { "type": "string", "contentEncoding": "base64" },
+        "mime": { "type": "string" },
+        "data": { "type": "string", "contentEncoding": "base64" },
         "duration_ms": { "$ref": "#/definitions/uint64str" }
       },
       "additionalProperties": false
@@ -492,57 +563,62 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
     /* -------- tooling -------- */
     "ToolCall": {
       "type": "object",
-      "required": [ "call_id", "tool" ],
+      "required": ["call_id", "tool"],
       "properties": {
         "call_id": { "$ref": "#/definitions/uuid" },
-        "tool":    { "type": "string" },
-        "params":  { "type": "object", "additionalProperties": true }
+        "tool": { "type": "string" },
+        "params": { "type": "object", "additionalProperties": true }
       },
       "additionalProperties": false
     },
     "ToolUpdate": {
       "type": "object",
-      "required": [ "call_id", "status" ],
+      "required": ["call_id", "status"],
       "properties": {
-        "call_id":  { "$ref": "#/definitions/uuid" },
-        "status":   { "type": "string", "enum": ["QUEUED","RUNNING","CANCELLING"] },
+        "call_id": { "$ref": "#/definitions/uuid" },
+        "status": {
+          "type": "string",
+          "enum": ["QUEUED", "RUNNING", "CANCELLING"]
+        },
         "progress": { "type": "number", "minimum": 0, "maximum": 100 },
-        "partial":  {}
+        "partial": {}
       },
       "additionalProperties": false
     },
     "ToolDone": {
       "type": "object",
-      "required": [ "call_id" ],
+      "required": ["call_id"],
       "properties": {
         "call_id": { "$ref": "#/definitions/uuid" },
-        "status":  { "type": "string",
-                     "enum": ["OK","CANCELLED","ERROR"],
-                     "default": "OK" },
-        "result":  {}
+        "status": {
+          "type": "string",
+          "enum": ["OK", "CANCELLED", "ERROR"],
+          "default": "OK"
+        },
+        "result": {}
       },
       "additionalProperties": false
     },
     "ToolCancel": {
       "type": "object",
-      "required": [ "call_id" ],
+      "required": ["call_id"],
       "properties": {
         "call_id": { "$ref": "#/definitions/uuid" },
-        "reason":  { "type": "string" }
+        "reason": { "type": "string" }
       },
       "additionalProperties": false
     },
     "ToolList": {
       "type": "object",
-      "required": [ "tools" ],
+      "required": ["tools"],
       "properties": {
         "tools": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": [ "name" ],
+            "required": ["name"],
             "properties": {
-              "name":        { "type": "string" },
+              "name": { "type": "string" },
               "description": { "type": "string" }
             },
             "additionalProperties": false
@@ -553,9 +629,9 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
     },
     "ToolSchema": {
       "type": "object",
-      "required": [ "tool", "schema" ],
+      "required": ["tool", "schema"],
       "properties": {
-        "tool":   { "type": "string" },
+        "tool": { "type": "string" },
         "schema": { "type": "object" }
       },
       "additionalProperties": false
@@ -564,28 +640,28 @@ Any violation **MUST** trigger `ERROR{code:"<CODE>",...}`. Common codes: `PROTOC
     /* -------- errors & flow control -------- */
     "ErrorEvt": {
       "type": "object",
-      "required": [ "code", "message" ],
+      "required": ["code", "message"],
       "properties": {
-        "code":       { "type": "string" },
-        "message":    { "type": "string" },
+        "code": { "type": "string" },
+        "message": { "type": "string" },
         "related_id": { "$ref": "#/definitions/uuid" },
-        "detail":     { "type": "object" }
+        "detail": { "type": "object" }
       },
       "additionalProperties": false
     },
     "FlowUpdateEvt": {
       "type": "object",
-      "required": [ "channel" ],
+      "required": ["channel"],
       "properties": {
-        "channel":      { "type": "string" },
+        "channel": { "type": "string" },
         "add_messages": { "type": "integer", "minimum": 1 },
-        "add_bytes":    { "type": "integer", "minimum": 1 }
+        "add_bytes": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     },
     "PauseChannelEvt": {
       "type": "object",
-      "required": [ "channel" ],
+      "required": ["channel"],
       "properties": {
         "channel": { "type": "string" }
       },
@@ -605,7 +681,7 @@ sequenceDiagram
     participant A as AGENT
     participant S as SYSTEM
 
-    U->>A: TEXT_MESSAGE_START
+    U->>A: MESSAGE_START
     note right of A: seq=1, ack=0\npv=1, crit=false
 
     U->>A: AUDIO_CHUNK
@@ -634,7 +710,7 @@ sequenceDiagram
         "ack": "0",
         "ts": "1690000000000",
         "channel": "USER",
-        "type": "TEXT_MESSAGE_START",
+        "type": "MESSAGE_START",
         "pv": 1,
         "crit": false,
         "payload": {
@@ -704,52 +780,51 @@ sequenceDiagram
     }
   ]
 }
-
 ```
 
 ## Summary
 
 HAIP enables intuitive, real‑time human‑agent conversations by standardising streaming, concurrency, tool invocation and flow‑control semantics without tying developers to a particular framework or transport.
 
-
 ## Niall's Notes
 
-* What's the USER vs TOOL vs RUN call
-* Authentication
-* How to know the ID
+- What's the USER vs TOOL vs RUN call
+- Authentication
+- How to know the ID
 
-    'HAI',                'RUN_STARTED',
-    'RUN_FINISHED',       'RUN_CANCEL',
-    'RUN_ERROR',          'PING',
-    'PONG',               'REPLAY_REQUEST',
-    'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART',
-    'TEXT_MESSAGE_END',   'AUDIO_CHUNK',
-    'TOOL_CALL',          'TOOL_UPDATE',
-    'TOOL_DONE',          'TOOL_CANCEL',
-    'TOOL_LIST',          'TOOL_SCHEMA',
-    'ERROR',              'FLOW_UPDATE',
-    'PAUSE_CHANNEL',      'RESUME_CHANNEL'
+  'HAI', 'RUN_STARTED',
+  'RUN_FINISHED', 'RUN_CANCEL',
+  'RUN_ERROR', 'PING',
+  'PONG', 'REPLAY_REQUEST',
+  'MESSAGE_START', 'MESSAGE_PART',
+  'MESSAGE_END', 'AUDIO_CHUNK',
+  'TOOL_CALL', 'TOOL_UPDATE',
+  'TOOL_DONE', 'TOOL_CANCEL',
+  'TOOL_LIST', 'TOOL_SCHEMA',
+  'ERROR', 'FLOW_UPDATE',
+  'PAUSE_CHANNEL', 'RESUME_CHANNEL'
 
 Why is text special? Are LLMs not a tool? Replace the API? History/Chats
 
 > Get history
-TRANSACTION START
-AUTHENTICATE
-  - Some body
-  - Set's an ID & Permissions
-HISTORY_LIST | HISTORY_CALL - Shows all transactions
-TRANSACTION END
+> TRANSACTION START
+> AUTHENTICATE
+
+- Some body
+- Set's an ID & Permissions
+  HISTORY_LIST | HISTORY_CALL - Shows all transactions
+  TRANSACTION END
 
 > EXAMPLE
-TRANSACTION START
-AUTHENTICATE
-TOOL SELECT
-TEXT SEND (USER)
-...
-TEXT FINISH
-TEXT SEND (AGENT)
-...
-TEXT FINISH
+> TRANSACTION START
+> AUTHENTICATE
+> TOOL SELECT
+> TEXT SEND (USER)
+> ...
+> TEXT FINISH
+> TEXT SEND (AGENT)
+> ...
+> TEXT FINISH
 
 TOOL_FUNC???
 
@@ -757,9 +832,9 @@ TRANSACTION END
 
 > What about human in the loop
 > Remove/Pause/Modify Agents Messages
-MESSAGE_DELETE
-MESSAGE_EDIT
-MESSAGE_PAUSE
+> MESSAGE_DELETE
+> MESSAGE_EDIT
+> MESSAGE_PAUSE
 
 MESSAGE_STOP
 

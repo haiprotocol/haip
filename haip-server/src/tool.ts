@@ -1,28 +1,33 @@
 import EventEmitter from "events";
-import { HAIPTool, HAIPToolSchema, HAIPMessage, HaipToolClient } from "haip";
+import { HAIPTool, HAIPToolSchema, HAIPMessage, HAIPSessionTransaction } from "haip";
 
 export class HaipTool extends EventEmitter implements HAIPTool {
+    handleAudioChunk(client: HAIPSessionTransaction, message: HAIPMessage): void {
+        throw new Error("Method not implemented.");
+        //this.emit("audioChunk", sessionId, message);
+    }
+
     schema(): HAIPToolSchema {
         throw new Error("Method not implemented.");
     }
 
-    handleMessage(client: HaipToolClient, message: HAIPMessage): void {
+    handleMessage(client: HAIPSessionTransaction, message: HAIPMessage): void {
         throw new Error("Method not implemented.");
     }
 
-    getClients(): HaipToolClient[] {
+    getClients(): HAIPSessionTransaction[] {
         return [];
     }
 
-    addClient(client: HaipToolClient) {}
+    addClient(client: HAIPSessionTransaction) {}
 
-    removeClient(client: HaipToolClient) {}
+    removeClient(client: HAIPSessionTransaction) {}
 
-    sendHAIPMessage(client: HaipToolClient, message: HAIPMessage): void {
+    sendHAIPMessage(client: HAIPSessionTransaction, message: HAIPMessage): void {
         this.emit("sendHAIPMessage", { client: client, message: message });
     }
 
-    sendTextMessage(client: HaipToolClient, message: string): void {
+    sendTextMessage(client: HAIPSessionTransaction, message: string): void {
         //this.emit("sendHAIPMessage", { text: message, ...req });
     }
 

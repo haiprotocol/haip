@@ -41,6 +41,7 @@ node dist/index.js health --format json
 ```
 
 Expected output:
+
 ```
 ✅ Server is healthy
 Status: OK
@@ -123,7 +124,7 @@ Monitor server events in real-time:
 node dist/index.js monitor
 
 # Monitor with filtering
-node dist/index.js monitor --filter-types TEXT_MESSAGE_START,TOOL_CALL
+node dist/index.js monitor --filter-types MESSAGE_START,TOOL_CALL
 
 # Monitor specific channels
 node dist/index.js monitor --filter-channels USER,AGENT
@@ -287,4 +288,4 @@ node dist/index.js test --message-count 10 --delay 1000
 
 # Check server resources
 node dist/index.js health --format json
-``` 
+```

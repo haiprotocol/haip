@@ -19,42 +19,42 @@ class HAIPSSEClient {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private isConnecting = false;
-  
+
   constructor(private url: string, private token: string) {
     this.sessionId = this.generateUUID();
   }
-  
+
   async connect(): Promise<void> {
     if (this.isConnecting) return;
-    
+
     this.isConnecting = true;
-    
+
     try {
       const sseUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
       this.eventSource = new EventSource(sseUrl);
-      
+
       this.setupEventHandlers();
-      
+
       // Send handshake via separate HTTP request
       await this.sendHandshake();
-      
+
       this.isConnecting = false;
       this.reconnectAttempts = 0;
-      
+
     } catch (error) {
       this.isConnecting = false;
       throw error;
     }
   }
-  
+
   private setupEventHandlers() {
     if (!this.eventSource) return;
-    
+
     this.eventSource.onopen = () => {
       console.log('SSE connection opened');
       this.emit('connected');
     };
-    
+
     this.eventSource.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
@@ -63,21 +63,21 @@ class HAIPSSEClient {
         console.error('Failed to parse SSE message:', error);
       }
     };
-    
+
     this.eventSource.onerror = (error) => {
       console.error('SSE error:', error);
       this.emit('error', error);
-      
+
       // SSE automatically reconnects, but we can track attempts
       this.reconnectAttempts++;
-      
+
       if (this.reconnectAttempts > this.maxReconnectAttempts) {
         console.error('Max SSE reconnection attempts exceeded');
         this.emit('max_reconnect_attempts_exceeded');
       }
     };
   }
-  
+
   private async sendHandshake(): Promise<void> {
     const handshake = {
       id: this.generateUUID(),
@@ -91,8 +91,8 @@ class HAIPSSEClient {
         accept_major: [1],
         accept_events: [
           "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
-          "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
-          "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+          "PING", "PONG", "REPLAY_REQUEST", "MESSAGE_START", "MESSAGE_PART",
+          "MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
           "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
           "PAUSE_CHANNEL", "RESUME_CHANNEL"
         ],
@@ -104,13 +104,13 @@ class HAIPSSEClient {
         }
       }
     };
-    
+
     await this.sendHttpMessage('/haip/handshake', handshake);
   }
-  
+
   async sendMessage(text: string): Promise<void> {
     const messageId = this.generateUUID();
-    
+
     // Send message start
     await this.sendHttpMessage('/haip/message', {
       id: this.generateUUID(),
@@ -118,14 +118,14 @@ class HAIPSSEClient {
       seq: this.seqCounter++.toString(),
       ts: Date.now().toString(),
       channel: "USER",
-      type: "TEXT_MESSAGE_START",
+      type: "MESSAGE_START",
       payload: {
         message_id: messageId,
         author: "USER",
         text: text
       }
     });
-    
+
     // Send message end
     await this.sendHttpMessage('/haip/message', {
       id: this.generateUUID(),
@@ -133,13 +133,13 @@ class HAIPSSEClient {
       seq: this.seqCounter++.toString(),
       ts: Date.now().toString(),
       channel: "USER",
-      type: "TEXT_MESSAGE_END",
+      type: "MESSAGE_END",
       payload: {
         message_id: messageId
       }
     });
   }
-  
+
   private async sendHttpMessage(endpoint: string, message: any): Promise<void> {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -149,19 +149,19 @@ class HAIPSSEClient {
       },
       body: JSON.stringify(message)
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP request failed: ${response.status} ${response.statusText}`);
     }
   }
-  
+
   disconnect() {
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
   }
-  
+
   private generateUUID(): string {
     return crypto.randomUUID();
   }
@@ -178,31 +178,31 @@ class HAIPSSEServer {
   private app: express.Application;
   private sessions = new Map<string, HAIPSSESession>();
   private tokenValidator: TokenValidator;
-  
+
   constructor(tokenValidator: TokenValidator) {
     this.app = express();
     this.tokenValidator = tokenValidator;
     this.setupRoutes();
   }
-  
+
   private setupRoutes() {
     // SSE endpoint
     this.app.get('/haip/connect', async (req, res) => {
       try {
         const token = req.query.token as string;
-        
+
         if (!token) {
           res.status(401).json({ error: 'Missing token' });
           return;
         }
-        
+
         // Validate token
         const user = await this.tokenValidator.validateToken(token);
         if (!user) {
           res.status(401).json({ error: 'Invalid token' });
           return;
         }
-        
+
         // Set SSE headers
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
@@ -211,12 +211,12 @@ class HAIPSSEServer {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'Cache-Control'
         });
-        
+
         // Create session
         const sessionId = uuidv4();
         const session = new HAIPSSESession(sessionId, res, user);
         this.sessions.set(sessionId, session);
-        
+
         // Send initial connection message
         this.sendSSEMessage(session, {
           id: uuidv4(),
@@ -229,105 +229,105 @@ class HAIPSSEServer {
             session_id: sessionId
           }
         });
-        
+
         // Handle client disconnect
         req.on('close', () => {
           console.log(`SSE session ${sessionId} closed`);
           this.cleanupSession(sessionId);
         });
-        
+
       } catch (error) {
         console.error('SSE connection error:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
-    
+
     // Handshake endpoint
     this.app.post('/haip/handshake', async (req, res) => {
       try {
         const token = req.headers.authorization?.replace('Bearer ', '');
-        
+
         if (!token) {
           res.status(401).json({ error: 'Missing token' });
           return;
         }
-        
+
         const user = await this.tokenValidator.validateToken(token);
         if (!user) {
           res.status(401).json({ error: 'Invalid token' });
           return;
         }
-        
+
         const handshake = req.body;
         const sessionId = handshake.session;
         const session = this.sessions.get(sessionId);
-        
+
         if (!session) {
           res.status(404).json({ error: 'Session not found' });
           return;
         }
-        
+
         // Process handshake
         this.handleHandshake(session, handshake);
-        
+
         res.json({ status: 'ok' });
-        
+
       } catch (error) {
         console.error('Handshake error:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
-    
+
     // Message endpoint
     this.app.post('/haip/message', async (req, res) => {
       try {
         const token = req.headers.authorization?.replace('Bearer ', '');
-        
+
         if (!token) {
           res.status(401).json({ error: 'Missing token' });
           return;
         }
-        
+
         const user = await this.tokenValidator.validateToken(token);
         if (!user) {
           res.status(401).json({ error: 'Invalid token' });
           return;
         }
-        
+
         const message = req.body;
         const sessionId = message.session;
         const session = this.sessions.get(sessionId);
-        
+
         if (!session) {
           res.status(404).json({ error: 'Session not found' });
           return;
         }
-        
+
         // Process message
         this.handleMessage(session, message);
-        
+
         res.json({ status: 'ok' });
-        
+
       } catch (error) {
         console.error('Message error:', error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
   }
-  
+
   private handleHandshake(session: HAIPSSESession, handshake: any) {
     const { haip_version, accept_major, accept_events, capabilities } = handshake.payload;
-    
+
     // Validate version compatibility
     if (!accept_major.includes(1)) {
       this.sendError(session, 'VERSION_INCOMPATIBLE', 'No compatible major version');
       return;
     }
-    
+
     // Store session capabilities
     session.capabilities = capabilities;
     session.acceptedEvents = accept_events;
-    
+
     // Send handshake response
     const response = {
       id: uuidv4(),
@@ -341,8 +341,8 @@ class HAIPSSEServer {
         accept_major: [1],
         accept_events: [
           "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
-          "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
-          "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
+          "PING", "PONG", "REPLAY_REQUEST", "MESSAGE_START", "MESSAGE_PART",
+          "MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
           "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
           "PAUSE_CHANNEL", "RESUME_CHANNEL"
         ],
@@ -354,10 +354,10 @@ class HAIPSSEServer {
         }
       }
     };
-    
+
     this.sendSSEMessage(session, response);
   }
-  
+
   private handleMessage(session: HAIPSSESession, message: any) {
     // Validate message structure
     const validation = this.validateMessage(message);
@@ -365,12 +365,12 @@ class HAIPSSEServer {
       this.sendError(session, 'PROTOCOL_VIOLATION', validation.errors.join(', '));
       return;
     }
-    
+
     // Handle different message types
     switch (message.type) {
-      case 'TEXT_MESSAGE_START':
-      case 'TEXT_MESSAGE_PART':
-      case 'TEXT_MESSAGE_END':
+      case 'MESSAGE_START':
+      case 'MESSAGE_PART':
+      case 'MESSAGE_END':
         this.handleTextMessage(session, message);
         break;
       case 'TOOL_CALL':
@@ -380,7 +380,7 @@ class HAIPSSEServer {
         this.sendError(session, 'UNSUPPORTED_TYPE', `Unknown message type: ${message.type}`);
     }
   }
-  
+
   private handleTextMessage(session: HAIPSSESession, message: any) {
     // Process text message and generate response
     const response = {
@@ -389,16 +389,16 @@ class HAIPSSEServer {
       seq: session.getNextSeq(),
       ts: Date.now().toString(),
       channel: "AGENT",
-      type: "TEXT_MESSAGE_START",
+      type: "MESSAGE_START",
       payload: {
         message_id: uuidv4(),
         author: "AGENT",
         text: "I received your message: " + message.payload.text
       }
     };
-    
+
     this.sendSSEMessage(session, response);
-    
+
     // Send message end
     const endMessage = {
       id: uuidv4(),
@@ -406,24 +406,24 @@ class HAIPSSEServer {
       seq: session.getNextSeq(),
       ts: Date.now().toString(),
       channel: "AGENT",
-      type: "TEXT_MESSAGE_END",
+      type: "MESSAGE_END",
       payload: {
         message_id: response.payload.message_id
       }
     };
-    
+
     this.sendSSEMessage(session, endMessage);
   }
-  
+
   private sendSSEMessage(session: HAIPSSESession, message: any) {
     if (session.response.writableEnded) {
       return; // Connection closed
     }
-    
+
     const sseData = `data: ${JSON.stringify(message)}\n\n`;
     session.response.write(sseData);
   }
-  
+
   private sendError(session: HAIPSSESession, code: string, message: string) {
     const error = {
       id: uuidv4(),
@@ -437,10 +437,10 @@ class HAIPSSEServer {
         message
       }
     };
-    
+
     this.sendSSEMessage(session, error);
   }
-  
+
   private cleanupSession(sessionId: string) {
     const session = this.sessions.get(sessionId);
     if (session) {
@@ -448,14 +448,14 @@ class HAIPSSEServer {
       this.sessions.delete(sessionId);
     }
   }
-  
+
   // Method to send messages to all connected clients
   broadcastMessage(message: any) {
     for (const session of this.sessions.values()) {
       this.sendSSEMessage(session, message);
     }
   }
-  
+
   // Method to send message to specific session
   sendToSession(sessionId: string, message: any) {
     const session = this.sessions.get(sessionId);
@@ -469,17 +469,17 @@ class HAIPSSESession {
   public capabilities: any = {};
   public acceptedEvents: string[] = [];
   private seqCounter = 1;
-  
+
   constructor(
     public id: string,
     public response: express.Response,
     public user: any
   ) {}
-  
+
   getNextSeq(): string {
     return this.seqCounter++.toString();
   }
-  
+
   cleanup() {
     // Clean up any resources associated with this session
   }
@@ -495,18 +495,18 @@ class HAIPHTTPStreamClient {
   private sessionId: string;
   private seqCounter = 1;
   private streamController: ReadableStreamDefaultController | null = null;
-  
+
   constructor() {
     this.sessionId = this.generateUUID();
   }
-  
+
   async startStream(url: string, token: string) {
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'text/event-stream'
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Accept: "text/event-stream",
       },
       body: JSON.stringify({
         id: this.generateUUID(),
@@ -519,67 +519,84 @@ class HAIPHTTPStreamClient {
           haip_version: "1.1.2",
           accept_major: [1],
           accept_events: [
-            "HAI", "RUN_STARTED", "RUN_FINISHED", "RUN_CANCEL", "RUN_ERROR",
-            "PING", "PONG", "REPLAY_REQUEST", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART",
-            "TEXT_MESSAGE_END", "AUDIO_CHUNK", "TOOL_CALL", "TOOL_UPDATE", "TOOL_DONE",
-            "TOOL_CANCEL", "TOOL_LIST", "TOOL_SCHEMA", "ERROR", "FLOW_UPDATE",
-            "PAUSE_CHANNEL", "RESUME_CHANNEL"
-          ]
-        }
-      })
+            "HAI",
+            "RUN_STARTED",
+            "RUN_FINISHED",
+            "RUN_CANCEL",
+            "RUN_ERROR",
+            "PING",
+            "PONG",
+            "REPLAY_REQUEST",
+            "MESSAGE_START",
+            "MESSAGE_PART",
+            "MESSAGE_END",
+            "AUDIO_CHUNK",
+            "TOOL_CALL",
+            "TOOL_UPDATE",
+            "TOOL_DONE",
+            "TOOL_CANCEL",
+            "TOOL_LIST",
+            "TOOL_SCHEMA",
+            "ERROR",
+            "FLOW_UPDATE",
+            "PAUSE_CHANNEL",
+            "RESUME_CHANNEL",
+          ],
+        },
+      }),
     });
-    
+
     if (!response.body) {
-      throw new Error('No response body');
+      throw new Error("No response body");
     }
-    
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    
+
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) break;
-      
+
       const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-      
+      const lines = chunk.split("\n");
+
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
+        if (line.startsWith("data: ")) {
           const data = line.slice(6);
           if (data.trim()) {
             try {
               const message = JSON.parse(data);
               this.handleMessage(message);
             } catch (error) {
-              console.error('Failed to parse message:', error);
+              console.error("Failed to parse message:", error);
             }
           }
         }
       }
     }
   }
-  
+
   private handleMessage(message: any) {
     // Handle different message types
     switch (message.type) {
-      case 'TEXT_MESSAGE_START':
-        this.emit('message_start', message);
+      case "MESSAGE_START":
+        this.emit("message_start", message);
         break;
-      case 'TEXT_MESSAGE_PART':
-        this.emit('message_part', message);
+      case "MESSAGE_PART":
+        this.emit("message_part", message);
         break;
-      case 'TEXT_MESSAGE_END':
-        this.emit('message_end', message);
+      case "MESSAGE_END":
+        this.emit("message_end", message);
         break;
-      case 'ERROR':
-        this.emit('error', message);
+      case "ERROR":
+        this.emit("error", message);
         break;
       default:
-        this.emit('message', message);
+        this.emit("message", message);
     }
   }
-  
+
   private generateUUID(): string {
     return crypto.randomUUID();
   }
@@ -596,47 +613,48 @@ class HAIPSSEManager {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
-  
+
   async connect(url: string, token: string) {
     try {
-      this.eventSource = new EventSource(`${url}?token=${encodeURIComponent(token)}`);
-      
+      this.eventSource = new EventSource(
+        `${url}?token=${encodeURIComponent(token)}`
+      );
+
       this.eventSource.onopen = () => {
-        console.log('SSE connected');
+        console.log("SSE connected");
         this.reconnectAttempts = 0;
       };
-      
+
       this.eventSource.onerror = (error) => {
-        console.error('SSE error:', error);
+        console.error("SSE error:", error);
         this.handleReconnection();
       };
-      
+
       this.eventSource.onmessage = (event) => {
         this.handleMessage(event);
       };
-      
     } catch (error) {
-      console.error('SSE connection failed:', error);
+      console.error("SSE connection failed:", error);
       throw error;
     }
   }
-  
+
   private handleReconnection() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max SSE reconnection attempts exceeded');
-      this.emit('max_reconnect_attempts_exceeded');
+      console.error("Max SSE reconnection attempts exceeded");
+      this.emit("max_reconnect_attempts_exceeded");
       return;
     }
-    
+
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
+
     setTimeout(() => {
       console.log(`Attempting SSE reconnection ${this.reconnectAttempts}`);
       this.connect(this.url, this.token);
     }, delay);
   }
-  
+
   disconnect() {
     if (this.eventSource) {
       this.eventSource.close();
@@ -652,29 +670,29 @@ class HAIPSSEManager {
 class HAIPSSEMessageBuffer {
   private messageBuffer = new Map<string, any[]>();
   private maxBufferSize = 1000;
-  
+
   addMessage(messageId: string, message: any) {
     if (!this.messageBuffer.has(messageId)) {
       this.messageBuffer.set(messageId, []);
     }
-    
+
     const buffer = this.messageBuffer.get(messageId)!;
     buffer.push(message);
-    
+
     // Limit buffer size
     if (buffer.length > this.maxBufferSize) {
       buffer.shift();
     }
   }
-  
+
   getMessage(messageId: string): any[] {
     return this.messageBuffer.get(messageId) || [];
   }
-  
+
   clearMessage(messageId: string) {
     this.messageBuffer.delete(messageId);
   }
-  
+
   clearAll() {
     this.messageBuffer.clear();
   }
@@ -683,29 +701,32 @@ class HAIPSSEMessageBuffer {
 
 ## SSE vs WebSocket Comparison
 
-| Feature | SSE | WebSocket |
-|---------|-----|-----------|
-| **Direction** | One-way (server to client) | Bidirectional |
-| **Protocol** | HTTP | WebSocket |
-| **Reconnection** | Automatic | Manual |
-| **Browser Support** | Good | Excellent |
-| **Proxy Support** | Excellent | Good |
-| **Complexity** | Simple | Moderate |
-| **Use Case** | Notifications, updates | Real-time chat, gaming |
+| Feature             | SSE                        | WebSocket              |
+| ------------------- | -------------------------- | ---------------------- |
+| **Direction**       | One-way (server to client) | Bidirectional          |
+| **Protocol**        | HTTP                       | WebSocket              |
+| **Reconnection**    | Automatic                  | Manual                 |
+| **Browser Support** | Good                       | Excellent              |
+| **Proxy Support**   | Excellent                  | Good                   |
+| **Complexity**      | Simple                     | Moderate               |
+| **Use Case**        | Notifications, updates     | Real-time chat, gaming |
 
 ## Best Practices
 
 <CardGroup cols={2}>
 
 <Card title="Automatic Reconnection" icon="arrows-rotate">
-  SSE automatically reconnects, but monitor connection health and handle edge cases.
+  SSE automatically reconnects, but monitor connection health and handle edge
+  cases.
 </Card>
 
 <Card title="Message Buffering" icon="database">
   Buffer messages on the client side to handle temporary disconnections.
 </Card>
 
-  <Card title="HTTP Headers" icon="gear">
+{" "}
+
+<Card title="HTTP Headers" icon="gear">
   Set proper SSE headers for optimal performance and compatibility.
 </Card>
 
@@ -713,4 +734,4 @@ class HAIPSSEMessageBuffer {
   Handle SSE errors gracefully and provide fallback mechanisms.
 </Card>
 
-</CardGroup> 
+</CardGroup>

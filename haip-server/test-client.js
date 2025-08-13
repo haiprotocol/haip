@@ -44,7 +44,7 @@ ws.on('open', () => {
       seq: Date.now().toString(),
       ts: Date.now().toString(),
       channel: 'USER',
-      type: 'TEXT_MESSAGE_START',
+      type: 'MESSAGE_START',
       payload: {
         message_id: 'msg-1',
         author: 'test-client',
@@ -136,7 +136,7 @@ ws.on('message', (data) => {
       case 'TOOL_DONE':
         console.log('✅ Tool execution completed:', message.payload);
         break;
-      case 'TEXT_MESSAGE_START':
+      case 'MESSAGE_START':
         console.log('💬 Text message received:', message.payload);
         break;
       case 'ERROR':

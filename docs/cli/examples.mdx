@@ -154,22 +154,22 @@ echo "Monitoring server health at $SERVER_URL every ${CHECK_INTERVAL}s"
 
 while true; do
     echo "$(date): Checking server health..."
-    
+
     # Check health
     HEALTH_OUTPUT=$(node dist/index.js health --url $SERVER_URL --format json 2>/dev/null)
-    
+
     if [ $? -eq 0 ]; then
         STATUS=$(echo $HEALTH_OUTPUT | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
         UPTIME=$(echo $HEALTH_OUTPUT | grep -o '"uptime":"[^"]*"' | cut -d'"' -f4)
         CONNECTIONS=$(echo $HEALTH_OUTPUT | grep -o '"connections":[0-9]*' | cut -d':' -f2)
-        
+
         echo "✅ Server is healthy - Status: $STATUS, Uptime: $UPTIME, Connections: $CONNECTIONS"
     else
         echo "❌ Server health check failed"
         # Send alert (implement your alerting mechanism)
         # send_alert "HAIP server health check failed"
     fi
-    
+
     sleep $CHECK_INTERVAL
 done
 ```
@@ -225,9 +225,9 @@ echo '{"tests":[],"summary":{"total":0,"passed":0,"failed":0}}' > $RESULTS_FILE
 run_test() {
     local test_name=$1
     local command=$2
-    
+
     echo "Running test: $test_name"
-    
+
     # Run test
     if eval $command > /dev/null 2>&1; then
         echo "✅ $test_name: PASSED"
@@ -259,51 +259,51 @@ name: HAIP Server Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '16'
-        
-    - name: Install HAIP CLI
-      run: |
-        git clone https://github.com/haiprotocol/haip-cli.git
-        cd haip-cli
-        npm install
-        npm run build
-        
-    - name: Start HAIP Server
-      run: |
-        # Start your HAIP server here
-        # npm run start:server &
-        
-    - name: Wait for server
-      run: sleep 10
-      
-    - name: Run health check
-      run: |
-        cd haip-cli
-        node dist/index.js health --url http://localhost:8080
-        
-    - name: Run integration tests
-      run: |
-        cd haip-cli
-        node dist/index.js test --message-count 100 --validate-responses
-        
-    - name: Run performance tests
-      run: |
-        cd haip-cli
-        node dist/index.js test --message-count 1000 --delay 10
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+
+      - name: Install HAIP CLI
+        run: |
+          git clone https://github.com/haiprotocol/haip-cli.git
+          cd haip-cli
+          npm install
+          npm run build
+
+      - name: Start HAIP Server
+        run: |
+          # Start your HAIP server here
+          # npm run start:server &
+
+      - name: Wait for server
+        run: sleep 10
+
+      - name: Run health check
+        run: |
+          cd haip-cli
+          node dist/index.js health --url http://localhost:8080
+
+      - name: Run integration tests
+        run: |
+          cd haip-cli
+          node dist/index.js test --message-count 100 --validate-responses
+
+      - name: Run performance tests
+        run: |
+          cd haip-cli
+          node dist/index.js test --message-count 1000 --delay 10
 ```
 
 ### Docker Integration
@@ -362,15 +362,15 @@ echo "Testing multiple servers..."
 
 for server in "${SERVERS[@]}"; do
     echo "Testing server: $server"
-    
+
     # Health check
     echo "  Health check..."
     node dist/index.js health --url $server
-    
+
     # Performance test
     echo "  Performance test..."
     node dist/index.js test --url $server --message-count 100 --delay 100
-    
+
     echo "  ---"
 done
 
@@ -388,10 +388,10 @@ echo "================================"
 
 while true; do
     clear
-    
+
     echo "$(date)"
     echo "================================"
-    
+
     # Server health
     echo "Server Health:"
     HEALTH=$(node dist/index.js health --format json 2>/dev/null)
@@ -405,14 +405,14 @@ while true; do
     else
         echo "  Status: UNKNOWN"
     fi
-    
+
     echo ""
     echo "Recent Activity:"
     echo "  (Press Ctrl+C to exit)"
-    
+
     # Show recent events (simplified)
-    node dist/index.js monitor --max-lines 5 --filter-types TEXT_MESSAGE_START,TOOL_CALL
-    
+    node dist/index.js monitor --max-lines 5 --filter-types MESSAGE_START,TOOL_CALL
+
     sleep 10
 done
 ```
@@ -529,4 +529,4 @@ echo "Performance debugging completed!"
 
 - [Commands](/cli/commands) - Complete command reference
 - [Configuration](/cli/configuration) - Configuration options
-- [API Reference](/cli/api-reference) - Technical API documentation 
+- [API Reference](/cli/api-reference) - Technical API documentation

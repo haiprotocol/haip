@@ -9,23 +9,24 @@ export type HAIPChannel =
 
 export type { HAIPEventType } from "../constants";
 
-export type HaipToolClient = {
+export type HAIPSessionTransaction = {
   sessionId: string;
   transactionId: string;
 };
 
 export interface HAIPTool {
   schema(): HAIPToolSchema;
-  handleMessage(client: HaipToolClient, message: HAIPMessage): void;
+  handleMessage(client: HAIPSessionTransaction, message: HAIPMessage): void;
+  handleAudioChunk(client: HAIPSessionTransaction, message: HAIPMessage): void;
   on(event: string, handler: (...args: any[]) => void): this;
 
   // Utility methods
-  getClients(): HaipToolClient[];
-  addClient(client: HaipToolClient): void;
-  removeClient(client: HaipToolClient): void;
+  getClients(): HAIPSessionTransaction[];
+  addClient(client: HAIPSessionTransaction): void;
+  removeClient(client: HAIPSessionTransaction): void;
 
-  sendHAIPMessage(client: HaipToolClient, message: HAIPMessage): void;
-  sendTextMessage(client: HaipToolClient, message: string): void;
+  sendHAIPMessage(client: HAIPSessionTransaction, message: HAIPMessage): void;
+  sendTextMessage(client: HAIPSessionTransaction, message: string): void;
   broadcastMessage(message: HAIPMessage): void;
 }
 
@@ -50,30 +51,6 @@ export interface HAIPHandshakePayload {
     signed_envelopes?: boolean;
   };
   last_rx_seq?: string;
-}
-
-export interface HAIPRunStartedPayload {
-  run_id?: string;
-  thread_id?: string;
-  metadata?: Record<string, any>;
-}
-
-export interface HAIPRunFinishedPayload {
-  run_id?: string;
-  status?: "OK" | "CANCELLED" | "ERROR";
-  summary?: string;
-}
-
-export interface HAIPRunCancelPayload {
-  run_id: string;
-}
-
-export interface HAIPRunErrorPayload {
-  run_id?: string;
-  code: string;
-  message: string;
-  related_id?: string;
-  detail?: Record<string, any>;
 }
 
 export interface HAIPPingPayload {
@@ -112,30 +89,6 @@ export interface HAIPAudioChunkPayload {
   duration_ms?: string;
 }
 
-export interface HAIPToolCallPayload {
-  call_id: string;
-  tool: string;
-  params?: Record<string, any>;
-}
-
-export interface HAIPToolUpdatePayload {
-  call_id: string;
-  status: "QUEUED" | "RUNNING" | "CANCELLING";
-  progress?: number;
-  partial?: any;
-}
-
-export interface HAIPToolDonePayload {
-  call_id: string;
-  status?: "OK" | "CANCELLED" | "ERROR";
-  result?: any;
-}
-
-export interface HAIPToolCancelPayload {
-  call_id: string;
-  reason?: string;
-}
-
 export interface HAIPToolListPayload {
   tools: Array<{
     name: string;
@@ -144,8 +97,7 @@ export interface HAIPToolListPayload {
 }
 
 export interface HAIPToolSchemaPayload {
-  tool: string;
-  schema: Record<string, any>;
+  schema: HAIPToolSchema;
 }
 
 export interface HAIPErrorPayload {
@@ -232,7 +184,6 @@ export interface HAIPSession {
   lastActivity: number;
   credits: Map<HAIPChannel, number>;
   byteCredits: Map<HAIPChannel, number>;
-  pausedChannels: Set<HAIPChannel>;
   lastAck: string;
   lastDeliveredSeq: string;
   activeRuns: Set<string>;
@@ -471,10 +422,6 @@ export interface HAIPEventHandlers {
   onDisconnect?: (reason: string) => void;
   onError?: (error: HAIPErrorPayload) => void;
   onHandshake?: (payload: HAIPHandshakePayload) => void;
-  onRunStarted?: (payload: HAIPRunStartedPayload) => void;
-  onRunFinished?: (payload: HAIPRunFinishedPayload) => void;
-  onRunCancel?: (payload: HAIPRunCancelPayload) => void;
-  onRunError?: (payload: HAIPRunErrorPayload) => void;
   onPing?: (payload: HAIPPingPayload) => void;
   onPong?: (payload: HAIPPongPayload) => void;
   onReplayRequest?: (payload: HAIPReplayRequestPayload) => void;
@@ -488,10 +435,6 @@ export interface HAIPEventHandlers {
     payload: HAIPAudioChunkPayload,
     binaryData?: ArrayBuffer
   ) => void;
-  onToolCall?: (payload: HAIPToolCallPayload) => void;
-  onToolUpdate?: (payload: HAIPToolUpdatePayload) => void;
-  onToolDone?: (payload: HAIPToolDonePayload) => void;
-  onToolCancel?: (payload: HAIPToolCancelPayload) => void;
   onToolList?: (payload: HAIPToolListPayload) => void;
   onToolSchema?: (payload: HAIPToolSchemaPayload) => void;
   onFlowUpdate?: (payload: HAIPFlowUpdatePayload) => void;
