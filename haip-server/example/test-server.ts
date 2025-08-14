@@ -28,33 +28,6 @@ server.authenticate(req => {
     return null;
 });
 
-class EchoTool extends HaipTool {
-    schema(): HAIPToolSchema {
-        return {
-            name: "echo",
-            description: "Echo back the input message",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    message: { type: "string" },
-                },
-                required: ["message"],
-            },
-            outputSchema: {
-                type: "object",
-                properties: {
-                    echoed: { type: "string" },
-                    timestamp: { type: "string" },
-                },
-            },
-        };
-    }
-
-    handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
-        this.sendHAIPMessage(client, message);
-    }
-}
-
 class LLMTool extends HaipTool {
     private openai: OpenAI;
 
@@ -87,13 +60,26 @@ class LLMTool extends HaipTool {
 
     async handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
         if (message.payload.text && message.payload.text.length > 0) {
+            let input = "";
+
+            const transaction = client.transaction.getReplayWindow();
+            for (const msg of transaction) {
+                if (msg.type === "MESSAGE_PART") {
+                    if (msg.channel === "AGENT") {
+                        input += `You: ${msg.payload.text}\n\n`;
+                    } else if (msg.channel === "USER") {
+                        input += `User: ${msg.payload.text}\n\n`;
+                    }
+                }
+            }
+
+            input += "User: " + message.payload.text;
+
             const response = await this.openai.responses.create({
                 model: "gpt-4o",
                 instructions: "You talk like a piarate.",
-                input: message.payload.text,
+                input: input,
             });
-
-            console.log("LLM response:", response);
 
             this.sendTextMessage(client, response.output_text || "No response from LLM");
         }
@@ -101,7 +87,6 @@ class LLMTool extends HaipTool {
 }
 
 server.registerTool(new LLMTool());
-server.registerTool(new EchoTool());
 
 server.start();
 

@@ -12,11 +12,9 @@ export class HaipTransaction extends EventEmitter implements HAIPTransaction {
 
     constructor(id: string, toolName: string, toolParams?: Record<string, any>) {
         super();
-        // On construction we are setting a temporary ID.
-        // This ID will be replaced with the actual transaction ID once the transaction starts.
         this.state = {
             id: id,
-            status: "pending",
+            status: "started",
             toolName: toolName,
             replayWindow: [],
             toolParams: toolParams || {},
@@ -31,29 +29,9 @@ export class HaipTransaction extends EventEmitter implements HAIPTransaction {
         return this.state.toolName;
     }
 
-    // Allow reseting the ID when we have the actual transaction ID.
-    setId(id: string): void {
-        if (this.state.status === "pending") {
-            this.state.id = id;
-            this.state.status = "started";
-            this.emit("started");
-        } else {
-            throw new Error("Cannot reset ID after transaction has started.");
-        }
-    }
+    handleMessage(message: HAIPMessage): void {}
 
-    handleMessage(message: HAIPMessage): void {
-        if (message.type === "MESSAGE_PART") {
-            this.emit("message", message);
-        }
-    }
-
-    sendTextMessage(text: string, options?: HAIPMessageOptions) {
-        this.emit("sendTextMessage", {
-            text: text,
-            options: options || {},
-        });
-    }
+    sendTextMessage(text: string, options?: HAIPMessageOptions) {}
 
     async close(): Promise<void> {
         this.emit("close");

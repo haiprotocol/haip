@@ -22,6 +22,8 @@ import {
     HAIPSessionTransaction,
 } from "haip";
 import { HAIPServerUtils, HAIP_EVENT_TYPES } from "./utils";
+import { HaipTransaction } from "./transaction";
+import { HaipTool } from "./tool";
 
 export class HAIPServer extends EventEmitter {
     private app: express.Application;
@@ -257,15 +259,15 @@ export class HAIPServer extends EventEmitter {
                 ["USER", this.config.flowControl.initialCredits],
                 ["AGENT", this.config.flowControl.initialCredits],
                 ["SYSTEM", this.config.flowControl.initialCredits],
-                ["AUDIO_IN", this.config.flowControl.initialCredits],
-                ["AUDIO_OUT", this.config.flowControl.initialCredits],
+                //["AUDIO_IN", this.config.flowControl.initialCredits],
+                //["AUDIO_OUT", this.config.flowControl.initialCredits],
             ]),
             byteCredits: new Map([
                 ["USER", this.config.flowControl.initialCreditBytes || 1024 * 1024],
                 ["AGENT", this.config.flowControl.initialCreditBytes || 1024 * 1024],
                 ["SYSTEM", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-                ["AUDIO_IN", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-                ["AUDIO_OUT", this.config.flowControl.initialCreditBytes || 1024 * 1024],
+                //["AUDIO_IN", this.config.flowControl.initialCreditBytes || 1024 * 1024],
+                //["AUDIO_OUT", this.config.flowControl.initialCreditBytes || 1024 * 1024],
             ]),
             lastAck: "",
             lastDeliveredSeq: "",
@@ -329,10 +331,6 @@ export class HAIPServer extends EventEmitter {
         const transactionId = message.transaction || null;
         const transaction = transactionId ? session.transactions.get(transactionId) : undefined;
 
-        if (transaction) {
-            transaction.replayWindow.set(message.seq, message);
-        }
-
         switch (message.type) {
             case "HAI":
                 //console.log("Duplicate HAI:", message.type);
@@ -358,7 +356,7 @@ export class HAIPServer extends EventEmitter {
                     );
                     return;
                 }
-                this.handleReplayRequest({ transactionId, sessionId }, message);
+                this.handleReplayRequest({ transaction, sessionId }, message);
                 break;
             case "MESSAGE_START":
             case "MESSAGE_PART":
@@ -374,13 +372,15 @@ export class HAIPServer extends EventEmitter {
                     return;
                 }
 
-                const tool = this.tools.get(transaction!.toolName);
-                if (tool) {
-                    tool.handleMessage(
-                        { sessionId: sessionId, transactionId: transactionId },
-                        message
-                    );
+                try {
+                    const tool = this.tools.get(transaction!.toolName);
+                    if (tool) {
+                        tool.handleMessage({ sessionId, transaction }, message);
+                    }
+                } finally {
+                    transaction.addToReplayWindow(message);
                 }
+
                 break;
 
             case "AUDIO_CHUNK":
@@ -397,10 +397,7 @@ export class HAIPServer extends EventEmitter {
 
                 const tool_audio = this.tools.get(transaction!.toolName);
                 if (tool_audio) {
-                    tool_audio.handleAudioChunk(
-                        { sessionId: sessionId, transactionId: transactionId },
-                        message
-                    );
+                    tool_audio.handleAudioChunk({ sessionId, transaction }, message);
                 }
                 break;
             case "INFO":
@@ -551,13 +548,9 @@ export class HAIPServer extends EventEmitter {
             `Starting transaction ${transactionId} for session ${sessionId} with tool ${toolName}`
         );
 
-        session.transactions.set(transactionId, {
-            id: transactionId,
-            status: "started",
-            toolName: toolName,
-            toolParams: message.payload.params || {},
-            replayWindow: new Map(),
-        });
+        const transaction = new HaipTransaction(transactionId, toolName, message.payload.params);
+
+        session.transactions.set(transactionId, transaction);
 
         this.sendMessage(
             sessionId,
@@ -603,10 +596,9 @@ export class HAIPServer extends EventEmitter {
         const fromSeq = message.payload.from_seq;
         const toSeq = message.payload.to_seq;
 
-        for (const [seq, msg] of transaction.replayWindow) {
-            if (seq >= fromSeq && (!toSeq || seq <= toSeq)) {
-                this.sendMessage(client.sessionId, msg);
-            }
+        const messages = transaction.getReplayWindow(fromSeq, toSeq);
+        for (const msg of messages) {
+            this.sendMessage(client.sessionId, msg);
         }
     }
 
@@ -680,42 +672,34 @@ export class HAIPServer extends EventEmitter {
     }
 
     private setupDefaultTools(): void {
-        /*this.registerTool({
-            name: "echo",
-            description: "Echo back the input",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    message: { type: "string" },
-                },
-                required: ["message"],
-            },
-            outputSchema: {
-                type: "object",
-                properties: {
-                    echoed: { type: "string" },
-                },
-            },
-        });
+        class EchoTool extends HaipTool {
+            schema(): HAIPToolSchema {
+                return {
+                    name: "echo",
+                    description: "Echo back the input message",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            message: { type: "string" },
+                        },
+                        required: ["message"],
+                    },
+                    outputSchema: {
+                        type: "object",
+                        properties: {
+                            echoed: { type: "string" },
+                            timestamp: { type: "string" },
+                        },
+                    },
+                };
+            }
 
-        this.registerTool({
-            name: "add",
-            description: "Add two numbers",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    a: { type: "number" },
-                    b: { type: "number" },
-                },
-                required: ["a", "b"],
-            },
-            outputSchema: {
-                type: "object",
-                properties: {
-                    result: { type: "number" },
-                },
-            },
-        });*/
+            handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
+                this.sendHAIPMessage(client, message);
+            }
+        }
+
+        this.registerTool(new EchoTool());
     }
 
     private startStatsUpdate(): void {
@@ -737,12 +721,15 @@ export class HAIPServer extends EventEmitter {
     public registerTool(tool: HAIPTool): void {
         this.tools.set(tool.schema().name, tool);
 
-        tool.on("sendHAIPMessage", ({ client, message }) => {
-            message.session = client.sessionId;
-            message.transaction = client.transactionId;
+        tool.on(
+            "sendHAIPMessage",
+            ({ client, message }: { client: HAIPSessionTransaction; message: HAIPMessage }) => {
+                message.session = client.sessionId;
+                message.transaction = client.transaction.id;
 
-            this.sendMessage(client.sessionId, message);
-        });
+                this.sendMessage(client.sessionId, message);
+            }
+        );
     }
 
     public unregisterTool(toolName: string): void {

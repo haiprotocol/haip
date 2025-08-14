@@ -314,7 +314,8 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             case "MESSAGE_END":
                 if (transaction) {
                     this.logger.debug("Handling message for transaction:", transaction.id);
-                    transaction.handleMessage(message, this.config);
+                    transaction.addToReplayWindow(message, this.config);
+                    transaction.handleMessage(message);
                     return;
                 } else {
                     this.logger.warn(

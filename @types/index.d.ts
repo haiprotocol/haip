@@ -1,17 +1,12 @@
 import WebSocket from "ws";
 
-export type HAIPChannel =
-  | "USER"
-  | "AGENT"
-  | "SYSTEM"
-  | "AUDIO_IN"
-  | "AUDIO_OUT";
+export type HAIPChannel = "USER" | "AGENT" | "SYSTEM";
 
 export type { HAIPEventType } from "../constants";
 
 export type HAIPSessionTransaction = {
   sessionId: string;
-  transactionId: string;
+  transaction: HAIPTransaction;
 };
 
 export interface HAIPTool {
@@ -192,7 +187,7 @@ export interface HAIPSession {
   req?: Request<{}, any, any, QueryString.ParsedQs, Record<string, any>>;
   sseResponse?: any;
   httpResponse?: any;
-  transactions: Map<string, HAIPTransactionData>;
+  transactions: Map<string, HAIPTransaction>;
 }
 
 export interface HAIPTransactionData {
@@ -201,7 +196,7 @@ export interface HAIPTransactionData {
   toolName: string;
   toolParams?: Record<string, any>;
 
-  replayWindow: Map<string, HAIPMessage>;
+  replayWindow: HAIPMessage[];
 }
 
 export interface HAIPServerStats {
@@ -590,8 +585,17 @@ export interface HAIPClient {
 
 export interface HAIPTransaction {
   sendTextMessage(text: string, options?: HAIPMessageOptions);
+  handleMessage(message: HAIPMessage): void;
   on(event: string, handler: (...args: any[]) => void): this;
   close(): Promise<void>;
+  //getReplayWindow(fromSeq?: string, toSeq?: string): HAIPMessage[];
+  addToReplayWindow(message: HAIPMessage, config?: HAIPConnectionConfig): void;
+  getReplayWindow(
+    fromSeq?: string,
+    toSeq?: string
+  ): Generator<HAIPMessage, void, unknown>;
+  id: string;
+  toolName: string;
 }
 
 export interface HAIPTransport {

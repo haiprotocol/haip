@@ -31,11 +31,12 @@ export class HaipTool extends EventEmitter implements HAIPTool {
     async sendTextMessage(client: HAIPSessionTransaction, message: string): Promise<void> {
         const messages = await HAIPServerUtils.sendTextMessage(
             client.sessionId,
-            client.transactionId,
-            "USER",
+            client.transaction.id,
+            "AGENT",
             message
         );
         for (const msg of messages) {
+            client.transaction.addToReplayWindow(msg);
             this.emit("sendHAIPMessage", { client: client, message: msg });
         }
     }
