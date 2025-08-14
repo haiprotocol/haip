@@ -3,16 +3,15 @@ title: "Technical Overview"
 description: "Why would I want to use HAIP"
 ---
 
-The core idea is that HAIP wraps all communication between your Agents and Users client.
-This library takes care of all those technical details allowing you to get onto working on the core stuff for your project.
+HAIP serves as a layer that wraps all communication between your Agents and the User client. It manages connections automatically, letting you focus on development while ensuring speed and reliability.
 
-Features:
+### Features
 
-- Reestablishing dropped connections
+- Re-establishing dropped connections & ensuring message order.
 - Multimodal transactions audio and text.
 - Allowing multiple users and LLMs to share a conversation (transaction).
 - Letting the user know about MCP (Model Context Protocol) calls.
-- Custom tooling, Logging, authentication, ensuring message order and more.
+- Transaction history, transaction management, schema validation, custom tooling, logging, authentication and more.
 
 For example: using our drop in React libraries.
 
@@ -41,12 +40,12 @@ The messages follow a standard format:
 The parts are:
 
 - **id** – Message ID
-- **transaction** – The Transaction (can be thought of a chat)
+- **transaction** – The Transaction (can be thought of a chat instance). What this looks like for you may vary, it may be a topic or or a customer website visit.
 - **session** – The session (can be thought of the individual client)
 - **seq** – Sequence ID
 - **ts** – Timestamp
 - **channel** – The channel name: `USER`, `AGENT`, `SYSTEM`
-- **type** – The message type: `HAI`, `PING`, `PONG`, `ERROR`, `FLOW_UPDATE`, `TRANSACTION_START`, `TRANSACTION_END`, `REPLAY_REQUEST`, `MESSAGE_START`, `MESSAGE_PART`, `MESSAGE_END`, `AUDIO_CHUNK`, `INFO`, `TOOL_LIST`, `TOOL_SCHEMA`
+- **type** – The [message type](https://github.com/haiprotocol/haip/tree/main/%40types/constants.ts). eg. `HAI`, `TRANSACTION_START`, `MESSAGE_START`.
 - **payload** – Custom payload for the data
 
 ### Handshake
@@ -62,17 +61,19 @@ sequenceDiagram
         CLIENT->>SERVER: 3. TRANSACTION_START
         SERVER->>CLIENT: 4. TRANSACTION_START
         CLIENT->>SERVER: 5. Text, Audio, etc.
+        CLIENT<<->>SERVER: 6. TRANSACTION_END
 ```
 
 0. The client connects to the server.
 1. The client sends a `HAI` containing its capabilities and auth credentials.
-   The server validates the auth credential.
+   The server validates the auth credentials.
 2. The server sends back a `HAI` message with its capabilities.
    The client is now ready to communicate.
 3. The client starts a transaction. With a `START_TRANSACTION` message.
    The server creates a transaction and sends back the transaction id.
 4. The sever responds with the a `START_TRANSACTION`
 5. The client can then send messages/audio to that transaction.
+6. Close the transaction when finished.
 
 ## Best Practices
 
