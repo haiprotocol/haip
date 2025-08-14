@@ -59,25 +59,25 @@ class HAIPRedisClient {
   private redis: Redis;
   private sessionId: string;
   private seqCounter = 1;
-  
+
   constructor() {
     this.redis = new Redis();
     this.sessionId = this.generateUUID();
   }
-  
+
   async connect() {
     // Subscribe to HAIP events
     await this.redis.subscribe('haip:events');
-    
+
     this.redis.on('message', (channel, message) => {
       const haipMessage = JSON.parse(message);
       this.handleMessage(haipMessage);
     });
-    
+
     // Send handshake
     await this.sendHandshake();
   }
-  
+
   private async sendHandshake() {
     const handshake = {
       id: this.generateUUID(),
@@ -89,13 +89,13 @@ class HAIPRedisClient {
       payload: {
         haip_version: "1.1.2",
         accept_major: [1],
-        accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"]
+        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"]
       }
     };
-    
+
     await this.redis.publish('haip:handshake', JSON.stringify(handshake));
   }
-  
+
   async sendMessage(text: string) {
     const message = {
       id: this.generateUUID(),
@@ -103,14 +103,14 @@ class HAIPRedisClient {
       seq: this.seqCounter++.toString(),
       ts: Date.now().toString(),
       channel: "USER",
-      type: "TEXT_MESSAGE_START",
+      type: "MESSAGE_START",
       payload: {
         message_id: this.generateUUID(),
         author: "USER",
         text: text
       }
     };
-    
+
     await this.redis.publish('haip:message', JSON.stringify(message));
   }
 }
@@ -121,27 +121,29 @@ class HAIPRedisClient {
 <CardGroup cols={2}>
 
 <Card title="WebSocket" icon="plug">
-  **Best for**: Real-time chat, gaming, collaborative applications
-  **Pros**: Bidirectional, low latency, full-duplex
-  **Cons**: More complex, requires WebSocket support
+  **Best for**: Real-time chat, gaming, collaborative applications **Pros**:
+  Bidirectional, low latency, full-duplex **Cons**: More complex, requires
+  WebSocket support
 </Card>
 
-  <Card title="Server-Sent Events" icon="radio">
-  **Best for**: Notifications, live updates, one-way streaming
-  **Pros**: Simple, automatic reconnection, HTTP compatible
-  **Cons**: One-way only, limited browser support
+{" "}
+
+<Card title="Server-Sent Events" icon="radio">
+  **Best for**: Notifications, live updates, one-way streaming **Pros**: Simple,
+  automatic reconnection, HTTP compatible **Cons**: One-way only, limited
+  browser support
 </Card>
 
-  <Card title="HTTP Streaming" icon="arrow-right">
-    **Best for**: Simple integrations, proxy environments
-    **Pros**: Universal, proxy friendly, simple
-    **Cons**: Higher latency, no binary support
-  </Card>
+{" "}
+
+<Card title="HTTP Streaming" icon="arrow-right">
+  **Best for**: Simple integrations, proxy environments **Pros**: Universal,
+  proxy friendly, simple **Cons**: Higher latency, no binary support
+</Card>
 
 <Card title="Message Bus" icon="network-wired">
-  **Best for**: Microservices, distributed systems
-  **Pros**: Scalable, decoupled, reliable
-  **Cons**: Complex setup, additional infrastructure
+  **Best for**: Microservices, distributed systems **Pros**: Scalable,
+  decoupled, reliable **Cons**: Complex setup, additional infrastructure
 </Card>
 
 </CardGroup>
@@ -155,22 +157,22 @@ class HAIPConnectionManager {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private baseDelay = 1000;
-  
+
   async reconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      throw new Error('Max reconnection attempts exceeded');
+      throw new Error("Max reconnection attempts exceeded");
     }
-    
+
     const delay = this.baseDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
-    
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
     try {
       await this.connect();
       this.reconnectAttempts = 0; // Reset on successful connection
     } catch (error) {
-      console.error('Reconnection failed:', error);
+      console.error("Reconnection failed:", error);
       await this.reconnect();
     }
   }
@@ -183,13 +185,13 @@ class HAIPConnectionManager {
 class HAIPHealthMonitor {
   private pingInterval: NodeJS.Timeout | null = null;
   private lastPong: number = 0;
-  
+
   startPing() {
     this.pingInterval = setInterval(() => {
       this.sendPing();
     }, 30000); // Ping every 30 seconds
   }
-  
+
   private sendPing() {
     const ping = {
       id: this.generateUUID(),
@@ -202,16 +204,16 @@ class HAIPHealthMonitor {
         nonce: this.generateUUID()
       }
     };
-    
+
     this.ws.send(JSON.stringify(ping));
   }
-  
+
   handlePong() {
     this.lastPong = Date.now();
   }
-  
+
   isHealthy(): boolean {
     return Date.now() - this.lastPong < 90000; // 90 seconds
   }
 }
-``` 
+```

@@ -1,15 +1,15 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { HAIPConnection } from "../connection";
-import { HAIPCLIConfig } from "../types";
+import { HAIPCLIConfig } from "haip";
 import { HAIPCLIUtils } from "../utils";
 
 export function createSendCommand(): Command {
     const command = new Command("send")
         .description("Send messages to a HAIP server")
-        .addCommand(createSendTextCommand())
-        .addCommand(createSendToolCommand())
-        .addCommand(createSendRunCommand());
+        .addCommand(createSendTextCommand());
+    //.addCommand(createSendToolCommand())
+    //.addCommand(createSendRunCommand());
 
     return command;
 }
@@ -43,7 +43,8 @@ function createSendTextCommand(): Command {
                             options.channel,
                             message,
                             options.author,
-                            options.runId
+                            options.runId,
+                            connection.getSessionId()
                         );
 
                         if (options.threadId) {
@@ -92,6 +93,7 @@ function createSendTextCommand(): Command {
         });
 }
 
+/*
 function createSendToolCommand(): Command {
     return new Command("tool")
         .description("Call a tool")
@@ -180,6 +182,7 @@ function createSendToolCommand(): Command {
         });
 }
 
+/*
 function createSendRunCommand(): Command {
     return new Command("run")
         .description("Start a new run")
@@ -261,3 +264,4 @@ function createSendRunCommand(): Command {
             }
         });
 }
+*/

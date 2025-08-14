@@ -32,23 +32,23 @@ interface HAIPError {
 
 ### Protocol Violations
 
-| Code | Description | Recovery Action |
-|------|-------------|-----------------|
-| `PROTOCOL_VIOLATION` | General protocol violation | Review message format and retry |
-| `SEQ_VIOLATION` | Sequence number violation | Request replay or reset sequence |
+| Code                     | Description                  | Recovery Action                        |
+| ------------------------ | ---------------------------- | -------------------------------------- |
+| `PROTOCOL_VIOLATION`     | General protocol violation   | Review message format and retry        |
+| `SEQ_VIOLATION`          | Sequence number violation    | Request replay or reset sequence       |
 | `FLOW_CONTROL_VIOLATION` | Flow control limits exceeded | Wait for credit or reduce message rate |
-| `VERSION_INCOMPATIBLE` | Protocol version mismatch | Upgrade client or negotiate version |
-| `UNSUPPORTED_TYPE` | Unknown event type received | Check event type compatibility |
+| `VERSION_INCOMPATIBLE`   | Protocol version mismatch    | Upgrade client or negotiate version    |
+| `UNSUPPORTED_TYPE`       | Unknown event type received  | Check event type compatibility         |
 
 ### Runtime Errors
 
-| Code | Description | Recovery Action |
-|------|-------------|-----------------|
-| `RUN_LIMIT_EXCEEDED` | Too many concurrent runs | Cancel some runs or wait |
-| `REPLAY_TOO_OLD` | Requested replay outside window | Start new session |
-| `RESUME_FAILED` | Session resumption failed | Start new session |
-| `AUTHENTICATION_FAILED` | Token validation failed | Refresh token or re-authenticate |
-| `TOOL_EXECUTION_ERROR` | Tool execution failed | Retry with different parameters |
+| Code                    | Description                     | Recovery Action                  |
+| ----------------------- | ------------------------------- | -------------------------------- |
+| `RUN_LIMIT_EXCEEDED`    | Too many concurrent runs        | Cancel some runs or wait         |
+| `REPLAY_TOO_OLD`        | Requested replay outside window | Start new session                |
+| `RESUME_FAILED`         | Session resumption failed       | Start new session                |
+| `AUTHENTICATION_FAILED` | Token validation failed         | Refresh token or re-authenticate |
+| `TOOL_EXECUTION_ERROR`  | Tool execution failed           | Retry with different parameters  |
 
 ## Error Handling Implementation
 
@@ -58,29 +58,29 @@ interface HAIPError {
 class HAIPErrorHandler {
   private errorCallbacks = new Map<string, (error: HAIPError) => void>();
   private retryStrategies = new Map<string, RetryStrategy>();
-  
+
   constructor() {
     this.setupDefaultRetryStrategies();
   }
-  
+
   handleError(error: HAIPError) {
     const { code, message, related_id, detail } = error.payload;
-    
+
     console.error(`HAIP Error [${code}]: ${message}`, detail);
-    
+
     // Log error for monitoring
     this.logError(error);
-    
+
     // Execute recovery strategy
     const strategy = this.retryStrategies.get(code);
     if (strategy) {
       strategy.execute(error);
     }
-    
+
     // Notify application
     this.notifyApplication(error);
   }
-  
+
   private setupDefaultRetryStrategies() {
     // Protocol violations - retry with backoff
     this.retryStrategies.set('PROTOCOL_VIOLATION', {
@@ -88,28 +88,28 @@ class HAIPErrorHandler {
       backoffMs: 1000,
       execute: (error) => this.retryWithBackoff(error, 3, 1000)
     });
-    
+
     // Sequence violations - request replay
     this.retryStrategies.set('SEQ_VIOLATION', {
       maxRetries: 1,
       backoffMs: 0,
       execute: (error) => this.requestReplay()
     });
-    
+
     // Flow control violations - wait and retry
     this.retryStrategies.set('FLOW_CONTROL_VIOLATION', {
       maxRetries: 5,
       backoffMs: 500,
       execute: (error) => this.waitForFlowControl(error)
     });
-    
+
     // Version incompatibility - upgrade or negotiate
     this.retryStrategies.set('VERSION_INCOMPATIBLE', {
       maxRetries: 1,
       backoffMs: 0,
       execute: (error) => this.handleVersionMismatch(error)
     });
-    
+
     // Authentication failures - refresh token
     this.retryStrategies.set('AUTHENTICATION_FAILED', {
       maxRetries: 1,
@@ -117,10 +117,10 @@ class HAIPErrorHandler {
       execute: (error) => this.refreshAuthentication()
     });
   }
-  
+
   private retryWithBackoff(error: HAIPError, maxRetries: number, backoffMs: number) {
     const retryCount = this.getRetryCount(error);
-    
+
     if (retryCount < maxRetries) {
       setTimeout(() => {
         this.retryOperation(error);
@@ -129,7 +129,7 @@ class HAIPErrorHandler {
       this.handleMaxRetriesExceeded(error);
     }
   }
-  
+
   private requestReplay() {
     const replayRequest = {
       id: this.generateUUID(),
@@ -142,20 +142,20 @@ class HAIPErrorHandler {
         from_seq: (this.lastReceivedSeq + 1).toString()
       }
     };
-    
+
     this.ws.send(JSON.stringify(replayRequest));
   }
-  
+
   private waitForFlowControl(error: HAIPError) {
     // Pause sending messages and wait for FLOW_UPDATE
     this.pauseMessageSending();
-    
+
     // Set up timeout to resume after reasonable delay
     setTimeout(() => {
       this.resumeMessageSending();
     }, 5000);
   }
-  
+
   private handleVersionMismatch(error: HAIPError) {
     const detail = error.payload.detail;
     if (detail?.supported_versions) {
@@ -166,7 +166,7 @@ class HAIPErrorHandler {
       this.promptForUpgrade();
     }
   }
-  
+
   private refreshAuthentication() {
     this.tokenManager.refreshToken().then(() => {
       this.reconnect();
@@ -174,18 +174,18 @@ class HAIPErrorHandler {
       this.redirectToLogin();
     });
   }
-  
+
   private notifyApplication(error: HAIPError) {
     // Emit error event for application to handle
     this.emit('error', error);
-    
+
     // Call registered error callbacks
     const callback = this.errorCallbacks.get(error.payload.code);
     if (callback) {
       callback(error);
     }
   }
-  
+
   onError(code: string, callback: (error: HAIPError) => void) {
     this.errorCallbacks.set(code, callback);
   }
@@ -204,8 +204,14 @@ interface RetryStrategy {
 class HAIPServerErrorHandler {
   private errorCounts = new Map<string, number>();
   private clientErrors = new Map<string, Map<string, number>>();
-  
-  sendError(sessionId: string, code: string, message: string, relatedId?: string, detail?: any) {
+
+  sendError(
+    sessionId: string,
+    code: string,
+    message: string,
+    relatedId?: string,
+    detail?: any
+  ) {
     const error = {
       id: this.generateUUID(),
       session: sessionId,
@@ -217,121 +223,147 @@ class HAIPServerErrorHandler {
         code,
         message,
         related_id: relatedId,
-        detail
-      }
+        detail,
+      },
     };
-    
+
     this.sendToClient(sessionId, error);
-    
+
     // Track error for monitoring
     this.trackError(sessionId, code);
-    
+
     // Check if client should be disconnected
     this.checkDisconnectionThreshold(sessionId, code);
   }
-  
+
   private trackError(sessionId: string, code: string) {
     // Track global error counts
     const globalCount = this.errorCounts.get(code) || 0;
     this.errorCounts.set(code, globalCount + 1);
-    
+
     // Track per-client error counts
     if (!this.clientErrors.has(sessionId)) {
       this.clientErrors.set(sessionId, new Map());
     }
-    
+
     const clientErrorCounts = this.clientErrors.get(sessionId)!;
     const clientCount = clientErrorCounts.get(code) || 0;
     clientErrorCounts.set(code, clientCount + 1);
   }
-  
+
   private checkDisconnectionThreshold(sessionId: string, code: string) {
     const clientErrorCounts = this.clientErrors.get(sessionId);
     if (!clientErrorCounts) return;
-    
+
     const errorCount = clientErrorCounts.get(code) || 0;
-    
+
     // Disconnect client if they exceed error thresholds
-    if (code === 'PROTOCOL_VIOLATION' && errorCount > 10) {
-      this.disconnectClient(sessionId, 'Too many protocol violations');
-    } else if (code === 'AUTHENTICATION_FAILED' && errorCount > 3) {
-      this.disconnectClient(sessionId, 'Authentication failed multiple times');
-    } else if (code === 'FLOW_CONTROL_VIOLATION' && errorCount > 20) {
-      this.disconnectClient(sessionId, 'Repeated flow control violations');
+    if (code === "PROTOCOL_VIOLATION" && errorCount > 10) {
+      this.disconnectClient(sessionId, "Too many protocol violations");
+    } else if (code === "AUTHENTICATION_FAILED" && errorCount > 3) {
+      this.disconnectClient(sessionId, "Authentication failed multiple times");
+    } else if (code === "FLOW_CONTROL_VIOLATION" && errorCount > 20) {
+      this.disconnectClient(sessionId, "Repeated flow control violations");
     }
   }
-  
+
   private disconnectClient(sessionId: string, reason: string) {
     console.warn(`Disconnecting client ${sessionId}: ${reason}`);
-    
+
     const client = this.getClient(sessionId);
     if (client) {
       client.close(1008, reason);
     }
-    
+
     // Clean up client state
     this.cleanupClient(sessionId);
   }
-  
+
   validateMessage(message: any): ValidationResult {
     const errors: string[] = [];
-    
+
     // Check required fields
-    const requiredFields = ['id', 'session', 'seq', 'ts', 'channel', 'type', 'payload'];
+    const requiredFields = [
+      "id",
+      "session",
+      "seq",
+      "ts",
+      "channel",
+      "type",
+      "payload",
+    ];
     for (const field of requiredFields) {
       if (!message[field]) {
         errors.push(`Missing required field: ${field}`);
       }
     }
-    
+
     // Validate UUID format
     if (message.id && !this.isValidUUID(message.id)) {
-      errors.push('Invalid UUID format for id field');
+      errors.push("Invalid UUID format for id field");
     }
-    
+
     // Validate sequence number
     if (message.seq && !this.isValidSequence(message.seq)) {
-      errors.push('Invalid sequence number format');
+      errors.push("Invalid sequence number format");
     }
-    
+
     // Validate channel name
     if (message.channel && !this.isValidChannel(message.channel)) {
-      errors.push('Invalid channel name format');
+      errors.push("Invalid channel name format");
     }
-    
+
     // Validate event type
     if (message.type && !this.isValidEventType(message.type)) {
       errors.push(`Unknown event type: ${message.type}`);
     }
-    
+
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
-  
+
   private isValidUUID(uuid: string): boolean {
-    const uuidRegex = /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-5][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}$/;
+    const uuidRegex =
+      /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-5][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}$/;
     return uuidRegex.test(uuid);
   }
-  
+
   private isValidSequence(seq: string): boolean {
     const seqRegex = /^[0-9]{1,20}$/;
     return seqRegex.test(seq);
   }
-  
+
   private isValidChannel(channel: string): boolean {
     const channelRegex = /^[A-Za-z0-9_\-]{1,128}$/;
     return channelRegex.test(channel);
   }
-  
+
   private isValidEventType(type: string): boolean {
     const validTypes = [
-      'HAI', 'RUN_STARTED', 'RUN_FINISHED', 'RUN_CANCEL', 'RUN_ERROR',
-      'PING', 'PONG', 'REPLAY_REQUEST', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART',
-      'TEXT_MESSAGE_END', 'AUDIO_CHUNK', 'TOOL_CALL', 'TOOL_UPDATE', 'TOOL_DONE',
-      'TOOL_CANCEL', 'TOOL_LIST', 'TOOL_SCHEMA', 'ERROR', 'FLOW_UPDATE',
-      'PAUSE_CHANNEL', 'RESUME_CHANNEL'
+      "HAI",
+      "RUN_STARTED",
+      "RUN_FINISHED",
+      "RUN_CANCEL",
+      "RUN_ERROR",
+      "PING",
+      "PONG",
+      "REPLAY_REQUEST",
+      "MESSAGE_START",
+      "MESSAGE_PART",
+      "MESSAGE_END",
+      "AUDIO_CHUNK",
+      "TOOL_CALL",
+      "TOOL_UPDATE",
+      "TOOL_DONE",
+      "TOOL_CANCEL",
+      "TOOL_LIST",
+      "TOOL_SCHEMA",
+      "ERROR",
+      "FLOW_UPDATE",
+      "PAUSE_CHANNEL",
+      "RESUME_CHANNEL",
     ];
     return validTypes.includes(type);
   }
@@ -351,78 +383,82 @@ interface ValidationResult {
 class HAIPErrorRecovery {
   private recoveryAttempts = new Map<string, number>();
   private maxRecoveryAttempts = 3;
-  
+
   async attemptRecovery(error: HAIPError): Promise<boolean> {
     const { code } = error.payload;
     const attempts = this.recoveryAttempts.get(code) || 0;
-    
+
     if (attempts >= this.maxRecoveryAttempts) {
       console.error(`Max recovery attempts exceeded for error: ${code}`);
       return false;
     }
-    
+
     this.recoveryAttempts.set(code, attempts + 1);
-    
+
     try {
       switch (code) {
-        case 'SEQ_VIOLATION':
+        case "SEQ_VIOLATION":
           return await this.recoverSequenceViolation(error);
-        case 'FLOW_CONTROL_VIOLATION':
+        case "FLOW_CONTROL_VIOLATION":
           return await this.recoverFlowControlViolation(error);
-        case 'AUTHENTICATION_FAILED':
+        case "AUTHENTICATION_FAILED":
           return await this.recoverAuthenticationFailure(error);
-        case 'VERSION_INCOMPATIBLE':
+        case "VERSION_INCOMPATIBLE":
           return await this.recoverVersionMismatch(error);
         default:
           return await this.recoverGenericError(error);
       }
     } catch (recoveryError) {
-      console.error('Recovery failed:', recoveryError);
+      console.error("Recovery failed:", recoveryError);
       return false;
     }
   }
-  
+
   private async recoverSequenceViolation(error: HAIPError): Promise<boolean> {
     // Request replay of missing messages
     await this.requestReplay();
-    
+
     // Wait for replay to complete
     return new Promise((resolve) => {
       const timeout = setTimeout(() => resolve(false), 10000);
-      
-      this.once('replay_complete', () => {
+
+      this.once("replay_complete", () => {
         clearTimeout(timeout);
         resolve(true);
       });
     });
   }
-  
-  private async recoverFlowControlViolation(error: HAIPError): Promise<boolean> {
+
+  private async recoverFlowControlViolation(
+    error: HAIPError
+  ): Promise<boolean> {
     // Pause sending and wait for flow control update
     this.pauseSending();
-    
+
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         this.resumeSending();
         resolve(false);
       }, 5000);
-      
-      this.once('flow_update', () => {
+
+      this.once("flow_update", () => {
         clearTimeout(timeout);
         this.resumeSending();
         resolve(true);
       });
     });
   }
-  
-  private async recoverAuthenticationFailure(error: HAIPError): Promise<boolean> {
+
+  private async recoverAuthenticationFailure(
+    error: HAIPError
+  ): Promise<boolean> {
     try {
       // Attempt to refresh token
       await this.tokenManager.refreshToken();
-      
+
       // Reconnect with new token
       await this.reconnect();
-      
+
       return true;
     } catch (refreshError) {
       // If refresh fails, redirect to login
@@ -430,25 +466,27 @@ class HAIPErrorRecovery {
       return false;
     }
   }
-  
+
   private async recoverVersionMismatch(error: HAIPError): Promise<boolean> {
     const detail = error.payload.detail;
-    
+
     if (detail?.supported_versions) {
       // Try to negotiate a compatible version
-      const compatibleVersion = this.findCompatibleVersion(detail.supported_versions);
-      
+      const compatibleVersion = this.findCompatibleVersion(
+        detail.supported_versions
+      );
+
       if (compatibleVersion) {
         await this.reconnectWithVersion(compatibleVersion);
         return true;
       }
     }
-    
+
     // If no compatible version, prompt for upgrade
     this.promptForUpgrade();
     return false;
   }
-  
+
   private async recoverGenericError(error: HAIPError): Promise<boolean> {
     // For generic errors, try a simple reconnect
     try {
@@ -458,7 +496,7 @@ class HAIPErrorRecovery {
       return false;
     }
   }
-  
+
   resetRecoveryAttempts() {
     this.recoveryAttempts.clear();
   }
@@ -470,97 +508,101 @@ class HAIPErrorRecovery {
 ```typescript
 class HAIPManualRecovery {
   private errorHandlers = new Map<string, ErrorHandler>();
-  
+
   constructor() {
     this.setupErrorHandlers();
   }
-  
+
   private setupErrorHandlers() {
     // Protocol violations - show error message and allow retry
-    this.errorHandlers.set('PROTOCOL_VIOLATION', {
-      severity: 'error',
-      userMessage: 'A communication error occurred. Please try again.',
-      action: 'retry'
+    this.errorHandlers.set("PROTOCOL_VIOLATION", {
+      severity: "error",
+      userMessage: "A communication error occurred. Please try again.",
+      action: "retry",
     });
-    
+
     // Authentication failures - redirect to login
-    this.errorHandlers.set('AUTHENTICATION_FAILED', {
-      severity: 'error',
-      userMessage: 'Your session has expired. Please log in again.',
-      action: 'redirect'
+    this.errorHandlers.set("AUTHENTICATION_FAILED", {
+      severity: "error",
+      userMessage: "Your session has expired. Please log in again.",
+      action: "redirect",
     });
-    
+
     // Version incompatibility - prompt for upgrade
-    this.errorHandlers.set('VERSION_INCOMPATIBLE', {
-      severity: 'warning',
-      userMessage: 'A newer version is available. Please update your application.',
-      action: 'upgrade'
+    this.errorHandlers.set("VERSION_INCOMPATIBLE", {
+      severity: "warning",
+      userMessage:
+        "A newer version is available. Please update your application.",
+      action: "upgrade",
     });
-    
+
     // Flow control violations - show busy indicator
-    this.errorHandlers.set('FLOW_CONTROL_VIOLATION', {
-      severity: 'info',
-      userMessage: 'System is busy. Please wait...',
-      action: 'wait'
+    this.errorHandlers.set("FLOW_CONTROL_VIOLATION", {
+      severity: "info",
+      userMessage: "System is busy. Please wait...",
+      action: "wait",
     });
   }
-  
+
   handleErrorForUser(error: HAIPError) {
     const handler = this.errorHandlers.get(error.payload.code);
-    
+
     if (handler) {
       this.showUserMessage(handler.severity, handler.userMessage);
-      
+
       switch (handler.action) {
-        case 'retry':
+        case "retry":
           this.showRetryButton(error);
           break;
-        case 'redirect':
+        case "redirect":
           this.redirectToLogin();
           break;
-        case 'upgrade':
+        case "upgrade":
           this.showUpgradePrompt();
           break;
-        case 'wait':
+        case "wait":
           this.showBusyIndicator();
           break;
       }
     } else {
       // Default error handling
-      this.showUserMessage('error', 'An unexpected error occurred. Please try again.');
+      this.showUserMessage(
+        "error",
+        "An unexpected error occurred. Please try again."
+      );
     }
   }
-  
+
   private showUserMessage(severity: string, message: string) {
     // Implementation depends on UI framework
     console.log(`[${severity.toUpperCase()}] ${message}`);
   }
-  
+
   private showRetryButton(error: HAIPError) {
     // Show retry button in UI
     const retryAction = () => {
       this.retryOperation(error);
     };
-    
+
     // Emit event for UI to handle
-    this.emit('show_retry', { error, retryAction });
+    this.emit("show_retry", { error, retryAction });
   }
-  
+
   private showUpgradePrompt() {
     // Show upgrade prompt in UI
-    this.emit('show_upgrade_prompt');
+    this.emit("show_upgrade_prompt");
   }
-  
+
   private showBusyIndicator() {
     // Show busy indicator in UI
-    this.emit('show_busy_indicator');
+    this.emit("show_busy_indicator");
   }
 }
 
 interface ErrorHandler {
-  severity: 'info' | 'warning' | 'error';
+  severity: "info" | "warning" | "error";
   userMessage: string;
-  action: 'retry' | 'redirect' | 'upgrade' | 'wait';
+  action: "retry" | "redirect" | "upgrade" | "wait";
 }
 ```
 
@@ -573,72 +615,72 @@ class HAIPErrorMetrics {
   private errorCounts = new Map<string, number>();
   private errorTimestamps = new Map<string, number[]>();
   private sessionErrors = new Map<string, Map<string, number>>();
-  
+
   recordError(error: HAIPError) {
     const { code } = error.payload;
     const sessionId = error.session;
     const timestamp = Date.now();
-    
+
     // Update global error counts
     const globalCount = this.errorCounts.get(code) || 0;
     this.errorCounts.set(code, globalCount + 1);
-    
+
     // Update error timestamps for rate limiting
     const timestamps = this.errorTimestamps.get(code) || [];
     timestamps.push(timestamp);
-    
+
     // Keep only recent timestamps (last hour)
     const oneHourAgo = timestamp - 3600000;
-    const recentTimestamps = timestamps.filter(ts => ts > oneHourAgo);
+    const recentTimestamps = timestamps.filter((ts) => ts > oneHourAgo);
     this.errorTimestamps.set(code, recentTimestamps);
-    
+
     // Update per-session error counts
     if (!this.sessionErrors.has(sessionId)) {
       this.sessionErrors.set(sessionId, new Map());
     }
-    
+
     const sessionErrorCounts = this.sessionErrors.get(sessionId)!;
     const sessionCount = sessionErrorCounts.get(code) || 0;
     sessionErrorCounts.set(code, sessionCount + 1);
   }
-  
+
   getErrorRate(code: string, timeWindowMs: number = 3600000): number {
     const timestamps = this.errorTimestamps.get(code) || [];
     const now = Date.now();
     const windowStart = now - timeWindowMs;
-    
-    const errorsInWindow = timestamps.filter(ts => ts > windowStart);
+
+    const errorsInWindow = timestamps.filter((ts) => ts > windowStart);
     return errorsInWindow.length / (timeWindowMs / 1000); // errors per second
   }
-  
+
   getErrorSummary(): ErrorSummary {
     const summary: ErrorSummary = {
       totalErrors: 0,
       errorRates: {},
       topErrors: [],
-      sessionErrors: {}
+      sessionErrors: {},
     };
-    
+
     // Calculate total errors
     for (const [code, count] of this.errorCounts.entries()) {
       summary.totalErrors += count;
       summary.errorRates[code] = this.getErrorRate(code);
     }
-    
+
     // Get top errors
     summary.topErrors = Array.from(this.errorCounts.entries())
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
       .map(([code, count]) => ({ code, count }));
-    
+
     // Get session error counts
     for (const [sessionId, errorCounts] of this.sessionErrors.entries()) {
       summary.sessionErrors[sessionId] = Object.fromEntries(errorCounts);
     }
-    
+
     return summary;
   }
-  
+
   shouldRateLimit(code: string, maxRate: number = 10): boolean {
     const currentRate = this.getErrorRate(code);
     return currentRate > maxRate;
@@ -670,7 +712,8 @@ interface ErrorSummary {
 </Card>
 
 <Card title="Retry Logic" icon="arrows-rotate">
-  Implement exponential backoff and circuit breaker patterns for robust error recovery.
+  Implement exponential backoff and circuit breaker patterns for robust error
+  recovery.
 </Card>
 
-</CardGroup> 
+</CardGroup>

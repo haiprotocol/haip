@@ -24,6 +24,7 @@ node dist/index.js version
 ```
 
 **Output:**
+
 ```
 HAIP CLI v1.0.0
 Human-Agent Interaction Protocol Command Line Interface
@@ -39,6 +40,7 @@ node dist/index.js info
 ```
 
 **Output:**
+
 ```
 HAIP CLI System Information
 ────────────────────────────────────────
@@ -64,14 +66,17 @@ node dist/index.js examples
 Connect to a HAIP server and maintain an interactive connection.
 
 **Syntax:**
+
 ```bash
 haip connect <url> [options]
 ```
 
 **Arguments:**
+
 - `url` - Server URL (e.g., `ws://localhost:8080`)
 
 **Options:**
+
 - `-t, --transport <type>` - Transport type (`websocket`, `sse`, `http-streaming`)
 - `--token <token>` - JWT authentication token
 - `--timeout <ms>` - Connection timeout in milliseconds (default: 10000)
@@ -80,6 +85,7 @@ haip connect <url> [options]
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Connect via WebSocket
 node dist/index.js connect ws://localhost:8080
@@ -95,6 +101,7 @@ node dist/index.js connect ws://localhost:8080 --verbose
 ```
 
 **Behaviour:**
+
 - Establishes connection and maintains it until `Ctrl+C`
 - Shows connection status and statistics
 - Handles reconnection automatically
@@ -111,14 +118,17 @@ Send messages to a HAIP server.
 Send a text message.
 
 **Syntax:**
+
 ```bash
 haip send text <message> [options]
 ```
 
 **Arguments:**
+
 - `message` - Text message to send
 
 **Options:**
+
 - `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
 - `-t, --transport <type>` - Transport type (default: `websocket`)
 - `--token <token>` - JWT authentication token
@@ -129,6 +139,7 @@ haip send text <message> [options]
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Send a simple message
 node dist/index.js send text "Hello, world!"
@@ -148,15 +159,18 @@ node dist/index.js send text "Hello" --url ws://my-server:8080
 Call a tool with parameters.
 
 **Syntax:**
+
 ```bash
 haip send tool <tool> [params...] [options]
 ```
 
 **Arguments:**
+
 - `tool` - Tool name to call
 - `params` - Tool parameters in `key=value` format
 
 **Options:**
+
 - `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
 - `-t, --transport <type>` - Transport type (default: `websocket`)
 - `--token <token>` - JWT authentication token
@@ -166,6 +180,7 @@ haip send tool <tool> [params...] [options]
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Call echo tool
 node dist/index.js send tool echo message="Hello World"
@@ -185,11 +200,13 @@ node dist/index.js send tool calculator expression="15*23" --run-id run-123
 Start a new run.
 
 **Syntax:**
+
 ```bash
 haip send run [options]
 ```
 
 **Options:**
+
 - `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
 - `-t, --transport <type>` - Transport type (default: `websocket`)
 - `--token <token>` - JWT authentication token
@@ -198,6 +215,7 @@ haip send run [options]
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Start a simple run
 node dist/index.js send run
@@ -219,11 +237,13 @@ node dist/index.js send run --url ws://my-server:8080
 Monitor HAIP server events in real-time.
 
 **Syntax:**
+
 ```bash
 haip monitor [options]
 ```
 
 **Options:**
+
 - `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
 - `-t, --transport <type>` - Transport type (default: `websocket`)
 - `--token <token>` - JWT authentication token
@@ -236,12 +256,13 @@ haip monitor [options]
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Basic monitoring
 node dist/index.js monitor
 
 # Monitor with filtering
-node dist/index.js monitor --filter-types TEXT_MESSAGE_START,TOOL_CALL
+node dist/index.js monitor --filter-types MESSAGE_START,TOOL_CALL
 
 # Monitor specific channels
 node dist/index.js monitor --filter-channels USER,AGENT
@@ -257,9 +278,10 @@ node dist/index.js monitor --url ws://my-server:8080
 ```
 
 **Filter Types:**
+
 - `HAI` - Protocol handshake
 - `PING/PONG` - Heartbeat messages
-- `TEXT_MESSAGE_START/PART/END` - Text messages
+- `MESSAGE_START/PART/END` - Text messages
 - `AUDIO_CHUNK` - Audio data
 - `TOOL_CALL/UPDATE/DONE/CANCEL` - Tool operations
 - `RUN_STARTED/FINISHED/CANCEL` - Run management
@@ -267,6 +289,7 @@ node dist/index.js monitor --url ws://my-server:8080
 - `ERROR` - Error messages
 
 **Filter Channels:**
+
 - `USER` - User messages
 - `AGENT` - Agent messages
 - `SYSTEM` - System messages
@@ -280,11 +303,13 @@ node dist/index.js monitor --url ws://my-server:8080
 Test HAIP server connectivity and performance.
 
 **Syntax:**
+
 ```bash
 haip test [options]
 ```
 
 **Options:**
+
 - `-u, --url <url>` - Server URL (default: `ws://localhost:8080`)
 - `-t, --transport <type>` - Transport type (default: `websocket`)
 - `--token <token>` - JWT authentication token
@@ -296,6 +321,7 @@ haip test [options]
 - `-v, --verbose` - Enable verbose output
 
 **Examples:**
+
 ```bash
 # Basic performance test
 node dist/index.js test
@@ -318,6 +344,7 @@ node dist/index.js test --url ws://my-server:8080 --verbose
 
 **Test Results:**
 The test command provides comprehensive performance metrics:
+
 - **Connection Time** - Time to establish connection
 - **Message Throughput** - Messages per second
 - **Latency** - Average message round-trip time
@@ -332,16 +359,19 @@ The test command provides comprehensive performance metrics:
 Check HAIP server health status.
 
 **Syntax:**
+
 ```bash
 haip health [options]
 ```
 
 **Options:**
+
 - `-u, --url <url>` - Server URL (default: `http://localhost:8080`)
 - `--timeout <ms>` - Request timeout in milliseconds (default: 10000)
 - `--format <format>` - Output format (`text`, `json`)
 
 **Examples:**
+
 ```bash
 # Check health
 node dist/index.js health
@@ -357,6 +387,7 @@ node dist/index.js health --timeout 5000
 ```
 
 **Health Response:**
+
 ```json
 {
   "status": "OK",
@@ -462,4 +493,4 @@ The CLI uses standard exit codes:
 
 - [Configuration](/cli/configuration) - Advanced configuration options
 - [Examples](/cli/examples) - Usage examples and patterns
-- [API Reference](/cli/api-reference) - Technical API documentation 
+- [API Reference](/cli/api-reference) - Technical API documentation

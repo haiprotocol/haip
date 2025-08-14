@@ -1,4 +1,4 @@
-import { HAIPTransport, HAIPTransportConfig, HAIPMessage } from "../types";
+import { HAIPTransport, HAIPTransportConfig, HAIPMessage } from "haip";
 import { HAIPUtils } from "../utils";
 
 export class HTTPStreamingTransport implements HAIPTransport {
@@ -37,13 +37,11 @@ export class HTTPStreamingTransport implements HAIPTransport {
     private async startStreaming(): Promise<void> {
         try {
             const url = new URL(this.config.url);
-            url.searchParams.set("token", this.config.token);
             url.searchParams.set("stream", "true");
 
             const response = await fetch(url.toString(), {
                 method: "GET",
                 headers: {
-                    Authorization: `Bearer ${this.config.token}`,
                     Accept: "text/event-stream",
                     "Cache-Control": "no-cache",
                 },
@@ -210,7 +208,6 @@ export class HTTPStreamingTransport implements HAIPTransport {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${this.config.token}`,
                     "X-HAIP-Message": "true",
                 },
                 body: JSON.stringify(message),
@@ -236,7 +233,6 @@ export class HTTPStreamingTransport implements HAIPTransport {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/octet-stream",
-                    Authorization: `Bearer ${this.config.token}`,
                     "X-HAIP-Binary": "true",
                 },
                 body: base64Data,

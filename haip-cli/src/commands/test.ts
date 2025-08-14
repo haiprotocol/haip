@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { HAIPConnection } from "../connection";
-import { HAIPCLIConfig, HAIPCLITestOptions } from "../types";
+import { HAIPCLIConfig, HAIPCLITestOptions } from "haip";
 import { HAIPCLIUtils } from "../utils";
 
 export function createTestCommand(): Command {
@@ -175,7 +175,7 @@ function createTestMessage(index: number, size: number): any {
         seq: HAIPCLIUtils.generateSequence(),
         ts: HAIPCLIUtils.formatTimestamp(),
         channel: "SYSTEM",
-        type: "TEXT_MESSAGE_START",
+        type: "MESSAGE_START",
         payload,
     };
 }

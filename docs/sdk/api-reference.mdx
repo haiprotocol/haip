@@ -1,6 +1,6 @@
 ---
-title: 'API Reference'
-description: 'Complete API reference for the HAIP TypeScript SDK'
+title: "API Reference"
+description: "Complete API reference for the HAIP TypeScript SDK"
 ---
 
 Complete reference documentation for all HAIP SDK classes, interfaces, and functions.
@@ -12,7 +12,7 @@ Complete reference documentation for all HAIP SDK classes, interfaces, and funct
 Factory function to create a HAIP client instance.
 
 ```typescript
-function createHAIPClient(config: HAIPClientConfig): HAIPClient
+function createHAIPClient(config: HAIPClientConfig): HAIPClient;
 ```
 
 <ParamField body="config" type="HAIPClientConfig" required>
@@ -22,13 +22,14 @@ function createHAIPClient(config: HAIPClientConfig): HAIPClient
 **Returns:** `HAIPClient` - Configured client instance
 
 **Example:**
+
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 const client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket'
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
 });
 ```
 
@@ -42,13 +43,16 @@ Configuration for creating a HAIP client.
 interface HAIPClientConfig {
   url: string;
   token: string;
-  transport?: 'websocket' | 'sse' | 'http-streaming';
+  transport?: "websocket" | "sse" | "http-streaming";
   flowControl?: HAIPFlowControlConfig;
   maxConcurrentRuns?: number;
   maxReconnectAttempts?: number;
   reconnectDelay?: number;
   heartbeatInterval?: number;
-  options?: WebSocketTransportOptions | SSETransportOptions | HTTPStreamingTransportOptions;
+  options?:
+    | WebSocketTransportOptions
+    | SSETransportOptions
+    | HTTPStreamingTransportOptions;
 }
 ```
 
@@ -98,29 +102,29 @@ interface HAIPEnvelope {
 All supported HAIP event types.
 
 ```typescript
-type HAIPEventType = 
-  | 'HAI'                    // Handshake
-  | 'PING'                   // Heartbeat ping
-  | 'PONG'                   // Heartbeat pong
-  | 'RUN_STARTED'            // Run started
-  | 'RUN_FINISHED'           // Run finished
-  | 'RUN_CANCEL'             // Run cancelled
-  | 'RUN_ERROR'              // Run error
-  | 'TEXT_MESSAGE_START'     // Text message start
-  | 'TEXT_MESSAGE_PART'      // Text message part
-  | 'TEXT_MESSAGE_END'       // Text message end
-  | 'AUDIO_CHUNK'            // Audio data chunk
-  | 'TOOL_CALL'              // Tool call
-  | 'TOOL_UPDATE'            // Tool update
-  | 'TOOL_DONE'              // Tool completed
-  | 'TOOL_CANCEL'            // Tool cancelled
-  | 'TOOL_LIST'              // Tool list
-  | 'TOOL_SCHEMA'            // Tool schema
-  | 'FLOW_UPDATE'            // Flow control update
-  | 'PAUSE_CHANNEL'          // Pause channel
-  | 'RESUME_CHANNEL'         // Resume channel
-  | 'REPLAY_REQUEST'         // Replay request
-  | 'ERROR';                 // Error message
+type HAIPEventType =
+  | "HAI" // Handshake
+  | "PING" // Heartbeat ping
+  | "PONG" // Heartbeat pong
+  | "RUN_STARTED" // Run started
+  | "RUN_FINISHED" // Run finished
+  | "RUN_CANCEL" // Run cancelled
+  | "RUN_ERROR" // Run error
+  | "MESSAGE_START" // Text message start
+  | "MESSAGE_PART" // Text message part
+  | "MESSAGE_END" // Text message end
+  | "AUDIO_CHUNK" // Audio data chunk
+  | "TOOL_CALL" // Tool call
+  | "TOOL_UPDATE" // Tool update
+  | "TOOL_DONE" // Tool completed
+  | "TOOL_CANCEL" // Tool cancelled
+  | "TOOL_LIST" // Tool list
+  | "TOOL_SCHEMA" // Tool schema
+  | "FLOW_UPDATE" // Flow control update
+  | "PAUSE_CHANNEL" // Pause channel
+  | "RESUME_CHANNEL" // Resume channel
+  | "REPLAY_REQUEST" // Replay request
+  | "ERROR"; // Error message
 ```
 
 ### HAIPChannel
@@ -128,7 +132,7 @@ type HAIPEventType =
 Supported message channels.
 
 ```typescript
-type HAIPChannel = 'USER' | 'AGENT' | 'SYSTEM' | 'AUDIO_IN' | 'AUDIO_OUT';
+type HAIPChannel = "USER" | "AGENT" | "SYSTEM" | "AUDIO_IN" | "AUDIO_OUT";
 ```
 
 ## Client Interface
@@ -143,49 +147,111 @@ interface HAIPClient extends EventEmitter {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   isConnected(): boolean;
-  
+
   // Run Management
   startRun(threadId?: string, metadata?: Record<string, any>): Promise<string>;
-  finishRun(runId: string, status?: 'OK' | 'CANCELLED' | 'ERROR', summary?: string): Promise<void>;
+  finishRun(
+    runId: string,
+    status?: "OK" | "CANCELLED" | "ERROR",
+    summary?: string
+  ): Promise<void>;
   cancelRun(runId: string): Promise<void>;
-  
+
   // Messaging
-  sendTextMessage(channel: HAIPChannel, text: string, author?: string, runId?: string, threadId?: string): Promise<string>;
-  sendMessage(message: HAIPMessage, options?: HAIPMessageOptions): Promise<void>;
+  sendTextMessage(
+    channel: HAIPChannel,
+    text: string,
+    author?: string,
+    runId?: string,
+    threadId?: string
+  ): Promise<string>;
+  sendMessage(
+    message: HAIPMessage,
+    options?: HAIPMessageOptions
+  ): Promise<void>;
   sendBinary(data: ArrayBuffer): Promise<void>;
-  
+
   // Tool Integration
-  callTool(channel: HAIPChannel, tool: string, params?: Record<string, any>, runId?: string, threadId?: string): Promise<string>;
-  updateTool(channel: HAIPChannel, callId: string, status: 'QUEUED' | 'RUNNING' | 'CANCELLING', progress?: number, partial?: any, runId?: string, threadId?: string): Promise<void>;
-  completeTool(channel: HAIPChannel, callId: string, status?: 'OK' | 'CANCELLED' | 'ERROR', result?: any, runId?: string, threadId?: string): Promise<void>;
-  cancelTool(channel: HAIPChannel, callId: string, reason?: string, runId?: string, threadId?: string): Promise<void>;
-  listTools(channel: HAIPChannel, tools: HAIPTool[], runId?: string, threadId?: string): Promise<void>;
-  getToolSchema(channel: HAIPChannel, tool: string, runId?: string, threadId?: string): Promise<void>;
-  
+  callTool(
+    channel: HAIPChannel,
+    tool: string,
+    params?: Record<string, any>,
+    runId?: string,
+    threadId?: string
+  ): Promise<string>;
+  updateTool(
+    channel: HAIPChannel,
+    callId: string,
+    status: "QUEUED" | "RUNNING" | "CANCELLING",
+    progress?: number,
+    partial?: any,
+    runId?: string,
+    threadId?: string
+  ): Promise<void>;
+  completeTool(
+    channel: HAIPChannel,
+    callId: string,
+    status?: "OK" | "CANCELLED" | "ERROR",
+    result?: any,
+    runId?: string,
+    threadId?: string
+  ): Promise<void>;
+  cancelTool(
+    channel: HAIPChannel,
+    callId: string,
+    reason?: string,
+    runId?: string,
+    threadId?: string
+  ): Promise<void>;
+  listTools(
+    channel: HAIPChannel,
+    tools: HAIPTool[],
+    runId?: string,
+    threadId?: string
+  ): Promise<void>;
+  getToolSchema(
+    channel: HAIPChannel,
+    tool: string,
+    runId?: string,
+    threadId?: string
+  ): Promise<void>;
+
   // Flow Control
-  sendFlowUpdate(channel: string, addMessages?: number, addBytes?: number): Promise<void>;
+  sendFlowUpdate(
+    channel: string,
+    addMessages?: number,
+    addBytes?: number
+  ): Promise<void>;
   pauseChannel(channel: string): Promise<void>;
   resumeChannel(channel: string): Promise<void>;
-  
+
   // Replay
   requestReplay(fromSeq: string, toSeq?: string): Promise<void>;
-  
+
   // Audio
-  sendAudioChunk(channel: HAIPChannel, messageId: string, mime: string, data: ArrayBuffer, durationMs?: number, runId?: string, threadId?: string): Promise<void>;
-  
+  sendAudioChunk(
+    channel: HAIPChannel,
+    messageId: string,
+    mime: string,
+    data: ArrayBuffer,
+    durationMs?: number,
+    runId?: string,
+    threadId?: string
+  ): Promise<void>;
+
   // State Management
   getConnectionState(): HAIPConnectionState;
   getPerformanceMetrics(): HAIPPerformanceMetrics;
   getActiveRuns(): HAIPRun[];
   getRun(runId: string): HAIPRun | undefined;
-  
+
   // Events
-  on(event: 'connect', listener: () => void): this;
-  on(event: 'disconnect', listener: (reason: string) => void): this;
-  on(event: 'handshake', listener: (payload: any) => void): this;
-  on(event: 'message', listener: (message: HAIPMessage) => void): this;
-  on(event: 'binary', listener: (data: ArrayBuffer) => void): this;
-  on(event: 'error', listener: (error: Error) => void): this;
+  on(event: "connect", listener: () => void): this;
+  on(event: "disconnect", listener: (reason: string) => void): this;
+  on(event: "handshake", listener: (payload: any) => void): this;
+  on(event: "message", listener: (message: HAIPMessage) => void): this;
+  on(event: "binary", listener: (data: ArrayBuffer) => void): this;
+  on(event: "error", listener: (error: Error) => void): this;
 }
 ```
 
@@ -201,12 +267,12 @@ interface HAIPTransport extends EventEmitter {
   disconnect(): Promise<void>;
   send(data: string | ArrayBuffer): Promise<void>;
   isConnected(): boolean;
-  
-  on(event: 'connect', listener: () => void): this;
-  on(event: 'disconnect', listener: (reason: string) => void): this;
-  on(event: 'message', listener: (data: string) => void): this;
-  on(event: 'binary', listener: (data: ArrayBuffer) => void): this;
-  on(event: 'error', listener: (error: Error) => void): this;
+
+  on(event: "connect", listener: () => void): this;
+  on(event: "disconnect", listener: (reason: string) => void): this;
+  on(event: "message", listener: (data: string) => void): this;
+  on(event: "binary", listener: (data: ArrayBuffer) => void): this;
+  on(event: "error", listener: (error: Error) => void): this;
 }
 ```
 
@@ -217,7 +283,7 @@ WebSocket transport implementation.
 ```typescript
 class WebSocketTransport implements HAIPTransport {
   constructor(url: string, token: string, options?: WebSocketTransportOptions);
-  
+
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   send(data: string | ArrayBuffer): Promise<void>;
@@ -232,7 +298,7 @@ Server-Sent Events transport implementation.
 ```typescript
 class SSETransport implements HAIPTransport {
   constructor(config: HAIPTransportConfig);
-  
+
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   send(data: string | ArrayBuffer): Promise<void>;
@@ -247,7 +313,7 @@ HTTP streaming transport implementation.
 ```typescript
 class HTTPStreamingTransport implements HAIPTransport {
   constructor(config: HAIPTransportConfig);
-  
+
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   send(data: string | ArrayBuffer): Promise<void>;
@@ -264,41 +330,65 @@ Utility functions for HAI Protocol operations.
 ```typescript
 class HAIPUtils {
   // Message Creation
-  static createMessage(type: HAIPEventType, payload: any, envelope?: HAIPEnvelope): HAIPMessage;
-  static createTextMessage(channel: HAIPChannel, text: string, author?: string, runId?: string, threadId?: string): HAIPMessage;
-  static createToolCall(channel: HAIPChannel, tool: string, params?: Record<string, any>, runId?: string, threadId?: string): HAIPMessage;
-  static createFlowUpdate(channel: string, addMessages?: number, addBytes?: number): HAIPMessage;
-  
+  static createMessage(
+    type: HAIPEventType,
+    payload: any,
+    envelope?: HAIPEnvelope
+  ): HAIPMessage;
+  static createTextMessage(
+    channel: HAIPChannel,
+    text: string,
+    author?: string,
+    runId?: string,
+    threadId?: string
+  ): HAIPMessage;
+  static createToolCall(
+    channel: HAIPChannel,
+    tool: string,
+    params?: Record<string, any>,
+    runId?: string,
+    threadId?: string
+  ): HAIPMessage;
+  static createFlowUpdate(
+    channel: string,
+    addMessages?: number,
+    addBytes?: number
+  ): HAIPMessage;
+
   // Validation
   static validateMessage(message: HAIPMessage): boolean;
   static validateEnvelope(envelope: HAIPEnvelope): boolean;
-  
+
   // Generation
   static generateUUID(): string;
   static generateTimestamp(): string;
   static generateSequenceNumber(): string;
-  
+
   // Parsing
   static parseJWT(token: string): any;
   static parseBase64(data: string): ArrayBuffer;
   static encodeBase64(data: ArrayBuffer): string;
-  
+
   // Flow Control
   static calculateMessageCredits(message: HAIPMessage): number;
   static calculateByteCredits(data: ArrayBuffer): number;
-  
+
   // Binary
   static arrayBufferToBase64(buffer: ArrayBuffer): string;
   static base64ToArrayBuffer(base64: string): ArrayBuffer;
   static stringToArrayBuffer(str: string): ArrayBuffer;
   static arrayBufferToString(buffer: ArrayBuffer): string;
-  
+
   // Timing
   static debounce<T extends (...args: any[]) => any>(func: T, wait: number): T;
   static throttle<T extends (...args: any[]) => any>(func: T, limit: number): T;
-  
+
   // Backoff
-  static exponentialBackoff(attempt: number, baseDelay: number, maxDelay: number): number;
+  static exponentialBackoff(
+    attempt: number,
+    baseDelay: number,
+    maxDelay: number
+  ): number;
 }
 ```
 
@@ -344,7 +434,7 @@ interface HAIPRun {
   id: string;
   threadId?: string;
   metadata?: Record<string, any>;
-  status: 'RUNNING' | 'FINISHED' | 'CANCELLED' | 'ERROR';
+  status: "RUNNING" | "FINISHED" | "CANCELLED" | "ERROR";
   startTime: number;
   endTime?: number;
   summary?: string;
@@ -385,7 +475,7 @@ Tool execution result.
 ```typescript
 interface HAIPToolResult {
   call_id: string;
-  status: 'OK' | 'CANCELLED' | 'ERROR';
+  status: "OK" | "CANCELLED" | "ERROR";
   result?: any;
   error?: string;
 }
@@ -400,7 +490,7 @@ Base error class for HAIP SDK errors.
 ```typescript
 class HAIPError extends Error {
   constructor(message: string, code?: string, details?: any);
-  
+
   code: string;
   details: any;
 }
@@ -447,7 +537,7 @@ interface WebSocketTransportOptions {
   maxReconnectAttempts?: number;
   reconnectDelay?: number;
   heartbeatInterval?: number;
-  binaryType?: 'arraybuffer' | 'blob';
+  binaryType?: "arraybuffer" | "blob";
 }
 ```
 
@@ -516,7 +606,7 @@ Protocol constants and default values.
 
 ```typescript
 const HAIPConstants = {
-  PROTOCOL_VERSION: '1.1.2',
+  PROTOCOL_VERSION: "1.1.2",
   DEFAULT_CREDITS: 10,
   DEFAULT_CREDIT_BYTES: 1024 * 1024,
   DEFAULT_HEARTBEAT_INTERVAL: 30000,
@@ -527,40 +617,24 @@ const HAIPConstants = {
     CONNECTING: 0,
     OPEN: 1,
     CLOSING: 2,
-    CLOSED: 3
-  }
+    CLOSED: 3,
+  },
 } as const;
 ```
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card
-    title="Client API"
-    href="/sdk/client"
-    icon="code"
-  >
+  <Card title="Client API" href="/sdk/client" icon="code">
     Learn about the client interface and methods.
   </Card>
-  <Card
-    title="Examples"
-    href="/sdk/examples"
-    icon="book-open"
-  >
+  <Card title="Examples" href="/sdk/examples" icon="book-open">
     See practical examples of API usage.
   </Card>
-  <Card
-    title="Types"
-    href="/sdk/types"
-    icon="laptop"
-  >
+  <Card title="Types" href="/sdk/types" icon="laptop">
     Explore detailed type definitions.
   </Card>
-  <Card
-    title="Utilities"
-    href="/sdk/api-reference"
-    icon="wrench"
-  >
+  <Card title="Utilities" href="/sdk/api-reference" icon="wrench">
     Learn about utility functions and helpers.
   </Card>
-</CardGroup> 
+</CardGroup>{" "}

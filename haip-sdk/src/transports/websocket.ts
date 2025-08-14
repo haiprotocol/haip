@@ -1,12 +1,11 @@
 import WebSocket from "ws";
 import { EventEmitter } from "events";
-import { HAIPTransport, HAIPMessage } from "../types";
+import { HAIPTransport, HAIPMessage } from "haip";
 import { HAIPUtils } from "../utils";
 
 export class WebSocketTransport extends EventEmitter implements HAIPTransport {
     private ws: WebSocket | null = null;
     private url: string;
-    private token: string;
     private options: Record<string, any>;
     private reconnectAttempts = 0;
     private maxReconnectAttempts = 5;
@@ -16,18 +15,16 @@ export class WebSocketTransport extends EventEmitter implements HAIPTransport {
     private heartbeatIntervalMs = 30000;
     private heartbeatTimeoutMs = 5000;
 
-    constructor(url: string, token: string, options: Record<string, any> = {}) {
+    constructor(url: string, options: Record<string, any> = {}) {
         super();
         this.url = url;
-        this.token = token;
         this.options = options;
     }
 
     async connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                const wsUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
-                this.ws = new WebSocket(wsUrl, this.options);
+                this.ws = new WebSocket(this.url, this.options);
 
                 this.ws.on("open", () => {
                     this.reconnectAttempts = 0;
@@ -46,7 +43,17 @@ export class WebSocketTransport extends EventEmitter implements HAIPTransport {
                                 this.emit("error", new Error("Invalid message format"));
                             }
                         } else if (data instanceof Buffer) {
-                            this.emit("binary", data);
+                            const messageStr = data.toString("utf8");
+                            try {
+                                const message = JSON.parse(messageStr);
+                                if (HAIPUtils.validateMessage(message)) {
+                                    this.emit("message", message);
+                                } else {
+                                    this.emit("error", new Error("Invalid message format"));
+                                }
+                            } catch (error) {
+                                this.emit("binary", Buffer.from(data));
+                            }
                         } else if (data instanceof ArrayBuffer) {
                             this.emit("binary", Buffer.from(data));
                         }
@@ -95,7 +102,7 @@ export class WebSocketTransport extends EventEmitter implements HAIPTransport {
                     this.ws = null;
                     resolve();
                 });
-                this.ws.close(1000, "Normal closure");
+                this.ws.close(1000, "Normal closure - Client Requested");
             } else {
                 resolve();
             }

@@ -15,8 +15,7 @@
         "pages": [
           "index",
           "quickstart",
-          "development"
-        ]
+          "technical_overview"        ]
       },
       {
         "group": "TypeScript SDK",

@@ -145,7 +145,7 @@ cat > .haiprc << EOF
   "monitoring": {
     "showTimestamps": true,
     "showMetadata": false,
-    "filterTypes": ["TEXT_MESSAGE_START", "TOOL_CALL"]
+    "filterTypes": ["MESSAGE_START", "TOOL_CALL"]
   }
 }
 EOF
@@ -438,4 +438,4 @@ node dist/index.js connect $HAIP_DEFAULT_URL --timeout 5000
 
 - [Examples](/cli/examples) - Configuration examples and patterns
 - [API Reference](/cli/api-reference) - Technical configuration details
-- [Commands](/cli/commands) - Command-line configuration options 
+- [Commands](/cli/commands) - Command-line configuration options

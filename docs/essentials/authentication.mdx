@@ -24,14 +24,14 @@ Your JWT token must include the following claims:
 }
 ```
 
-| Claim | Description | Required |
-|-------|-------------|----------|
-| `iss` | Issuer (your application ID) | Yes |
-| `aud` | Audience (should be "haip-protocol") | Yes |
-| `sub` | Subject (user identifier) | Yes |
-| `iat` | Issued at (Unix timestamp) | Yes |
-| `exp` | Expiration (Unix timestamp) | Yes |
-| `jti` | JWT ID (unique token identifier) | Yes |
+| Claim | Description                          | Required |
+| ----- | ------------------------------------ | -------- |
+| `iss` | Issuer (your application ID)         | Yes      |
+| `aud` | Audience (should be "haip-protocol") | Yes      |
+| `sub` | Subject (user identifier)            | Yes      |
+| `iat` | Issued at (Unix timestamp)           | Yes      |
+| `exp` | Expiration (Unix timestamp)          | Yes      |
+| `jti` | JWT ID (unique token identifier)     | Yes      |
 
 ### Token Presentation
 
@@ -66,7 +66,7 @@ Present your JWT token in one of these ways:
 Servers must validate JWT tokens before establishing HAIP connections:
 
 ```typescript
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 interface HAIPToken {
   iss: string;
@@ -81,23 +81,23 @@ function validateHAIPToken(token: string): HAIPToken | null {
   try {
     // Verify signature and decode
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as HAIPToken;
-    
+
     // Validate required claims
-    if (decoded.aud !== 'haip-protocol') {
-      throw new Error('Invalid audience');
+    if (decoded.aud !== "haip-protocol") {
+      throw new Error("Invalid audience");
     }
-    
+
     if (decoded.exp < Date.now() / 1000) {
-      throw new Error('Token expired');
+      throw new Error("Token expired");
     }
-    
+
     if (decoded.iat > Date.now() / 1000) {
-      throw new Error('Token issued in future');
+      throw new Error("Token issued in future");
     }
-    
+
     return decoded;
   } catch (error) {
-    console.error('Token validation failed:', error);
+    console.error("Token validation failed:", error);
     return null;
   }
 }
@@ -112,43 +112,43 @@ class HAIPTokenManager {
   private token: string | null = null;
   private refreshToken: string | null = null;
   private expiresAt: number = 0;
-  
+
   async getValidToken(): Promise<string> {
     if (this.isTokenValid()) {
       return this.token!;
     }
-    
+
     await this.refreshTokenIfNeeded();
     return this.token!;
   }
-  
+
   private isTokenValid(): boolean {
     return this.token !== null && Date.now() < this.expiresAt - 60000; // 1 minute buffer
   }
-  
+
   private async refreshTokenIfNeeded(): Promise<void> {
     if (!this.refreshToken) {
-      throw new Error('No refresh token available');
+      throw new Error("No refresh token available");
     }
-    
-    const response = await fetch('/auth/refresh', {
-      method: 'POST',
+
+    const response = await fetch("/auth/refresh", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        refresh_token: this.refreshToken
-      })
+        refresh_token: this.refreshToken,
+      }),
     });
-    
+
     if (!response.ok) {
-      throw new Error('Token refresh failed');
+      throw new Error("Token refresh failed");
     }
-    
+
     const data = await response.json();
     this.token = data.access_token;
     this.refreshToken = data.refresh_token;
-    this.expiresAt = Date.now() + (data.expires_in * 1000);
+    this.expiresAt = Date.now() + data.expires_in * 1000;
   }
 }
 ```
@@ -161,44 +161,56 @@ HAIP supports session resumption using the `last_rx_seq` field in the handshake:
 class HAIPSessionManager {
   private sessionId: string | null = null;
   private lastRxSeq: number = 0;
-  
+
   async resumeSession(): Promise<boolean> {
     if (!this.sessionId) {
       return false;
     }
-    
+
     const token = await this.tokenManager.getValidToken();
-    const ws = new WebSocket(`wss://api.haiprotocol.com/haip/websocket?token=${token}`);
-    
+    const ws = new WebSocket(
+      `wss://api.haiprotocol.com/haip/websocket?token=${token}`
+    );
+
     ws.onopen = () => {
       // Send handshake with session resumption
-      ws.send(JSON.stringify({
-        id: this.generateUUID(),
-        session: this.sessionId,
-        seq: "1",
-        ts: Date.now().toString(),
-        channel: "SYSTEM",
-        type: "HAI",
-        payload: {
-          haip_version: "1.1.2",
-          accept_major: [1],
-          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"],
-          last_rx_seq: this.lastRxSeq.toString()
-        }
-      }));
+      ws.send(
+        JSON.stringify({
+          id: this.generateUUID(),
+          session: this.sessionId,
+          seq: "1",
+          ts: Date.now().toString(),
+          channel: "SYSTEM",
+          type: "HAI",
+          payload: {
+            haip_version: "1.1.2",
+            accept_major: [1],
+            accept_events: [
+              "HAI",
+              "MESSAGE_START",
+              "MESSAGE_PART",
+              "MESSAGE_END",
+            ],
+            last_rx_seq: this.lastRxSeq.toString(),
+          },
+        })
+      );
     };
-    
+
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       this.lastRxSeq = parseInt(message.seq);
-      
-      if (message.type === 'ERROR' && message.payload.code === 'RESUME_FAILED') {
+
+      if (
+        message.type === "ERROR" &&
+        message.payload.code === "RESUME_FAILED"
+      ) {
         // Session resumption failed, start new session
         this.sessionId = null;
         this.lastRxSeq = 0;
       }
     };
-    
+
     return true;
   }
 }
@@ -209,7 +221,8 @@ class HAIPSessionManager {
 <CardGroup cols={2}>
 
 <Card title="Token Expiration" icon="clock">
-  Set reasonable expiration times (15-60 minutes) and implement automatic refresh.
+  Set reasonable expiration times (15-60 minutes) and implement automatic
+  refresh.
 </Card>
 
 <Card title="HTTPS Only" icon="lock">
@@ -217,7 +230,8 @@ class HAIPSessionManager {
 </Card>
 
 <Card title="Token Storage" icon="key">
-  Store tokens securely (memory for short-lived, encrypted storage for refresh tokens).
+  Store tokens securely (memory for short-lived, encrypted storage for refresh
+  tokens).
 </Card>
 
 <Card title="Audit Logging" icon="clipboard">
@@ -233,7 +247,7 @@ Handle authentication errors gracefully:
 ```typescript
 ws.onerror = (error) => {
   console.error('WebSocket error:', error);
-  
+
   if (error.message.includes('401')) {
     // Authentication failed - refresh token and retry
     this.handleAuthError();
@@ -301,7 +315,7 @@ private async handleAuthError(): Promise<void> {
         payload: {
           haip_version: "1.1.2",
           accept_major: [1],
-          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"],
+          accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
           last_rx_seq: this.sessionManager.lastRxSeq > 0 ? this.sessionManager.lastRxSeq.toString() : undefined
         }
       };
@@ -314,4 +328,4 @@ private async handleAuthError(): Promise<void> {
     }
   }
   ```
-</Accordion> 
+</Accordion>

@@ -2,6 +2,7 @@ import { HAIPServer } from "./server";
 
 const defaultConfig = {
     port: parseInt(process.env["PORT"] || "8080"),
+    url: process.env["URL"] || "http://localhost:8080",
     host: process.env["HOST"] || "0.0.0.0",
     jwtSecret: process.env["JWT_SECRET"] || "your-secret-key-change-in-production",
     jwtExpiresIn: process.env["JWT_EXPIRES_IN"] || "24h",

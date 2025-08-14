@@ -1,0 +1,12 @@
+{
+  "name": "@types/haip",
+  "version": "1.0.0",
+  "description": "TypeScript definitions for HAIP",
+  "main": "",
+  "types": "index.d.ts",
+  "author": "NiallB",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
+}

@@ -13,158 +13,148 @@ Implement HAIP in your application with this quick guide.
 # Install SDK
 npm install @haip/sdk
 
+# Install Server
+npm install @haip/server
+
+# Install Types
+npm install @types/haip
+
 # Install CLI (optional)
 npm install -g @haip/cli
-
-# Install Server (optional)
-npm install @haip/server
 ```
 
-### Step 1: Choose your transport
+### Step 1: Create Server
 
-<AccordionGroup>
-  <Accordion title="WebSocket (Recommended)" icon="plug">
-    For bidirectional real-time communication, use WebSockets:
+Save this in server.js
 
-    ```javascript
-    const ws = new WebSocket('wss://api.haiprotocol.com/haip/websocket?token=YOUR_JWT_TOKEN');
-    
-    ws.onopen = () => {
-      // Send HAI handshake
-      ws.send(JSON.stringify({
-        id: generateUUID(),
-        session: generateUUID(),
-        seq: "1",
-        ts: Date.now().toString(),
-        channel: "SYSTEM",
-        type: "HAI",
-        payload: {
-          haip_version: "1.1.2",
-          accept_major: [1],
-          accept_events: ["HAI", "TEXT_MESSAGE_START", "TEXT_MESSAGE_PART", "TEXT_MESSAGE_END"]
-        }
-      }));
+```javascript
+import { HAIPServer } from "../src/server";
+
+const server = new HAIPServer({
+  port: 8080,
+  host: "0.0.0.0",
+  jwtSecret: "CHANGE_THIS_TO_A_SECRET_STRING",
+  enableCORS: true,
+  enableLogging: true,
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000,
+    minCredits: 100,
+    maxCredits: 10000,
+    creditThreshold: 200,
+    backPressureThreshold: 0.8,
+    adaptiveAdjustment: true,
+  },
+});
+
+server.authenticate((req) => {
+  // Here you should validate your with your auth system
+  if (req.token === "Bearer TOKEN") {
+    return "userid";
+  }
+  return null;
+});
+
+server.start();
+
+server.on("connect", (sessionId) => {
+  console.log(`🔗 Client connected: ${sessionId}`);
+});
+
+server.on("disconnect", (sessionId) => {
+  console.log(`🔌 Client disconnected: ${sessionId}`);
+});
+
+server.on("handshake", (sessionId, payload) => {
+  console.log(`🤝 Handshake completed: ${sessionId}`, payload);
+});
+```
+
+### Step 2: Create client
+
+Save this in client.js
+
+```javascript
+import { createHAIPClient } from "../src/index";
+
+async function main() {
+  // Create client
+  const client = createHAIPClient({
+    url: "ws://localhost:8080", //,
+    //transport: "websocket",
+    //,
+    //token: ""
+  });
+
+  client.authenticate(() => {
+    // You should send an auth token/creds here. This can be any object.
+    // You need to re-call this if your token changes.
+    return {
+      token: "Bearer TOKEN",
     };
-    ```
-  </Accordion>
-  <Accordion title="Server-Sent Events" icon="radio">
-    For one-way streaming from server to client:
+  });
 
-    ```javascript
-    const eventSource = new EventSource('/haip/connect?token=YOUR_JWT_TOKEN');
-    
-    eventSource.onmessage = (event) => {
-      const haipMessage = JSON.parse(event.data);
-      console.log('Received:', haipMessage);
-    };
-    ```
-  </Accordion>
-</AccordionGroup>
+  try {
+    // Connect to server
+    await client.connect();
 
-### Step 2: Send your first message
+    const transaction = await client.startTransaction("echo", {
+      //metadata: { example: 'some data' }
+    });
 
-<AccordionGroup>
-  <Accordion title="Text Message" icon="message">
-    Send a text message to the agent:
+    transaction.on("message", (message: any) => {
+      console.log("🤖 Agent:", message.payload.text);
+    });
 
-    ```javascript
-    const messageId = generateUUID();
-    
-    // Start message
-    ws.send(JSON.stringify({
-      id: generateUUID(),
-      session: sessionId,
-      seq: "2",
-      ts: Date.now().toString(),
-      channel: "USER",
-      type: "TEXT_MESSAGE_START",
-      payload: {
-        message_id: messageId,
-        author: "USER",
-        text: "Hello, agent!"
-      }
-    }));
-    
-    // End message
-    ws.send(JSON.stringify({
-      id: generateUUID(),
-      session: sessionId,
-      seq: "3",
-      ts: Date.now().toString(),
-      channel: "USER",
-      type: "TEXT_MESSAGE_END",
-      payload: {
-        message_id: messageId
-      }
-    }));
-    ```
-  </Accordion>
-  <Accordion title="Audio Message" icon="microphone">
-    Send audio data in chunks:
+    console.log("✅ Sending to transaction:", "Hello! Can you echo this?");
+    transaction.sendTextMessage("Hello! Can you echo this?");
+  } catch (error) {
+    console.error("Error:", error);
+    await client.disconnect();
+  }
+}
 
-    ```javascript
-    const audioChunk = {
-      id: generateUUID(),
-      session: sessionId,
-      seq: "4",
-      ts: Date.now().toString(),
-      channel: "USER",
-      type: "AUDIO_CHUNK",
-      bin_len: audioData.length,
-      bin_mime: "audio/opus",
-      payload: {
-        message_id: messageId,
-        mime: "audio/opus",
-        duration_ms: "120"
-      }
-    };
-    
-    // Send envelope first
-    ws.send(JSON.stringify(audioChunk));
-    // Send binary data in second frame
-    ws.send(audioData);
-    ```
-  </Accordion>
-</AccordionGroup>
+main();
+```
 
-### Step 3: Handle responses
+### Step 3: Run Locally
 
-<Accordion title="Process agent responses" icon="reply">
-  Listen for agent responses and handle different event types:
+In the client
 
-  ```javascript
-  ws.onmessage = (event) => {
-    const haipMessage = JSON.parse(event.data);
-    
-    switch (haipMessage.type) {
-      case 'TEXT_MESSAGE_START':
-        console.log('Agent started responding');
-        break;
-        
-      case 'TEXT_MESSAGE_PART':
-        // Append text chunk to UI
-        appendToChat(haipMessage.payload.text);
-        break;
-        
-      case 'TEXT_MESSAGE_END':
-        console.log('Agent finished responding');
-        break;
-        
-      case 'TOOL_CALL':
-        console.log('Agent is calling tool:', haipMessage.payload.tool);
-        break;
-        
-      case 'ERROR':
-        console.error('HAIP Error:', haipMessage.payload.message);
-        break;
-    }
-  };
-  ```
-</Accordion>
+```bash
+node server.js
+node client.js
+```
 
-## Next steps
+You should see something like this:
 
-Now that you have a basic HAIP implementation, explore these advanced features:
+```
+> @haip/sdk@1.0.1 example
+> ts-node ./example/test-client.ts
+
+[HAIP] Transport connecting...
+[HAIP] Handshake sent
+
+✅ Sending to transaction: Hello! Can you echo this?
+🤖 Agent: Hello! Can you echo this?
+
+```
+
+### Step 4: Connecting with the CLI Tool
+
+Now run (assumig you are running this locally on localhost:8080)
+
+```
+haip chat --tool echo
+```
+
+You can also use the echo tool:
+
+```
+✔ Transaction started...
+You: Hello This is me
+🤖 Agent: Hello This is me
+```
 
 <CardGroup cols={2}>
   <Card title="Authentication" icon="shield" href="/essentials/authentication">
@@ -176,7 +166,11 @@ Now that you have a basic HAIP implementation, explore these advanced features:
   <Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
     Manage back-pressure and prevent system overload.
   </Card>
-  <Card title="Error Handling" icon="exclamation" href="/essentials/error-handling">
+  <Card
+    title="Error Handling"
+    icon="exclamation"
+    href="/essentials/error-handling"
+  >
     Implement robust error handling and recovery.
   </Card>
 </CardGroup>

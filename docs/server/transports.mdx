@@ -19,16 +19,16 @@ Choose the perfect transport protocol for your HAIP Server deployment. From high
 
 ## Transport Comparison
 
-| Feature | WebSocket | SSE | HTTP Streaming |
-|---------|-----------|-----|----------------|
-| **Direction** | Bidirectional | Server → Client | Bidirectional |
-| **Protocol** | WebSocket | HTTP | HTTP |
-| **Reconnection** | Automatic | Manual | Manual |
-| **Browser Support** | Excellent | Excellent | Good |
-| **Firewall Friendly** | ❌ | ✅ | ✅ |
-| **Proxy Support** | Limited | ✅ | ✅ |
-| **Message Size** | Unlimited | Unlimited | Unlimited |
-| **Latency** | Low | Low | Medium |
+| Feature               | WebSocket     | SSE             | HTTP Streaming |
+| --------------------- | ------------- | --------------- | -------------- |
+| **Direction**         | Bidirectional | Server → Client | Bidirectional  |
+| **Protocol**          | WebSocket     | HTTP            | HTTP           |
+| **Reconnection**      | Automatic     | Manual          | Manual         |
+| **Browser Support**   | Excellent     | Excellent       | Good           |
+| **Firewall Friendly** | ❌            | ✅              | ✅             |
+| **Proxy Support**     | Limited       | ✅              | ✅             |
+| **Message Size**      | Unlimited     | Unlimited       | Unlimited      |
+| **Latency**           | Low           | Low             | Medium         |
 
 ## WebSocket Transport
 
@@ -43,44 +43,44 @@ ws://localhost:8080/haip/websocket?token=<jwt-token>
 ### Client Connection
 
 ```javascript
-const WebSocket = require('ws');
+const WebSocket = require("ws");
 
 // Connect with JWT token
-const token = 'your-jwt-token';
+const token = "your-jwt-token";
 const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
 
-ws.on('open', () => {
-  console.log('Connected to HAIP Server via WebSocket');
-  
+ws.on("open", () => {
+  console.log("Connected to HAIP Server via WebSocket");
+
   // Send handshake
   const handshake = {
-    id: 'handshake-1',
-    session: 'test-session',
-    seq: '1',
+    id: "handshake-1",
+    session: "test-session",
+    seq: "1",
     ts: Date.now().toString(),
-    type: 'HAI',
-    channel: 'SYSTEM',
+    type: "HAI",
+    channel: "SYSTEM",
     payload: {
-      haip_version: '1.1.2',
+      haip_version: "1.1.2",
       accept_major: [1],
-      accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
-    }
+      accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
+    },
   };
-  
+
   ws.send(JSON.stringify(handshake));
 });
 
-ws.on('message', (data) => {
+ws.on("message", (data) => {
   const message = JSON.parse(data.toString());
-  console.log('Received:', message);
+  console.log("Received:", message);
 });
 
-ws.on('error', (error) => {
-  console.error('WebSocket error:', error);
+ws.on("error", (error) => {
+  console.error("WebSocket error:", error);
 });
 
-ws.on('close', () => {
-  console.log('WebSocket connection closed');
+ws.on("close", () => {
+  console.log("WebSocket connection closed");
 });
 ```
 
@@ -88,41 +88,41 @@ ws.on('close', () => {
 
 ```javascript
 // Browser WebSocket client
-const token = 'your-jwt-token';
+const token = "your-jwt-token";
 const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
 
 ws.onopen = () => {
-  console.log('Connected to HAIP Server');
-  
+  console.log("Connected to HAIP Server");
+
   // Send handshake
   const handshake = {
-    id: 'handshake-1',
-    session: 'browser-session',
-    seq: '1',
+    id: "handshake-1",
+    session: "browser-session",
+    seq: "1",
     ts: Date.now().toString(),
-    type: 'HAI',
-    channel: 'SYSTEM',
+    type: "HAI",
+    channel: "SYSTEM",
     payload: {
-      haip_version: '1.1.2',
+      haip_version: "1.1.2",
       accept_major: [1],
-      accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
-    }
+      accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
+    },
   };
-  
+
   ws.send(JSON.stringify(handshake));
 };
 
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
-  console.log('Received:', message);
+  console.log("Received:", message);
 };
 
 ws.onerror = (error) => {
-  console.error('WebSocket error:', error);
+  console.error("WebSocket error:", error);
 };
 
 ws.onclose = () => {
-  console.log('WebSocket connection closed');
+  console.log("WebSocket connection closed");
 };
 ```
 
@@ -131,13 +131,13 @@ ws.onclose = () => {
 ```typescript
 const server = new HAIPServer({
   port: 8080,
-  host: '0.0.0.0',
+  host: "0.0.0.0",
   // WebSocket-specific configuration
   websocket: {
-    path: '/haip/websocket',
+    path: "/haip/websocket",
     maxPayload: 1024 * 1024, // 1MB
-    perMessageDeflate: true
-  }
+    perMessageDeflate: true,
+  },
 });
 ```
 
@@ -155,58 +155,60 @@ GET /haip/sse?token=<jwt-token>
 
 ```javascript
 // Browser SSE client
-const token = 'your-jwt-token';
-const eventSource = new EventSource(`http://localhost:8080/haip/sse?token=${token}`);
+const token = "your-jwt-token";
+const eventSource = new EventSource(
+  `http://localhost:8080/haip/sse?token=${token}`
+);
 
 eventSource.onopen = () => {
-  console.log('SSE connection opened');
+  console.log("SSE connection opened");
 };
 
 eventSource.onmessage = (event) => {
   const message = JSON.parse(event.data);
-  console.log('Received:', message);
+  console.log("Received:", message);
 };
 
 eventSource.onerror = (error) => {
-  console.error('SSE error:', error);
+  console.error("SSE error:", error);
   eventSource.close();
 };
 
 // Send messages via HTTP POST
 async function sendMessage(message) {
-  const response = await fetch('http://localhost:8080/haip/sse', {
-    method: 'POST',
+  const response = await fetch("http://localhost:8080/haip/sse", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(message)
+    body: JSON.stringify(message),
   });
-  
+
   return response.json();
 }
 
 // Send handshake
 sendMessage({
-  id: 'handshake-1',
-  session: 'sse-session',
-  seq: '1',
+  id: "handshake-1",
+  session: "sse-session",
+  seq: "1",
   ts: Date.now().toString(),
-  type: 'HAI',
-  channel: 'SYSTEM',
+  type: "HAI",
+  channel: "SYSTEM",
   payload: {
-    haip_version: '1.1.2',
+    haip_version: "1.1.2",
     accept_major: [1],
-    accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
-  }
+    accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
+  },
 });
 ```
 
 ### Node.js SSE Client
 
 ```javascript
-const EventSource = require('eventsource');
-const fetch = require('node-fetch');
+const EventSource = require("eventsource");
+const fetch = require("node-fetch");
 
 class HAIPSSEClient {
   constructor(url, token) {
@@ -217,9 +219,9 @@ class HAIPSSEClient {
 
   connect() {
     this.eventSource = new EventSource(`${this.url}?token=${this.token}`);
-    
+
     this.eventSource.onopen = () => {
-      console.log('SSE connection opened');
+      console.log("SSE connection opened");
       this.sendHandshake();
     };
 
@@ -229,41 +231,41 @@ class HAIPSSEClient {
     };
 
     this.eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
+      console.error("SSE error:", error);
     };
   }
 
   async sendMessage(message) {
     const response = await fetch(this.url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.token}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.token}`,
       },
-      body: JSON.stringify(message)
+      body: JSON.stringify(message),
     });
-    
+
     return response.json();
   }
 
   sendHandshake() {
     this.sendMessage({
-      id: 'handshake-1',
-      session: 'sse-session',
-      seq: '1',
+      id: "handshake-1",
+      session: "sse-session",
+      seq: "1",
       ts: Date.now().toString(),
-      type: 'HAI',
-      channel: 'SYSTEM',
+      type: "HAI",
+      channel: "SYSTEM",
       payload: {
-        haip_version: '1.1.2',
+        haip_version: "1.1.2",
         accept_major: [1],
-        accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
-      }
+        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
+      },
     });
   }
 
   handleMessage(message) {
-    console.log('Received:', message);
+    console.log("Received:", message);
   }
 
   disconnect() {
@@ -274,7 +276,10 @@ class HAIPSSEClient {
 }
 
 // Usage
-const client = new HAIPSSEClient('http://localhost:8080/haip/sse', 'your-jwt-token');
+const client = new HAIPSSEClient(
+  "http://localhost:8080/haip/sse",
+  "your-jwt-token"
+);
 client.connect();
 ```
 
@@ -283,13 +288,13 @@ client.connect();
 ```typescript
 const server = new HAIPServer({
   port: 8080,
-  host: '0.0.0.0',
+  host: "0.0.0.0",
   // SSE-specific configuration
   sse: {
-    path: '/haip/sse',
+    path: "/haip/sse",
     retryTimeout: 3000,
-    maxConnections: 100
-  }
+    maxConnections: 100,
+  },
 });
 ```
 
@@ -318,27 +323,27 @@ class HAIPHTTPStreamClient {
   async connect() {
     // Send handshake in headers
     const handshake = {
-      id: 'handshake-1',
-      session: 'http-session',
-      seq: '1',
+      id: "handshake-1",
+      session: "http-session",
+      seq: "1",
       ts: Date.now().toString(),
-      type: 'HAI',
-      channel: 'SYSTEM',
+      type: "HAI",
+      channel: "SYSTEM",
       payload: {
-        haip_version: '1.1.2',
+        haip_version: "1.1.2",
         accept_major: [1],
-        accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
-      }
+        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
+      },
     };
 
     this.response = await fetch(this.url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-        'X-HAIP-Handshake': JSON.stringify(handshake)
+        Authorization: `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+        "X-HAIP-Handshake": JSON.stringify(handshake),
       },
-      body: JSON.stringify(handshake)
+      body: JSON.stringify(handshake),
     });
 
     this.reader = this.response.body.getReader();
@@ -349,33 +354,33 @@ class HAIPHTTPStreamClient {
     try {
       while (true) {
         const { done, value } = await this.reader.read();
-        
+
         if (done) {
-          console.log('HTTP stream closed');
+          console.log("HTTP stream closed");
           break;
         }
 
         const chunk = new TextDecoder().decode(value);
-        const messages = chunk.split('\n').filter(line => line.trim());
-        
+        const messages = chunk.split("\n").filter((line) => line.trim());
+
         for (const messageStr of messages) {
           try {
             const message = JSON.parse(messageStr);
             this.handleMessage(message);
           } catch (error) {
-            console.error('Error parsing message:', error);
+            console.error("Error parsing message:", error);
           }
         }
       }
     } catch (error) {
-      console.error('Error reading stream:', error);
+      console.error("Error reading stream:", error);
     }
   }
 
   async sendMessage(message) {
     if (this.response && this.response.body) {
       const encoder = new TextEncoder();
-      const messageStr = JSON.stringify(message) + '\n';
+      const messageStr = JSON.stringify(message) + "\n";
       const writer = this.response.body.getWriter();
       await writer.write(encoder.encode(messageStr));
       writer.releaseLock();
@@ -383,7 +388,7 @@ class HAIPHTTPStreamClient {
   }
 
   handleMessage(message) {
-    console.log('Received:', message);
+    console.log("Received:", message);
   }
 
   disconnect() {
@@ -394,14 +399,17 @@ class HAIPHTTPStreamClient {
 }
 
 // Usage
-const client = new HAIPHTTPStreamClient('http://localhost:8080/haip/stream', 'your-jwt-token');
+const client = new HAIPHTTPStreamClient(
+  "http://localhost:8080/haip/stream",
+  "your-jwt-token"
+);
 client.connect();
 ```
 
 ### Node.js HTTP Stream Client
 
 ```javascript
-const fetch = require('node-fetch');
+const fetch = require("node-fetch");
 
 class HAIPHTTPStreamClient {
   constructor(url, token) {
@@ -412,63 +420,66 @@ class HAIPHTTPStreamClient {
 
   async connect() {
     const handshake = {
-      id: 'handshake-1',
-      session: 'http-session',
-      seq: '1',
+      id: "handshake-1",
+      session: "http-session",
+      seq: "1",
       ts: Date.now().toString(),
-      type: 'HAI',
-      channel: 'SYSTEM',
+      type: "HAI",
+      channel: "SYSTEM",
       payload: {
-        haip_version: '1.1.2',
+        haip_version: "1.1.2",
         accept_major: [1],
-        accept_events: ['HAI', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_PART', 'TEXT_MESSAGE_END']
-      }
+        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"],
+      },
     };
 
     this.response = await fetch(this.url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${this.token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(handshake)
+      body: JSON.stringify(handshake),
     });
 
     this.readMessages();
   }
 
   async readMessages() {
-    this.response.body.on('data', (chunk) => {
-      const messages = chunk.toString().split('\n').filter(line => line.trim());
-      
+    this.response.body.on("data", (chunk) => {
+      const messages = chunk
+        .toString()
+        .split("\n")
+        .filter((line) => line.trim());
+
       for (const messageStr of messages) {
         try {
           const message = JSON.parse(messageStr);
           this.handleMessage(message);
         } catch (error) {
-          console.error('Error parsing message:', error);
+          console.error("Error parsing message:", error);
         }
       }
     });
 
-    this.response.body.on('end', () => {
-      console.log('HTTP stream ended');
+    this.response.body.on("end", () => {
+      console.log("HTTP stream ended");
     });
 
-    this.response.body.on('error', (error) => {
-      console.error('HTTP stream error:', error);
+    this.response.body.on("error", (error) => {
+      console.error("HTTP stream error:", error);
     });
   }
 
   async sendMessage(message) {
     if (this.response && this.response.body) {
-      const messageStr = JSON.stringify(message) + '\n';
+      const messageStr = JSON.stringify(message) + "\n";
       this.response.body.write(messageStr);
     }
   }
 
   handleMessage(message) {
-    console.log('Received:', message);
+    console.log("Received:", message);
   }
 
   disconnect() {
@@ -479,7 +490,10 @@ class HAIPHTTPStreamClient {
 }
 
 // Usage
-const client = new HAIPHTTPStreamClient('http://localhost:8080/haip/stream', 'your-jwt-token');
+const client = new HAIPHTTPStreamClient(
+  "http://localhost:8080/haip/stream",
+  "your-jwt-token"
+);
 client.connect();
 ```
 
@@ -488,31 +502,34 @@ client.connect();
 ```typescript
 const server = new HAIPServer({
   port: 8080,
-  host: '0.0.0.0',
+  host: "0.0.0.0",
   // HTTP streaming configuration
   httpStream: {
-    path: '/haip/stream',
+    path: "/haip/stream",
     maxPayload: 10 * 1024 * 1024, // 10MB
-    timeout: 30000
-  }
+    timeout: 30000,
+  },
 });
 ```
 
 ## Transport Selection Guide
 
 ### Choose WebSocket When:
+
 - You need bidirectional communication
 - Low latency is critical
 - Browser support is required
 - Firewalls allow WebSocket connections
 
 ### Choose SSE When:
+
 - You only need server-to-client communication
 - Firewalls block WebSocket connections
 - You need maximum browser compatibility
 - Simple implementation is preferred
 
 ### Choose HTTP Streaming When:
+
 - WebSockets are blocked
 - You need bidirectional communication over HTTP
 - Proxy servers are involved
@@ -525,26 +542,26 @@ const server = new HAIPServer({
 ```typescript
 const server = new HAIPServer({
   port: 8080,
-  host: '0.0.0.0',
-  
+  host: "0.0.0.0",
+
   // Transport-specific settings
   transports: {
     websocket: {
       enabled: true,
-      path: '/haip/websocket',
-      maxPayload: 1024 * 1024
+      path: "/haip/websocket",
+      maxPayload: 1024 * 1024,
     },
     sse: {
       enabled: true,
-      path: '/haip/sse',
-      retryTimeout: 3000
+      path: "/haip/sse",
+      retryTimeout: 3000,
     },
     httpStream: {
       enabled: true,
-      path: '/haip/stream',
-      maxPayload: 10 * 1024 * 1024
-    }
-  }
+      path: "/haip/stream",
+      maxPayload: 10 * 1024 * 1024,
+    },
+  },
 });
 ```
 
@@ -572,4 +589,4 @@ SSE_RETRY_TIMEOUT=3000
 - [Tools](/server/tools) - Add custom tools to the server
 - [Authentication](/server/authentication) - Configure authentication
 - [Monitoring](/server/monitoring) - Set up monitoring and alerting
-- [Deployment](/server/deployment) - Deploy to production 
+- [Deployment](/server/deployment) - Deploy to production

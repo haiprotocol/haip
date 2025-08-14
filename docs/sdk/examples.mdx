@@ -1,6 +1,6 @@
 ---
-title: 'Examples'
-description: 'Practical code examples and implementation patterns for building HAIP SDK applications'
+title: "Examples"
+description: "Practical code examples and implementation patterns for building HAIP SDK applications"
 ---
 
 Explore practical implementation patterns and real-world code examples for building HAIP applications. From basic chat functionality to advanced tool integration, these examples demonstrate best practices and common use cases.
@@ -10,7 +10,7 @@ Explore practical implementation patterns and real-world code examples for build
 A simple chat application that connects to a HAIP server and exchanges messages.
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 class ChatApp {
   private client: any;
@@ -18,47 +18,47 @@ class ChatApp {
 
   constructor() {
     this.client = createHAIPClient({
-      url: 'ws://localhost:8080',
-      token: 'your-jwt-token',
-      transport: 'websocket'
+      url: "ws://localhost:8080",
+      token: "your-jwt-token",
+      transport: "websocket",
     });
 
     this.setupEventHandlers();
   }
 
   private setupEventHandlers() {
-    this.client.on('connect', () => {
-      console.log('✅ Connected to chat server');
+    this.client.on("connect", () => {
+      console.log("✅ Connected to chat server");
       this.startChat();
     });
 
-    this.client.on('message', (message: any) => {
-      if (message.type === 'TEXT_MESSAGE_START') {
+    this.client.on("message", (message: any) => {
+      if (message.type === "MESSAGE_START") {
         console.log(`🤖 Agent: ${message.payload.text}`);
       }
     });
 
-    this.client.on('error', (error: Error) => {
-      console.error('💥 Chat error:', error);
+    this.client.on("error", (error: Error) => {
+      console.error("💥 Chat error:", error);
     });
   }
 
   private async startChat() {
-    this.currentRunId = await this.client.startRun('chat-session', {
-      metadata: { type: 'chat', user: 'john' }
+    this.currentRunId = await this.client.startRun("chat-session", {
+      metadata: { type: "chat", user: "john" },
     });
-    console.log('💬 Chat session started');
+    console.log("💬 Chat session started");
   }
 
   async sendMessage(text: string) {
     if (!this.currentRunId) {
-      throw new Error('Chat session not started');
+      throw new Error("Chat session not started");
     }
 
     const messageId = await this.client.sendTextMessage(
-      'USER',
+      "USER",
       text,
-      'john',
+      "john",
       this.currentRunId
     );
 
@@ -68,7 +68,7 @@ class ChatApp {
 
   async endChat() {
     if (this.currentRunId) {
-      await this.client.finishRun(this.currentRunId, 'OK', 'Chat ended');
+      await this.client.finishRun(this.currentRunId, "OK", "Chat ended");
       this.currentRunId = null;
     }
     await this.client.disconnect();
@@ -81,11 +81,11 @@ async function main() {
   await chat.client.connect();
 
   // Send some messages
-  await chat.sendMessage('Hello! How are you today?');
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  await chat.sendMessage('Can you help me with a question?');
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await chat.sendMessage("Hello! How are you today?");
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  await chat.sendMessage("Can you help me with a question?");
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   await chat.endChat();
 }
@@ -98,7 +98,7 @@ main().catch(console.error);
 Demonstrates how to integrate tools using the Model Context Protocol (MCP).
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 class ToolIntegrationExample {
   private client: any;
@@ -106,26 +106,26 @@ class ToolIntegrationExample {
 
   constructor() {
     this.client = createHAIPClient({
-      url: 'ws://localhost:8080',
-      token: 'your-jwt-token',
-      transport: 'websocket'
+      url: "ws://localhost:8080",
+      token: "your-jwt-token",
+      transport: "websocket",
     });
 
     this.setupEventHandlers();
   }
 
   private setupEventHandlers() {
-    this.client.on('connect', () => {
-      console.log('🔧 Tool integration ready');
+    this.client.on("connect", () => {
+      console.log("🔧 Tool integration ready");
       this.startToolSession();
     });
 
-    this.client.on('message', (message: any) => {
+    this.client.on("message", (message: any) => {
       switch (message.type) {
-        case 'TOOL_CALL':
+        case "TOOL_CALL":
           this.handleToolCall(message);
           break;
-        case 'TEXT_MESSAGE_START':
+        case "MESSAGE_START":
           console.log(`🤖 Agent: ${message.payload.text}`);
           break;
       }
@@ -133,55 +133,57 @@ class ToolIntegrationExample {
   }
 
   private async startToolSession() {
-    this.runId = await this.client.startRun('tool-session');
-    
+    this.runId = await this.client.startRun("tool-session");
+
     // Register available tools
-    await this.client.listTools('AGENT', [
-      { name: 'search', description: 'Search the web for information' },
-      { name: 'calculator', description: 'Perform mathematical calculations' },
-      { name: 'weather', description: 'Get weather information for a location' }
+    await this.client.listTools("AGENT", [
+      { name: "search", description: "Search the web for information" },
+      { name: "calculator", description: "Perform mathematical calculations" },
+      {
+        name: "weather",
+        description: "Get weather information for a location",
+      },
     ]);
   }
 
   private async handleToolCall(message: any) {
     const { tool, params, call_id } = message.payload;
-    
+
     console.log(`🔧 Tool call: ${tool}`, params);
 
     try {
       // Update tool status to running
-      await this.client.updateTool('AGENT', call_id, 'RUNNING', 0);
+      await this.client.updateTool("AGENT", call_id, "RUNNING", 0);
 
       // Simulate tool execution
       const result = await this.executeTool(tool, params);
 
       // Complete the tool call
-      await this.client.completeTool('AGENT', call_id, 'OK', result);
-
+      await this.client.completeTool("AGENT", call_id, "OK", result);
     } catch (error) {
       console.error(`❌ Tool execution failed:`, error);
-      await this.client.completeTool('AGENT', call_id, 'ERROR', {
-        error: error.message
+      await this.client.completeTool("AGENT", call_id, "ERROR", {
+        error: error.message,
       });
     }
   }
 
   private async executeTool(tool: string, params: any) {
     switch (tool) {
-      case 'search':
+      case "search":
         return { results: [`Search results for: ${params.query}`] };
-      
-      case 'calculator':
+
+      case "calculator":
         const expression = params.expression;
         return { result: eval(expression) };
-      
-      case 'weather':
-        return { 
+
+      case "weather":
+        return {
           location: params.location,
-          temperature: '22°C',
-          condition: 'Sunny'
+          temperature: "22°C",
+          condition: "Sunny",
         };
-      
+
       default:
         throw new Error(`Unknown tool: ${tool}`);
     }
@@ -189,15 +191,10 @@ class ToolIntegrationExample {
 
   async sendToolRequest(prompt: string) {
     if (!this.runId) {
-      throw new Error('Tool session not started');
+      throw new Error("Tool session not started");
     }
 
-    await this.client.sendTextMessage(
-      'USER',
-      prompt,
-      'user',
-      this.runId
-    );
+    await this.client.sendTextMessage("USER", prompt, "user", this.runId);
   }
 }
 
@@ -207,11 +204,11 @@ async function main() {
   await toolExample.client.connect();
 
   // Request tool usage
-  await toolExample.sendToolRequest('What is 15 * 23?');
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await toolExample.sendToolRequest("What is 15 * 23?");
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
-  await toolExample.sendToolRequest('Search for information about TypeScript');
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await toolExample.sendToolRequest("Search for information about TypeScript");
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   await toolExample.client.disconnect();
 }
@@ -224,7 +221,7 @@ main().catch(console.error);
 Shows how to handle audio streaming with the HAIP SDK.
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 class AudioStreamingExample {
   private client: any;
@@ -234,41 +231,41 @@ class AudioStreamingExample {
 
   constructor() {
     this.client = createHAIPClient({
-      url: 'ws://localhost:8080',
-      token: 'your-jwt-token',
-      transport: 'websocket'
+      url: "ws://localhost:8080",
+      token: "your-jwt-token",
+      transport: "websocket",
     });
 
     this.setupEventHandlers();
   }
 
   private setupEventHandlers() {
-    this.client.on('connect', () => {
-      console.log('🎤 Audio streaming ready');
+    this.client.on("connect", () => {
+      console.log("🎤 Audio streaming ready");
       this.startAudioSession();
     });
 
-    this.client.on('message', (message: any) => {
-      if (message.type === 'AUDIO_CHUNK') {
+    this.client.on("message", (message: any) => {
+      if (message.type === "AUDIO_CHUNK") {
         this.handleIncomingAudio(message);
       }
     });
 
-    this.client.on('binary', (data: ArrayBuffer) => {
+    this.client.on("binary", (data: ArrayBuffer) => {
       this.playAudioChunk(data);
     });
   }
 
   private async startAudioSession() {
-    this.runId = await this.client.startRun('audio-session', {
-      metadata: { type: 'audio', format: 'wav' }
+    this.runId = await this.client.startRun("audio-session", {
+      metadata: { type: "audio", format: "wav" },
     });
   }
 
   async startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       this.mediaRecorder = new MediaRecorder(stream);
       this.audioChunks = [];
 
@@ -277,43 +274,42 @@ class AudioStreamingExample {
       };
 
       this.mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+        const audioBlob = new Blob(this.audioChunks, { type: "audio/wav" });
         const arrayBuffer = await audioBlob.arrayBuffer();
-        
+
         await this.client.sendAudioChunk(
-          'AUDIO_IN',
-          'user-audio-' + Date.now(),
-          'audio/wav',
+          "AUDIO_IN",
+          "user-audio-" + Date.now(),
+          "audio/wav",
           arrayBuffer,
           audioBlob.size
         );
       };
 
       this.mediaRecorder.start(1000); // Record in 1-second chunks
-      console.log('🎙️ Recording started');
-
+      console.log("🎙️ Recording started");
     } catch (error) {
-      console.error('❌ Failed to start recording:', error);
+      console.error("❌ Failed to start recording:", error);
     }
   }
 
   stopRecording() {
     if (this.mediaRecorder) {
       this.mediaRecorder.stop();
-      this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
-      console.log('⏹️ Recording stopped');
+      this.mediaRecorder.stream.getTracks().forEach((track) => track.stop());
+      console.log("⏹️ Recording stopped");
     }
   }
 
   private handleIncomingAudio(message: any) {
-    console.log('📡 Received audio metadata:', message.payload);
+    console.log("📡 Received audio metadata:", message.payload);
   }
 
   private playAudioChunk(data: ArrayBuffer) {
     // Convert ArrayBuffer to AudioBuffer and play
     const audioContext = new AudioContext();
-    
-    audioContext.decodeAudioData(data).then(audioBuffer => {
+
+    audioContext.decodeAudioData(data).then((audioBuffer) => {
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
@@ -331,13 +327,13 @@ async function main() {
   await audioExample.startRecording();
 
   // Record for 10 seconds
-  await new Promise(resolve => setTimeout(resolve, 10000));
+  await new Promise((resolve) => setTimeout(resolve, 10000));
 
   // Stop recording
   audioExample.stopRecording();
 
   // Wait for processing
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
   await audioExample.client.disconnect();
 }
@@ -350,7 +346,7 @@ main().catch(console.error);
 Demonstrates flow control and back-pressure management.
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 class FlowControlExample {
   private client: any;
@@ -360,26 +356,26 @@ class FlowControlExample {
 
   constructor() {
     this.client = createHAIPClient({
-      url: 'ws://localhost:8080',
-      token: 'your-jwt-token',
-      transport: 'websocket',
+      url: "ws://localhost:8080",
+      token: "your-jwt-token",
+      transport: "websocket",
       flowControl: {
         initialCredits: 5,
-        initialCreditBytes: 1024 * 1024
-      }
+        initialCreditBytes: 1024 * 1024,
+      },
     });
 
     this.setupEventHandlers();
   }
 
   private setupEventHandlers() {
-    this.client.on('connect', () => {
-      console.log('⚡ Flow control ready');
+    this.client.on("connect", () => {
+      console.log("⚡ Flow control ready");
       this.startSession();
     });
 
-    this.client.on('message', (message: any) => {
-      if (message.type === 'FLOW_UPDATE') {
+    this.client.on("message", (message: any) => {
+      if (message.type === "FLOW_UPDATE") {
         this.handleFlowUpdate(message);
       }
     });
@@ -387,24 +383,24 @@ class FlowControlExample {
     // Monitor flow control state
     setInterval(() => {
       const state = this.client.getConnectionState();
-      console.log('📊 Flow state:', {
-        userCredits: state.credits.get('USER'),
-        agentCredits: state.credits.get('AGENT'),
-        userBytes: state.byteCredits.get('USER'),
-        agentBytes: state.byteCredits.get('AGENT')
+      console.log("📊 Flow state:", {
+        userCredits: state.credits.get("USER"),
+        agentCredits: state.credits.get("AGENT"),
+        userBytes: state.byteCredits.get("USER"),
+        agentBytes: state.byteCredits.get("AGENT"),
       });
     }, 2000);
   }
 
   private async startSession() {
-    this.runId = await this.client.startRun('flow-control-session');
+    this.runId = await this.client.startRun("flow-control-session");
     this.startMessageGenerator();
   }
 
   private handleFlowUpdate(message: any) {
     const { channel, add_messages, add_bytes } = message.payload;
     console.log(`🔄 Flow update for ${channel}:`, { add_messages, add_bytes });
-    
+
     // Resume processing if we have credits
     if (add_messages > 0 && this.messageQueue.length > 0) {
       this.processQueue();
@@ -432,23 +428,23 @@ class FlowControlExample {
 
     while (this.messageQueue.length > 0) {
       const text = this.messageQueue.shift()!;
-      
+
       try {
         await this.client.sendTextMessage(
-          'USER',
+          "USER",
           text,
-          'flow-test',
+          "flow-test",
           this.runId
         );
         console.log(`📤 Sent: ${text}`);
       } catch (error) {
-        if (error.message.includes('FLOW_CONTROL')) {
+        if (error.message.includes("FLOW_CONTROL")) {
           // Put message back in queue
           this.messageQueue.unshift(text);
-          console.log('⏸️ Flow control: message queued');
+          console.log("⏸️ Flow control: message queued");
           break;
         } else {
-          console.error('❌ Send error:', error);
+          console.error("❌ Send error:", error);
         }
       }
     }
@@ -458,7 +454,9 @@ class FlowControlExample {
 
   async sendFlowUpdate(channel: string, messages: number, bytes: number) {
     await this.client.sendFlowUpdate(channel, messages, bytes);
-    console.log(`🔄 Sent flow update: ${channel} +${messages}msgs +${bytes}bytes`);
+    console.log(
+      `🔄 Sent flow update: ${channel} +${messages}msgs +${bytes}bytes`
+    );
   }
 }
 
@@ -468,7 +466,7 @@ async function main() {
   await flowExample.client.connect();
 
   // Run for 30 seconds
-  await new Promise(resolve => setTimeout(resolve, 30000));
+  await new Promise((resolve) => setTimeout(resolve, 30000));
 
   await flowExample.client.disconnect();
 }
@@ -481,7 +479,7 @@ main().catch(console.error);
 Shows robust error handling and automatic reconnection.
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 class RobustClientExample {
   private client: any;
@@ -490,66 +488,71 @@ class RobustClientExample {
 
   constructor() {
     this.client = createHAIPClient({
-      url: 'ws://localhost:8080',
-      token: 'your-jwt-token',
-      transport: 'websocket',
+      url: "ws://localhost:8080",
+      token: "your-jwt-token",
+      transport: "websocket",
       maxReconnectAttempts: 5,
-      reconnectDelay: 1000
+      reconnectDelay: 1000,
     });
 
     this.setupEventHandlers();
   }
 
   private setupEventHandlers() {
-    this.client.on('connect', () => {
-      console.log('✅ Connected successfully');
+    this.client.on("connect", () => {
+      console.log("✅ Connected successfully");
       this.reconnectAttempts = 0;
     });
 
-    this.client.on('disconnect', (reason: string) => {
+    this.client.on("disconnect", (reason: string) => {
       console.log(`❌ Disconnected: ${reason}`);
-      
+
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.scheduleReconnect();
       } else {
-        console.log('🚫 Max reconnection attempts reached');
+        console.log("🚫 Max reconnection attempts reached");
       }
     });
 
-    this.client.on('error', (error: Error) => {
-      console.error('💥 Client error:', error);
-      
+    this.client.on("error", (error: Error) => {
+      console.error("💥 Client error:", error);
+
       // Handle specific error types
-      if (error.message.includes('AUTHENTICATION_FAILED')) {
-        console.log('🔑 Authentication failed - check your token');
-      } else if (error.message.includes('CONNECTION_FAILED')) {
-        console.log('🌐 Connection failed - will attempt to reconnect');
+      if (error.message.includes("AUTHENTICATION_FAILED")) {
+        console.log("🔑 Authentication failed - check your token");
+      } else if (error.message.includes("CONNECTION_FAILED")) {
+        console.log("🌐 Connection failed - will attempt to reconnect");
       }
     });
 
     // Monitor connection health
     setInterval(() => {
       const metrics = this.client.getPerformanceMetrics();
-      console.log('📈 Health metrics:', {
+      console.log("📈 Health metrics:", {
         messagesSent: metrics.messagesSent,
         messagesReceived: metrics.messagesReceived,
         connectionTime: metrics.connectionTime,
-        lastUpdated: new Date(metrics.lastUpdated).toISOString()
+        lastUpdated: new Date(metrics.lastUpdated).toISOString(),
       });
     }, 5000);
   }
 
   private scheduleReconnect() {
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
-    
-    console.log(`🔄 Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
-    
+    const delay = Math.min(
+      1000 * Math.pow(2, this.reconnectAttempts - 1),
+      30000
+    );
+
+    console.log(
+      `🔄 Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`
+    );
+
     setTimeout(async () => {
       try {
         await this.client.connect();
       } catch (error) {
-        console.error('❌ Reconnection failed:', error);
+        console.error("❌ Reconnection failed:", error);
       }
     }, delay);
   }
@@ -557,15 +560,15 @@ class RobustClientExample {
   async start() {
     try {
       await this.client.connect();
-      
+
       // Start a run
-      const runId = await this.client.startRun('robust-session');
-      
+      const runId = await this.client.startRun("robust-session");
+
       // Send a test message
       await this.client.sendTextMessage(
-        'USER',
-        'Hello from robust client!',
-        'user',
+        "USER",
+        "Hello from robust client!",
+        "user",
         runId
       );
 
@@ -573,16 +576,15 @@ class RobustClientExample {
       setInterval(async () => {
         if (this.client.isConnected()) {
           await this.client.sendTextMessage(
-            'USER',
+            "USER",
             `Heartbeat: ${new Date().toISOString()}`,
-            'user',
+            "user",
             runId
           );
         }
       }, 30000);
-
     } catch (error) {
-      console.error('❌ Failed to start:', error);
+      console.error("❌ Failed to start:", error);
     }
   }
 }
@@ -593,8 +595,8 @@ async function main() {
   await robustExample.start();
 
   // Keep running
-  process.on('SIGINT', async () => {
-    console.log('🛑 Shutting down...');
+  process.on("SIGINT", async () => {
+    console.log("🛑 Shutting down...");
     await robustExample.client.disconnect();
     process.exit(0);
   });
@@ -606,32 +608,16 @@ main().catch(console.error);
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card
-    title="Client API"
-    href="/sdk/client"
-    icon="code"
-  >
+  <Card title="Client API" href="/sdk/client" icon="code">
     Explore the complete client interface and methods.
   </Card>
-  <Card
-    title="Transports"
-    href="/sdk/transports"
-    icon="wifi"
-  >
+  <Card title="Transports" href="/sdk/transports" icon="wifi">
     Learn about different transport options and configurations.
   </Card>
-  <Card
-    title="Authentication"
-    href="/sdk/authentication"
-    icon="key"
-  >
+  <Card title="Authentication" href="/sdk/authentication" icon="key">
     Understand authentication and security best practices.
   </Card>
-  <Card
-    title="API Reference"
-    href="/sdk/api-reference"
-    icon="laptop"
-  >
+  <Card title="API Reference" href="/sdk/api-reference" icon="laptop">
     Full API reference documentation.
   </Card>
-</CardGroup> 
+</CardGroup>{" "}
