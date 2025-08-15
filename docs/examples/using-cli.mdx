@@ -1,0 +1,43 @@
+---
+title: "Example CLI Use"
+description: "Usage examples and patterns for the HAIP CLI"
+---
+
+This page provides comprehensive examples of how to use the HAIP CLI for various scenarios and use cases.
+
+<Card
+  title="Install the SDK"
+  icon="download"
+  href="/cli/installation"
+  horizontal
+>
+  You need the CLI Installed
+</Card>
+
+## Basic Examples
+
+### Server Health Check
+
+```bash
+# Check if server is running
+haip health
+
+# Check specific server
+haip health --url http://my-server:8080
+
+# Get detailed health information
+haip health --format json
+```
+
+### Send Messages
+
+```bash
+# Send open a chat with the echo tool
+haip chat
+
+# Send open a chat with the llm tool
+haip chat --tool llm
+
+# Choose a server to send the command to
+haip chat --url ws://localhost:8080
+```

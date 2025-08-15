@@ -1,4 +1,4 @@
-import { Command } from "commander";
+/*import { Command } from "commander";
 import chalk from "chalk";
 import { HAIPConnection } from "../connection";
 import { HAIPCLIConfig } from "haip";
@@ -92,7 +92,7 @@ function createSendTextCommand(): Command {
             }
         });
 }
-
+*/
 /*
 function createSendToolCommand(): Command {
     return new Command("tool")

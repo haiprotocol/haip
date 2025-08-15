@@ -3,6 +3,10 @@ title: "Tools"
 description: "Dynamic tool registration, MCP integration, and extensible server capabilities in the HAIP Server"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 Transform your HAIP Server into a powerful extensible platform with dynamic tool registration. Add custom functionality, integrate external services, and build sophisticated AI applications with runtime tool management.
 
 <CardGroup cols={2}>
@@ -49,28 +53,30 @@ Echoes back the input message.
 ```
 
 **Usage:**
+
 ```javascript
 // Call echo tool
 const echoCall = {
-  id: 'call-1',
-  session: 'test-session',
-  seq: '1',
+  id: "call-1",
+  session: "test-session",
+  seq: "1",
   ts: Date.now().toString(),
-  type: 'TOOL_CALL',
-  channel: 'USER',
+  type: "TOOL_CALL",
+  channel: "USER",
   payload: {
-    call_id: 'echo-1',
-    tool: 'echo',
+    call_id: "echo-1",
+    tool: "echo",
     params: {
-      message: 'Hello, HAIP Server!'
-    }
-  }
+      message: "Hello, HAIP Server!",
+    },
+  },
 };
 
 ws.send(JSON.stringify(echoCall));
 ```
 
 **Response:**
+
 ```json
 {
   "type": "TOOL_DONE",
@@ -111,29 +117,31 @@ Adds two numbers together.
 ```
 
 **Usage:**
+
 ```javascript
 // Call add tool
 const addCall = {
-  id: 'call-2',
-  session: 'test-session',
-  seq: '2',
+  id: "call-2",
+  session: "test-session",
+  seq: "2",
   ts: Date.now().toString(),
-  type: 'TOOL_CALL',
-  channel: 'USER',
+  type: "TOOL_CALL",
+  channel: "USER",
   payload: {
-    call_id: 'add-1',
-    tool: 'add',
+    call_id: "add-1",
+    tool: "add",
     params: {
       a: 5,
-      b: 3
-    }
-  }
+      b: 3,
+    },
+  },
 };
 
 ws.send(JSON.stringify(addCall));
 ```
 
 **Response:**
+
 ```json
 {
   "type": "TOOL_DONE",
@@ -174,33 +182,35 @@ Returns mock weather information.
 ```
 
 **Usage:**
+
 ```javascript
 // Call weather tool
 const weatherCall = {
-  id: 'call-3',
-  session: 'test-session',
-  seq: '3',
+  id: "call-3",
+  session: "test-session",
+  seq: "3",
   ts: Date.now().toString(),
-  type: 'TOOL_CALL',
-  channel: 'USER',
+  type: "TOOL_CALL",
+  channel: "USER",
   payload: {
-    call_id: 'weather-1',
-    tool: 'weather',
+    call_id: "weather-1",
+    tool: "weather",
     params: {
-      location: 'London'
-    }
-  }
+      location: "London",
+    },
+  },
 };
 
 ws.send(JSON.stringify(weatherCall));
 ```
 
 **Response:**
+
 ```json
 {
   "type": "TOOL_DONE",
   "channel": "AGENT",
-  payload: {
+  "payload": {
     "call_id": "weather-1",
     "status": "OK",
     "result": {
@@ -233,27 +243,27 @@ interface HAIPToolDefinition {
 ```typescript
 // Simple calculator tool
 const calculatorTool = {
-  name: 'calculator',
-  description: 'Perform basic mathematical operations',
+  name: "calculator",
+  description: "Perform basic mathematical operations",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
       operation: {
-        type: 'string',
-        enum: ['add', 'subtract', 'multiply', 'divide']
+        type: "string",
+        enum: ["add", "subtract", "multiply", "divide"],
       },
-      a: { type: 'number' },
-      b: { type: 'number' }
+      a: { type: "number" },
+      b: { type: "number" },
     },
-    required: ['operation', 'a', 'b']
+    required: ["operation", "a", "b"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      result: { type: 'number' },
-      operation: { type: 'string' }
-    }
-  }
+      result: { type: "number" },
+      operation: { type: "string" },
+    },
+  },
 };
 
 // Register the tool
@@ -265,35 +275,35 @@ server.registerTool(calculatorTool);
 ```typescript
 // Async database query tool
 const databaseTool = {
-  name: 'query_database',
-  description: 'Query the database',
+  name: "query_database",
+  description: "Query the database",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      query: { type: 'string' },
-      limit: { type: 'number', default: 100 }
+      query: { type: "string" },
+      limit: { type: "number", default: 100 },
     },
-    required: ['query']
+    required: ["query"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      results: { type: 'array' },
-      count: { type: 'number' }
-    }
+      results: { type: "array" },
+      count: { type: "number" },
+    },
   },
   execute: async (params) => {
     // Simulate database query
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     return {
       results: [
-        { id: 1, name: 'John Doe' },
-        { id: 2, name: 'Jane Smith' }
+        { id: 1, name: "John Doe" },
+        { id: 2, name: "Jane Smith" },
       ],
-      count: 2
+      count: 2,
     };
-  }
+  },
 };
 
 server.registerTool(databaseTool);
@@ -304,38 +314,38 @@ server.registerTool(databaseTool);
 ```typescript
 // File processing tool with progress
 const fileProcessorTool = {
-  name: 'process_file',
-  description: 'Process a file with progress updates',
+  name: "process_file",
+  description: "Process a file with progress updates",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      filename: { type: 'string' },
-      operation: { type: 'string' }
+      filename: { type: "string" },
+      operation: { type: "string" },
     },
-    required: ['filename', 'operation']
+    required: ["filename", "operation"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      processed: { type: 'boolean' },
-      lines: { type: 'number' }
-    }
+      processed: { type: "boolean" },
+      lines: { type: "number" },
+    },
   },
   execute: async (params, sessionId, callId, server) => {
     // Send progress updates
-    server.sendToolUpdate(sessionId, callId, 'RUNNING', 0);
-    
+    server.sendToolUpdate(sessionId, callId, "RUNNING", 0);
+
     // Simulate processing steps
     for (let i = 0; i <= 100; i += 20) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      server.sendToolUpdate(sessionId, callId, 'RUNNING', i);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      server.sendToolUpdate(sessionId, callId, "RUNNING", i);
     }
-    
+
     return {
       processed: true,
-      lines: 150
+      lines: 150,
     };
-  }
+  },
 };
 
 server.registerTool(fileProcessorTool);
@@ -350,29 +360,32 @@ Tools can be registered at runtime:
 ```typescript
 // Register a new tool
 server.registerTool({
-  name: 'custom_tool',
-  description: 'A custom tool',
+  name: "custom_tool",
+  description: "A custom tool",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      input: { type: 'string' }
+      input: { type: "string" },
     },
-    required: ['input']
+    required: ["input"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      output: { type: 'string' }
-    }
-  }
+      output: { type: "string" },
+    },
+  },
 });
 
 // Unregister a tool
-server.unregisterTool('custom_tool');
+server.unregisterTool("custom_tool");
 
 // Get all registered tools
 const tools = server.getTools();
-console.log('Registered tools:', tools.map(t => t.name));
+console.log(
+  "Registered tools:",
+  tools.map((t) => t.name)
+);
 ```
 
 ### Tool Discovery
@@ -382,19 +395,20 @@ Clients can discover available tools:
 ```javascript
 // Request tool list
 const toolListRequest = {
-  id: 'discovery-1',
-  session: 'test-session',
-  seq: '1',
+  id: "discovery-1",
+  session: "test-session",
+  seq: "1",
   ts: Date.now().toString(),
-  type: 'TOOL_LIST',
-  channel: 'USER',
-  payload: {}
+  type: "TOOL_LIST",
+  channel: "USER",
+  payload: {},
 };
 
 ws.send(JSON.stringify(toolListRequest));
 ```
 
 **Response:**
+
 ```json
 {
   "type": "TOOL_LIST",
@@ -425,21 +439,22 @@ Get detailed schema for a specific tool:
 ```javascript
 // Request tool schema
 const schemaRequest = {
-  id: 'schema-1',
-  session: 'test-session',
-  seq: '2',
+  id: "schema-1",
+  session: "test-session",
+  seq: "2",
   ts: Date.now().toString(),
-  type: 'TOOL_SCHEMA',
-  channel: 'USER',
+  type: "TOOL_SCHEMA",
+  channel: "USER",
   payload: {
-    tool: 'echo'
-  }
+    tool: "echo",
+  },
 };
 
 ws.send(JSON.stringify(schemaRequest));
 ```
 
 **Response:**
+
 ```json
 {
   "type": "TOOL_SCHEMA",
@@ -471,19 +486,19 @@ Client sends a tool call:
 
 ```javascript
 const toolCall = {
-  id: 'call-1',
-  session: 'test-session',
-  seq: '1',
+  id: "call-1",
+  session: "test-session",
+  seq: "1",
   ts: Date.now().toString(),
-  type: 'TOOL_CALL',
-  channel: 'USER',
+  type: "TOOL_CALL",
+  channel: "USER",
   payload: {
-    call_id: 'unique-call-id',
-    tool: 'echo',
+    call_id: "unique-call-id",
+    tool: "echo",
     params: {
-      message: 'Hello, world!'
-    }
-  }
+      message: "Hello, world!",
+    },
+  },
 };
 ```
 
@@ -527,15 +542,15 @@ Client can cancel a running tool:
 
 ```javascript
 const toolCancel = {
-  id: 'cancel-1',
-  session: 'test-session',
-  seq: '2',
+  id: "cancel-1",
+  session: "test-session",
+  seq: "2",
   ts: Date.now().toString(),
-  type: 'TOOL_CANCEL',
-  channel: 'USER',
+  type: "TOOL_CANCEL",
+  channel: "USER",
   payload: {
-    call_id: 'unique-call-id'
-  }
+    call_id: "unique-call-id",
+  },
 };
 ```
 
@@ -545,33 +560,33 @@ const toolCancel = {
 
 ```typescript
 const emailTool = {
-  name: 'send_email',
-  description: 'Send an email',
+  name: "send_email",
+  description: "Send an email",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      to: { type: 'string', format: 'email' },
-      subject: { type: 'string' },
-      body: { type: 'string' }
+      to: { type: "string", format: "email" },
+      subject: { type: "string" },
+      body: { type: "string" },
     },
-    required: ['to', 'subject', 'body']
+    required: ["to", "subject", "body"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      sent: { type: 'boolean' },
-      message_id: { type: 'string' }
-    }
+      sent: { type: "boolean" },
+      message_id: { type: "string" },
+    },
   },
   execute: async (params) => {
     // Send email (implementation depends on your email service)
     const messageId = await sendEmail(params.to, params.subject, params.body);
-    
+
     return {
       sent: true,
-      message_id: messageId
+      message_id: messageId,
     };
-  }
+  },
 };
 ```
 
@@ -579,50 +594,50 @@ const emailTool = {
 
 ```typescript
 const userTool = {
-  name: 'create_user',
-  description: 'Create a new user',
+  name: "create_user",
+  description: "Create a new user",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      username: { 
-        type: 'string',
+      username: {
+        type: "string",
         minLength: 3,
         maxLength: 20,
-        pattern: '^[a-zA-Z0-9_]+$'
+        pattern: "^[a-zA-Z0-9_]+$",
       },
-      email: { 
-        type: 'string',
-        format: 'email'
+      email: {
+        type: "string",
+        format: "email",
       },
-      age: { 
-        type: 'number',
+      age: {
+        type: "number",
         minimum: 13,
-        maximum: 120
-      }
+        maximum: 120,
+      },
     },
-    required: ['username', 'email', 'age']
+    required: ["username", "email", "age"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      user_id: { type: 'string' },
-      created: { type: 'boolean' }
-    }
+      user_id: { type: "string" },
+      created: { type: "boolean" },
+    },
   },
   execute: async (params) => {
     // Validate input (schema validation is automatic)
     if (params.age < 13) {
-      throw new Error('User must be at least 13 years old');
+      throw new Error("User must be at least 13 years old");
     }
-    
+
     // Create user
     const userId = await createUser(params);
-    
+
     return {
       user_id: userId,
-      created: true
+      created: true,
     };
-  }
+  },
 };
 ```
 
@@ -630,47 +645,47 @@ const userTool = {
 
 ```typescript
 const apiTool = {
-  name: 'api_call',
-  description: 'Make an API call',
+  name: "api_call",
+  description: "Make an API call",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      url: { type: 'string', format: 'uri' },
-      method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'DELETE'] }
+      url: { type: "string", format: "uri" },
+      method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE"] },
     },
-    required: ['url', 'method']
+    required: ["url", "method"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      status: { type: 'number' },
-      data: { type: 'object' }
-    }
+      status: { type: "number" },
+      data: { type: "object" },
+    },
   },
   execute: async (params) => {
     try {
       const response = await fetch(params.url, {
-        method: params.method
+        method: params.method,
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       return {
         status: response.status,
-        data: data
+        data: data,
       };
     } catch (error) {
       // Return error in expected format
       return {
         status: 500,
-        data: { error: error.message }
+        data: { error: error.message },
       };
     }
-  }
+  },
 };
 ```
 
@@ -681,15 +696,18 @@ const apiTool = {
 ```typescript
 // Get all registered tools
 const tools = server.getTools();
-console.log('Available tools:', tools.map(t => t.name));
+console.log(
+  "Available tools:",
+  tools.map((t) => t.name)
+);
 ```
 
 ### Check Tool Existence
 
 ```typescript
 // Check if a tool exists
-const toolExists = server.getTools().some(t => t.name === 'echo');
-console.log('Echo tool exists:', toolExists);
+const toolExists = server.getTools().some((t) => t.name === "echo");
+console.log("Echo tool exists:", toolExists);
 ```
 
 ### Tool Statistics
@@ -697,7 +715,7 @@ console.log('Echo tool exists:', toolExists);
 ```typescript
 // Get tool execution statistics
 const stats = server.getStats();
-console.log('Tool executions:', stats.toolExecutions);
+console.log("Tool executions:", stats.toolExecutions);
 ```
 
 ## Best Practices
@@ -706,20 +724,28 @@ console.log('Tool executions:', stats.toolExecutions);
 
 ```typescript
 // Good
-{ name: 'send_email_notification' }
+{
+  name: "send_email_notification";
+}
 
 // Bad
-{ name: 'email' }
+{
+  name: "email";
+}
 ```
 
 ### 2. Provide Clear Descriptions
 
 ```typescript
 // Good
-{ description: 'Send an email notification to the specified recipient' }
+{
+  description: "Send an email notification to the specified recipient";
+}
 
 // Bad
-{ description: 'Sends email' }
+{
+  description: "Sends email";
+}
 ```
 
 ### 3. Validate Inputs
@@ -746,20 +772,20 @@ execute: async (params) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
-}
+};
 ```
 
 ### 5. Use Progress Updates for Long Operations
 
 ```typescript
 execute: async (params, sessionId, callId, server) => {
-  server.sendToolUpdate(sessionId, callId, 'RUNNING', 0);
+  server.sendToolUpdate(sessionId, callId, "RUNNING", 0);
   // ... work ...
-  server.sendToolUpdate(sessionId, callId, 'RUNNING', 50);
+  server.sendToolUpdate(sessionId, callId, "RUNNING", 50);
   // ... more work ...
-  server.sendToolUpdate(sessionId, callId, 'RUNNING', 100);
+  server.sendToolUpdate(sessionId, callId, "RUNNING", 100);
   return result;
-}
+};
 ```
 
 ## Next Steps
@@ -767,4 +793,4 @@ execute: async (params, sessionId, callId, server) => {
 - [Authentication](/server/authentication) - Configure authentication for tools
 - [Monitoring](/server/monitoring) - Monitor tool execution and performance
 - [Deployment](/server/deployment) - Deploy tools to production
-- [API Reference](/server/api-reference) - Complete API documentation 
+- [API Reference](/server/api-reference) - Complete API documentation

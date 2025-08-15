@@ -3,26 +3,11 @@ import {
     HAIPChannel,
     HAIPEventType,
     HAIPHandshakePayload,
-    HAIPRunStartedPayload,
-    HAIPRunFinishedPayload,
-    HAIPRunCancelPayload,
-    HAIPRunErrorPayload,
     HAIPPingPayload,
     HAIPPongPayload,
-    HAIPReplayRequestPayload,
-    HAIPTextMessageStartPayload,
-    HAIPTextMessagePartPayload,
-    HAIPTextMessageEndPayload,
-    HAIPAudioChunkPayload,
-    HAIPToolCallPayload,
-    HAIPToolUpdatePayload,
-    HAIPToolDonePayload,
-    HAIPToolCancelPayload,
     HAIPToolListPayload,
     HAIPToolSchemaPayload,
     HAIPErrorPayload,
-    HAIPFlowUpdatePayload,
-    HAIPChannelControlPayload,
     HAIPTransactionStartedPayload,
 } from "haip";
 import { v4 as uuidv4 } from "uuid";
@@ -40,7 +25,7 @@ export class HAIPServerUtils {
         return Date.now().toString() + Math.random().toString(36).substr(2, 9);
     }
 
-    static validateMessage(message: any): message is HAIPMessage {
+    static validateMessage(message: any): boolean {
         if (!message || typeof message !== "object") {
             return false;
         }
@@ -60,7 +45,7 @@ export class HAIPServerUtils {
             return false;
         }
 
-        if (typeof message.payload !== "object" || message.payload === null) {
+        if (message.payload === null) {
             return false;
         }
 
@@ -68,7 +53,7 @@ export class HAIPServerUtils {
     }
 
     static validateChannel(channel: any): channel is HAIPChannel {
-        const validChannels: HAIPChannel[] = ["USER", "AGENT", "SYSTEM", "AUDIO_IN", "AUDIO_OUT"];
+        const validChannels: HAIPChannel[] = ["USER", "AGENT", "SYSTEM"];
         return validChannels.includes(channel);
     }
 
@@ -81,7 +66,7 @@ export class HAIPServerUtils {
         transactionId: string | null,
         channel: HAIPChannel,
         type: HAIPEventType,
-        payload: Record<string, any>,
+        payload: Record<string, any> | string,
         options: {
             id?: string;
             seq?: string;
@@ -192,7 +177,7 @@ export class HAIPServerUtils {
     ): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "REPLAY_REQUEST", payload);
     }
-*/
+*
     static createTextMessageStartMessage(
         sessionId: string,
         transactionId: string,
@@ -206,27 +191,23 @@ export class HAIPServerUtils {
             ...(author && { author }),
             ...(text && { text }),
         });
-    }
+    }*/
 
     /**
      * Create a text message part
      */
-    static createTextMessagePartMessage(
+    static createTextMessage(
         sessionId: string,
         transactionId: string,
         channel: HAIPChannel,
-        messageId: string,
         text: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_PART", {
-            message_id: messageId,
-            text,
-        });
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE", text);
     }
 
     /**
      * Create a text message end
-     */
+     *
     static createTextMessageEndMessage(
         sessionId: string,
         transactionId: string,
@@ -239,6 +220,7 @@ export class HAIPServerUtils {
             ...(tokens && { tokens }),
         });
     }
+    */
 
     static async sendTextMessage(
         sessionId: string,
@@ -250,6 +232,18 @@ export class HAIPServerUtils {
         threadId?: string
     ): Promise<HAIPMessage[]> {
         const messages = [];
+
+        const messageId = HAIPServerUtils.generateUUID();
+
+        const message = HAIPServerUtils.createTextMessage(sessionId, transactionId, channel, text);
+
+        if (runId) message.run_id = runId;
+        if (threadId) message.thread_id = threadId;
+
+        messages.push(message);
+
+        return messages;
+        /*const messages = [];
 
         const messageId = HAIPServerUtils.generateUUID();
 
@@ -294,7 +288,7 @@ export class HAIPServerUtils {
 
         messages.push(endMessage);
 
-        return messages;
+        return messages;*/
     }
 
     static chunkText(text: string, maxChunkSize: number): string[] {
@@ -471,7 +465,25 @@ export class HAIPServerUtils {
         */
 }
 
-export const HAIP_EVENT_TYPES = [
+export function createPermissionMap(
+    permissions?: Partial<Record<HAIPEventType, string[]>>
+): Map<HAIPEventType, string[]> {
+    const permissionMap = new Map<HAIPEventType, string[]>();
+    for (const eventType of HAIP_EVENT_TYPES) {
+        permissionMap.set(eventType, permissions?.[eventType] || []);
+        if (
+            eventType === "HAI" ||
+            eventType === "TRANSACTION_START" ||
+            eventType === "PING" ||
+            eventType === "PONG"
+        ) {
+            permissionMap.set(eventType, ["*"]);
+        }
+    }
+    return permissionMap;
+}
+
+export const HAIP_EVENT_TYPES: HAIPEventType[] = [
     "HAI",
     "PING",
     "PONG",
@@ -479,14 +491,12 @@ export const HAIP_EVENT_TYPES = [
     "FLOW_UPDATE",
     "TRANSACTION_START",
     "TRANSACTION_END",
+    "TRANSACTION_JOIN",
     "REPLAY_REQUEST",
-    "MESSAGE_START",
-    "MESSAGE_PART",
-    "MESSAGE_END",
-    "AUDIO_CHUNK",
+    "MESSAGE_UPDATE",
+    "MESSAGE",
+    "AUDIO",
     "INFO",
     "TOOL_LIST",
     "TOOL_SCHEMA",
-    //"PAUSE_CHANNEL",
-    //"RESUME_CHANNEL"
 ] as const;

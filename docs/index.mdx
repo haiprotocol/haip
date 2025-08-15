@@ -7,38 +7,42 @@ description: "Streamline real-time, multi-modal exchanges between user-facing ap
 
 The Human-Agent Interaction Protocol (HAIP) is an open standard designed to streamline real-time, multi-modal exchanges between user-facing web, mobile, and voice applications and AI agents. It complements the Model Context Protocol (MCP): HAIP focuses on the human-agent layer, acting as a universal translator between frontend interfaces and intelligent backends, while MCP governs tool execution.
 
+### Features
+
+- Re-establishing dropped connections & ensuring message order.
+- Multimodal transactions audio and text.
+- Allowing multiple users and LLMs to share a conversation (transaction).
+- Letting the user know about MCP (Model Context Protocol) calls.
+- Transaction history, transaction management, schema validation, custom tooling, logging, authentication and more.
+
 ## **Available Packages**
 
 <CardGroup cols={3}>
   <Card title="@haip/sdk" icon="code">
-    [![npm version](https://badge.fury.io/js/%40haip%2Fsdk.svg)](https://badge.fury.io/js/%40haip%2Fsdk)<br/>
+    [![npm
+    version](https://badge.fury.io/js/%40haip%2Fsdk.svg)](https://badge.fury.io/js/%40haip%2Fsdk)
+    <br />
     TypeScript SDK for HAIP
   </Card>
   <Card title="@haip/server" icon="server">
-    [![npm version](https://badge.fury.io/js/%40haip%2Fserver.svg)](https://badge.fury.io/js/%40haip%2Fserver)<br/>
+    [![npm
+    version](https://badge.fury.io/js/%40haip%2Fserver.svg)](https://badge.fury.io/js/%40haip%2Fserver)
+    <br />
     Reference HAIP server
   </Card>
   <Card title="@haip/cli" icon="terminal">
-    [![npm version](https://badge.fury.io/js/%40haip%2Fcli.svg)](https://badge.fury.io/js/%40haip%2Fcli)<br/>
+    [![npm
+    version](https://badge.fury.io/js/%40haip%2Fcli.svg)](https://badge.fury.io/js/%40haip%2Fcli)
+    <br />
     Command-line interface
   </Card>
 </CardGroup>
 
-<Card
-  title="Get Started"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
+<Card title="Get Started" icon="rocket" href="/quickstart" horizontal>
   Follow our quickstart guide to implement HAIP in your application.
 </Card>
 
-<Card
-  title="HAIP CLI"
-  icon="terminal"
-  href="/cli/overview"
-  horizontal
->
+<Card title="HAIP CLI" icon="terminal" href="/cli/overview" horizontal>
   Use the command-line interface for testing and monitoring HAIP servers.
 </Card>
 
@@ -52,18 +56,10 @@ The Human-Agent Interaction Protocol (HAIP) is an open standard designed to stre
   >
     Native support for text chat and audio streams with seamless switching.
   </Card>
-  <Card
-    title="Asynchronous Tools"
-    icon="gear"
-    href="/essentials/tools"
-  >
+  <Card title="Asynchronous Tools" icon="gear" href="/essentials/tools">
     Non-blocking agent workflows with real-time progress updates.
   </Card>
-  <Card
-    title="Robust Streaming"
-    icon="arrow-up"
-    href="/essentials/transport"
-  >
+  <Card title="Robust Streaming" icon="arrow-up" href="/essentials/transport">
     Low-latency chunk delivery with reconnection and de-duplication.
   </Card>
   <Card
@@ -75,52 +71,19 @@ The Human-Agent Interaction Protocol (HAIP) is an open standard designed to stre
   </Card>
 </Columns>
 
-## Architecture Overview
-
-```mermaid
-flowchart LR
-    subgraph Frontend
-      UI[User Interface - Web / Mobile / Voice]
-    end
-    subgraph Backend
-      Agent[AI Agent / LLM + logic]
-      Tools[External Tools via MCP]
-    end
-
-    UI <-- HAIP Event Stream --> Agent
-    Agent -- MCP Tool Calls --> Tools
-    Tools -- Results --> Agent
-```
-
 ## Quick Implementation
 
 <Columns cols={2}>
-  <Card
-    title="WebSocket Connection"
-    icon="plug"
-    href="/essentials/websocket"
-  >
+  <Card title="WebSocket Connection" icon="plug" href="/essentials/websocket">
     Establish bidirectional streaming communication with WebSockets.
   </Card>
-  <Card
-    title="Server-Sent Events"
-    icon="radio"
-    href="/essentials/sse"
-  >
+  <Card title="Server-Sent Events" icon="radio" href="/essentials/sse">
     Use SSE for one-way streaming from server to client.
   </Card>
-  <Card
-    title="Authentication"
-    icon="shield"
-    href="/essentials/authentication"
-  >
+  <Card title="Authentication" icon="shield" href="/essentials/authentication">
     Secure your connections with JWT Bearer tokens.
   </Card>
-  <Card
-    title="Flow Control"
-    icon="sliders"
-    href="/essentials/flow-control"
-  >
+  <Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
     Manage back-pressure and prevent overwhelming your system.
   </Card>
 </Columns>
@@ -128,42 +91,22 @@ flowchart LR
 ## Protocol Features
 
 <Columns cols={2}>
-  <Card
-    title="Event Sequencing"
-    icon="list-ol"
-    href="/essentials/messaging"
-  >
+  <Card title="Event Sequencing" icon="list-ol" href="/essentials/messaging">
     Tolerant of out-of-order or overlapping events with automatic replay.
   </Card>
-  <Card
-    title="Tool Integration"
-    icon="wrench"
-    href="/essentials/tools"
-  >
+  <Card title="Tool Integration" icon="wrench" href="/essentials/tools">
     Dynamic advertisement of tools and schemas with seamless invocation.
   </Card>
-  <Card
-    title="Framework Agnostic"
-    icon="code"
-    href="/examples/basic-chat"
-  >
+  <Card title="Framework Agnostic" icon="code" href="/examples/basic-chat">
     Works with React, Vue, Angular, native mobile or any framework.
   </Card>
-  <Card
-    title="MCP Compatibility"
-    icon="link"
-    href="/essentials/tools"
-  >
+  <Card title="MCP Compatibility" icon="link" href="/essentials/tools">
     Seamless integration with Model Context Protocol for tool execution.
   </Card>
 </Columns>
 
 ## Ready to build?
 
-<Card
-  title="View API Reference"
-  icon="book-open"
-  href="/api-reference/openapi"
->
+<Card title="View API Reference" icon="book-open" href="/api-reference/openapi">
   Explore the complete HAIP API specification and event schemas.
 </Card>

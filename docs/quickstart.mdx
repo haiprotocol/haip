@@ -7,6 +7,11 @@ description: "Get started with HAIP in minutes"
 
 Implement HAIP in your application with this quick guide.
 
+<Note>
+  [Link to the examples in the
+  repo](https://github.com/haiprotocol/haip/tree/docsupdate/examples).
+</Note>
+
 ### 📦 **Install Packages**
 
 ```bash
@@ -28,7 +33,14 @@ npm install -g @haip/cli
 Save this in server.js
 
 ```javascript
-import { HAIPServer } from "../src/server";
+import { createPermissionMap, HAIPServer, HAIPTool } from "@haip/server";
+import {
+  HAIPEventType,
+  HAIPMessage,
+  HAIPSessionTransaction,
+  HAIPToolSchema,
+} from "haip";
+import OpenAI from "openai";
 
 const server = new HAIPServer({
   port: 8080,
@@ -38,7 +50,6 @@ const server = new HAIPServer({
   enableLogging: true,
   flowControl: {
     enabled: true,
-    initialCredits: 1000,
     minCredits: 100,
     maxCredits: 10000,
     creditThreshold: 200,
@@ -49,25 +60,18 @@ const server = new HAIPServer({
 
 server.authenticate((req) => {
   // Here you should validate your with your auth system
+  // Hardcoded check here
   if (req.token === "Bearer TOKEN") {
-    return "userid";
+    return {
+      id: "user123",
+      permissions: createPermissionMap({ MESSAGE: ["*"] }),
+      credits: 1000,
+    };
   }
   return null;
 });
 
 server.start();
-
-server.on("connect", (sessionId) => {
-  console.log(`🔗 Client connected: ${sessionId}`);
-});
-
-server.on("disconnect", (sessionId) => {
-  console.log(`🔌 Client disconnected: ${sessionId}`);
-});
-
-server.on("handshake", (sessionId, payload) => {
-  console.log(`🤝 Handshake completed: ${sessionId}`, payload);
-});
 ```
 
 ### Step 2: Create client
@@ -75,35 +79,27 @@ server.on("handshake", (sessionId, payload) => {
 Save this in client.js
 
 ```javascript
-import { createHAIPClient } from "../src/index";
+import { createHAIPClient } from "@haip/sdk";
 
 async function main() {
-  // Create client
   const client = createHAIPClient({
-    url: "ws://localhost:8080", //,
-    //transport: "websocket",
-    //,
-    //token: ""
+    url: "ws://localhost:8080",
   });
 
   client.authenticate(() => {
-    // You should send an auth token/creds here. This can be any object.
-    // You need to re-call this if your token changes.
+    // You should send a token here.
     return {
       token: "Bearer TOKEN",
     };
   });
 
   try {
-    // Connect to server
     await client.connect();
 
-    const transaction = await client.startTransaction("echo", {
-      //metadata: { example: 'some data' }
-    });
+    const transaction = await client.startTransaction("echo", {});
 
     transaction.on("message", (message: any) => {
-      console.log("🤖 Agent:", message.payload.text);
+      console.log("🤖 Agent:", message.payload);
     });
 
     console.log("✅ Sending to transaction:", "Hello! Can you echo this?");

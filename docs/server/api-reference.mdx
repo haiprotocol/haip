@@ -3,6 +3,10 @@ title: "API Reference"
 description: "Complete API reference for the HAIP Server"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 # API Reference
 
 Complete reference documentation for the HAIP Server API, including all methods, events, and configuration options.
@@ -14,7 +18,7 @@ Complete reference documentation for the HAIP Server API, including all methods,
 The main server class that handles all HAI Protocol operations.
 
 ```typescript
-import { HAIPServer } from './src/server';
+import { HAIPServer } from "./src/server";
 
 const server = new HAIPServer(config);
 ```
@@ -26,17 +30,19 @@ constructor(config: Partial<HAIPServerConfig> = {})
 ```
 
 **Parameters:**
+
 - `config` - Configuration object (optional)
 
 **Returns:** HAIPServer instance
 
 **Example:**
+
 ```typescript
 const server = new HAIPServer({
   port: 8080,
-  host: '0.0.0.0',
-  jwtSecret: 'your-secret-key',
-  maxConnections: 1000
+  host: "0.0.0.0",
+  jwtSecret: "your-secret-key",
+  maxConnections: 1000,
 });
 ```
 
@@ -51,20 +57,20 @@ interface HAIPServerConfig {
   host: string;
   jwtSecret: string;
   jwtExpiresIn: string;
-  
+
   // Connection limits
   maxConnections: number;
   heartbeatInterval: number;
   heartbeatTimeout: number;
-  
+
   // Flow control
   flowControl: FlowControlConfig;
-  
+
   // Run management
   maxConcurrentRuns: number;
   replayWindowSize: number;
   replayWindowTime: number;
-  
+
   // Feature toggles
   enableCORS: boolean;
   enableCompression: boolean;
@@ -99,6 +105,7 @@ start(): void
 ```
 
 **Example:**
+
 ```typescript
 server.start();
 ```
@@ -112,6 +119,7 @@ stop(): void
 ```
 
 **Example:**
+
 ```typescript
 server.stop();
 ```
@@ -125,28 +133,30 @@ registerTool(tool: HAIPToolDefinition): void
 ```
 
 **Parameters:**
+
 - `tool` - Tool definition object
 
 **Example:**
+
 ```typescript
 server.registerTool({
-  name: 'calculator',
-  description: 'Perform mathematical operations',
+  name: "calculator",
+  description: "Perform mathematical operations",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      operation: { type: 'string' },
-      a: { type: 'number' },
-      b: { type: 'number' }
+      operation: { type: "string" },
+      a: { type: "number" },
+      b: { type: "number" },
     },
-    required: ['operation', 'a', 'b']
+    required: ["operation", "a", "b"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      result: { type: 'number' }
-    }
-  }
+      result: { type: "number" },
+    },
+  },
 });
 ```
 
@@ -159,11 +169,13 @@ unregisterTool(toolName: string): void
 ```
 
 **Parameters:**
+
 - `toolName` - Name of the tool to remove
 
 **Example:**
+
 ```typescript
-server.unregisterTool('calculator');
+server.unregisterTool("calculator");
 ```
 
 ### getTools()
@@ -177,9 +189,13 @@ getTools(): HAIPToolDefinition[]
 **Returns:** Array of tool definitions
 
 **Example:**
+
 ```typescript
 const tools = server.getTools();
-console.log('Available tools:', tools.map(t => t.name));
+console.log(
+  "Available tools:",
+  tools.map((t) => t.name)
+);
 ```
 
 ### getSession()
@@ -191,16 +207,18 @@ getSession(sessionId: string): HAIPSession | undefined
 ```
 
 **Parameters:**
+
 - `sessionId` - Session identifier
 
 **Returns:** Session object or undefined
 
 **Example:**
+
 ```typescript
-const session = server.getSession('session-123');
+const session = server.getSession("session-123");
 if (session) {
-  console.log('Session user:', session.userId);
-  console.log('Connected:', session.connected);
+  console.log("Session user:", session.userId);
+  console.log("Connected:", session.connected);
 }
 ```
 
@@ -215,11 +233,12 @@ getStats(): HAIPServerStats
 **Returns:** Server statistics object
 
 **Example:**
+
 ```typescript
 const stats = server.getStats();
-console.log('Active connections:', stats.activeConnections);
-console.log('Total messages:', stats.totalMessages);
-console.log('Error rate:', stats.errorRate);
+console.log("Active connections:", stats.activeConnections);
+console.log("Total messages:", stats.totalMessages);
+console.log("Error rate:", stats.errorRate);
 ```
 
 ### broadcast()
@@ -231,13 +250,15 @@ broadcast(message: HAIPMessage): void
 ```
 
 **Parameters:**
+
 - `message` - HAIP message to broadcast
 
 **Example:**
+
 ```typescript
-const notification = HAIPServerUtils.createTextMessageStart('broadcast', {
-  message_id: 'notification-1',
-  content_type: 'text/plain'
+const notification = HAIPServerUtils.createTextMessageStart("broadcast", {
+  message_id: "notification-1",
+  content_type: "text/plain",
 });
 
 server.broadcast(notification);
@@ -252,13 +273,15 @@ sendMessage(sessionId: string, message: HAIPMessage): void
 ```
 
 **Parameters:**
+
 - `sessionId` - Target session ID
 - `message` - HAIP message to send
 
 **Example:**
+
 ```typescript
 const response = HAIPServerUtils.createPongMessage(sessionId, {
-  nonce: 'test-nonce'
+  nonce: "test-nonce",
 });
 
 server.sendMessage(sessionId, response);
@@ -273,15 +296,17 @@ sendToolDone(sessionId: string, callId: string, status: string, result?: any): v
 ```
 
 **Parameters:**
+
 - `sessionId` - Target session ID
 - `callId` - Tool call identifier
 - `status` - Completion status ('OK', 'ERROR', 'CANCELLED')
 - `result` - Tool result (optional)
 
 **Example:**
+
 ```typescript
-server.sendToolDone(sessionId, 'call-123', 'OK', {
-  result: 42
+server.sendToolDone(sessionId, "call-123", "OK", {
+  result: 42,
 });
 ```
 
@@ -294,6 +319,7 @@ closeAllConnections(): void
 ```
 
 **Example:**
+
 ```typescript
 server.closeAllConnections();
 ```
@@ -305,109 +331,120 @@ The HAIPServer extends EventEmitter and emits various events.
 ### Server Events
 
 #### 'started'
+
 Emitted when the server starts successfully.
 
 ```typescript
-server.on('started', () => {
-  console.log('Server started successfully');
+server.on("started", () => {
+  console.log("Server started successfully");
 });
 ```
 
 #### 'stopped'
+
 Emitted when the server stops.
 
 ```typescript
-server.on('stopped', () => {
-  console.log('Server stopped');
+server.on("stopped", () => {
+  console.log("Server stopped");
 });
 ```
 
 ### Connection Events
 
 #### 'connect'
+
 Emitted when a new client connects.
 
 ```typescript
-server.on('connect', (sessionId: string) => {
+server.on("connect", (sessionId: string) => {
   const session = server.getSession(sessionId);
   console.log(`User ${session?.userId} connected with session ${sessionId}`);
 });
 ```
 
 #### 'disconnect'
+
 Emitted when a client disconnects.
 
 ```typescript
-server.on('disconnect', (sessionId: string) => {
+server.on("disconnect", (sessionId: string) => {
   const session = server.getSession(sessionId);
   console.log(`User ${session?.userId} disconnected from session ${sessionId}`);
 });
 ```
 
 #### 'handshake'
+
 Emitted when a client completes handshake.
 
 ```typescript
-server.on('handshake', (sessionId: string, payload: HAIPHandshakePayload) => {
+server.on("handshake", (sessionId: string, payload: HAIPHandshakePayload) => {
   console.log(`Handshake completed for session ${sessionId}`);
-  console.log('HAIP version:', payload.haip_version);
+  console.log("HAIP version:", payload.haip_version);
 });
 ```
 
 ### Message Events
 
 #### 'textMessage'
+
 Emitted when a text message is received.
 
 ```typescript
-server.on('textMessage', (sessionId: string, message: HAIPMessage) => {
+server.on("textMessage", (sessionId: string, message: HAIPMessage) => {
   console.log(`Text message from ${sessionId}:`, message.payload);
 });
 ```
 
 #### 'audioChunk'
+
 Emitted when an audio chunk is received.
 
 ```typescript
-server.on('audioChunk', (sessionId: string, message: HAIPMessage) => {
+server.on("audioChunk", (sessionId: string, message: HAIPMessage) => {
   console.log(`Audio chunk from ${sessionId}:`, message.payload);
 });
 ```
 
 #### 'binary'
+
 Emitted when binary data is received.
 
 ```typescript
-server.on('binary', (sessionId: string, data: Buffer) => {
-  console.log(`Binary data from ${sessionId}:`, data.length, 'bytes');
+server.on("binary", (sessionId: string, data: Buffer) => {
+  console.log(`Binary data from ${sessionId}:`, data.length, "bytes");
 });
 ```
 
 ### Run Events
 
 #### 'runStarted'
+
 Emitted when a run starts.
 
 ```typescript
-server.on('runStarted', (sessionId: string, run: HAIPRun) => {
+server.on("runStarted", (sessionId: string, run: HAIPRun) => {
   console.log(`Run started: ${run.runId} by session ${sessionId}`);
 });
 ```
 
 #### 'runFinished'
+
 Emitted when a run finishes.
 
 ```typescript
-server.on('runFinished', (sessionId: string, run: HAIPRun) => {
+server.on("runFinished", (sessionId: string, run: HAIPRun) => {
   console.log(`Run finished: ${run.runId} with status ${run.status}`);
 });
 ```
 
 #### 'runCancelled'
+
 Emitted when a run is cancelled.
 
 ```typescript
-server.on('runCancelled', (sessionId: string, run: HAIPRun) => {
+server.on("runCancelled", (sessionId: string, run: HAIPRun) => {
   console.log(`Run cancelled: ${run.runId} by session ${sessionId}`);
 });
 ```
@@ -415,23 +452,25 @@ server.on('runCancelled', (sessionId: string, run: HAIPRun) => {
 ### Tool Events
 
 #### 'toolCall'
+
 Emitted when a tool is called.
 
 ```typescript
-server.on('toolCall', (sessionId: string, execution: HAIPToolExecution) => {
+server.on("toolCall", (sessionId: string, execution: HAIPToolExecution) => {
   console.log(`Tool call: ${execution.toolName} by session ${sessionId}`);
-  console.log('Arguments:', execution.arguments);
+  console.log("Arguments:", execution.arguments);
 });
 ```
 
 ### Error Events
 
 #### 'error'
+
 Emitted when an error occurs.
 
 ```typescript
-server.on('error', (error: Error) => {
-  console.error('Server error:', error);
+server.on("error", (error: Error) => {
+  console.error("Server error:", error);
 });
 ```
 
@@ -442,6 +481,7 @@ server.on('error', (error: Error) => {
 **Endpoint:** `GET /health`
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -456,6 +496,7 @@ server.on('error', (error: Error) => {
 **Endpoint:** `GET /stats`
 
 **Response:**
+
 ```json
 {
   "totalConnections": 25,
@@ -475,11 +516,13 @@ server.on('error', (error: Error) => {
 **Endpoint:** `ws://localhost:8080/haip/websocket?token=<jwt-token>`
 
 **Parameters:**
+
 - `token` - JWT authentication token (required)
 
 **Example:**
+
 ```javascript
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
 const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
 ```
 
@@ -490,12 +533,16 @@ const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
 **Endpoint:** `GET /haip/sse?token=<jwt-token>`
 
 **Parameters:**
+
 - `token` - JWT authentication token (required)
 
 **Example:**
+
 ```javascript
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
-const eventSource = new EventSource(`http://localhost:8080/haip/sse?token=${token}`);
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+const eventSource = new EventSource(
+  `http://localhost:8080/haip/sse?token=${token}`
+);
 ```
 
 ## HTTP Streaming Endpoints
@@ -505,20 +552,22 @@ const eventSource = new EventSource(`http://localhost:8080/haip/sse?token=${toke
 **Endpoint:** `POST /haip/stream`
 
 **Headers:**
+
 - `Authorization: Bearer <jwt-token>` (required)
 - `Content-Type: application/json`
 
 **Example:**
-```javascript
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
 
-const response = await fetch('http://localhost:8080/haip/stream', {
-  method: 'POST',
+```javascript
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+
+const response = await fetch("http://localhost:8080/haip/stream", {
+  method: "POST",
   headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
   },
-  body: JSON.stringify(handshakeMessage)
+  body: JSON.stringify(handshakeMessage),
 });
 ```
 
@@ -567,7 +616,7 @@ interface HAIPServerStats {
 interface HAIPRun {
   runId: string;
   threadId?: string;
-  status: 'active' | 'finished' | 'cancelled' | 'error';
+  status: "active" | "finished" | "cancelled" | "error";
   startTime: number;
   endTime?: number;
   metadata?: any;
@@ -583,7 +632,7 @@ interface HAIPToolExecution {
   callId: string;
   toolName: string;
   arguments: any;
-  status: 'pending' | 'running' | 'completed' | 'cancelled' | 'error';
+  status: "pending" | "running" | "completed" | "cancelled" | "error";
   startTime: number;
   endTime?: number;
   result?: any;
@@ -600,7 +649,12 @@ interface HAIPToolDefinition {
   description: string;
   inputSchema: object; // JSON Schema
   outputSchema: object; // JSON Schema
-  execute?: (params: any, sessionId?: string, callId?: string, server?: HAIPServer) => Promise<any>;
+  execute?: (
+    params: any,
+    sessionId?: string,
+    callId?: string,
+    server?: HAIPServer
+  ) => Promise<any>;
 }
 ```
 
@@ -668,30 +722,30 @@ interface HAIPToolDefinition {
 ### Basic Server Setup
 
 ```typescript
-import { HAIPServer } from './src/server';
+import { HAIPServer } from "./src/server";
 
 const server = new HAIPServer({
   port: 8080,
-  host: '0.0.0.0',
-  jwtSecret: 'your-secret-key',
+  host: "0.0.0.0",
+  jwtSecret: "your-secret-key",
   maxConnections: 1000,
   flowControl: {
     enabled: true,
-    initialCredits: 1000
-  }
+    initialCredits: 1000,
+  },
 });
 
 // Listen for events
-server.on('started', () => {
-  console.log('Server started');
+server.on("started", () => {
+  console.log("Server started");
 });
 
-server.on('connect', (sessionId) => {
-  console.log('Client connected:', sessionId);
+server.on("connect", (sessionId) => {
+  console.log("Client connected:", sessionId);
 });
 
-server.on('disconnect', (sessionId) => {
-  console.log('Client disconnected:', sessionId);
+server.on("disconnect", (sessionId) => {
+  console.log("Client disconnected:", sessionId);
 });
 
 // Start the server
@@ -703,62 +757,62 @@ server.start();
 ```typescript
 // Register a custom tool
 server.registerTool({
-  name: 'custom_calculator',
-  description: 'Advanced calculator with multiple operations',
+  name: "custom_calculator",
+  description: "Advanced calculator with multiple operations",
   inputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
       operation: {
-        type: 'string',
-        enum: ['add', 'subtract', 'multiply', 'divide', 'power']
+        type: "string",
+        enum: ["add", "subtract", "multiply", "divide", "power"],
       },
       numbers: {
-        type: 'array',
-        items: { type: 'number' },
-        minItems: 2
-      }
+        type: "array",
+        items: { type: "number" },
+        minItems: 2,
+      },
     },
-    required: ['operation', 'numbers']
+    required: ["operation", "numbers"],
   },
   outputSchema: {
-    type: 'object',
+    type: "object",
     properties: {
-      result: { type: 'number' },
-      operation: { type: 'string' }
-    }
+      result: { type: "number" },
+      operation: { type: "string" },
+    },
   },
   execute: async (params, sessionId, callId, server) => {
     const { operation, numbers } = params;
-    
+
     // Send progress update
-    server.sendToolUpdate(sessionId, callId, 'RUNNING', 50);
-    
+    server.sendToolUpdate(sessionId, callId, "RUNNING", 50);
+
     let result;
     switch (operation) {
-      case 'add':
+      case "add":
         result = numbers.reduce((a, b) => a + b, 0);
         break;
-      case 'subtract':
+      case "subtract":
         result = numbers.reduce((a, b) => a - b);
         break;
-      case 'multiply':
+      case "multiply":
         result = numbers.reduce((a, b) => a * b, 1);
         break;
-      case 'divide':
+      case "divide":
         result = numbers.reduce((a, b) => a / b);
         break;
-      case 'power':
+      case "power":
         result = Math.pow(numbers[0], numbers[1]);
         break;
       default:
         throw new Error(`Unknown operation: ${operation}`);
     }
-    
+
     return {
       result,
-      operation
+      operation,
     };
-  }
+  },
 });
 ```
 
@@ -768,22 +822,22 @@ server.registerTool({
 // Monitor server performance
 setInterval(() => {
   const stats = server.getStats();
-  
-  console.log('=== Server Statistics ===');
+
+  console.log("=== Server Statistics ===");
   console.log(`Active Connections: ${stats.activeConnections}`);
   console.log(`Total Connections: ${stats.totalConnections}`);
   console.log(`Messages/Second: ${stats.messagesPerSecond.toFixed(2)}`);
   console.log(`Average Latency: ${stats.averageLatency}ms`);
   console.log(`Error Rate: ${(stats.errorRate * 100).toFixed(2)}%`);
   console.log(`Uptime: ${Math.floor(stats.uptime / 1000)}s`);
-  console.log('========================');
+  console.log("========================");
 }, 5000);
 
 // Monitor for high error rates
-server.on('error', (error) => {
+server.on("error", (error) => {
   const stats = server.getStats();
   if (stats.errorRate > 0.05) {
-    console.error('High error rate detected:', stats.errorRate);
+    console.error("High error rate detected:", stats.errorRate);
   }
 });
 ```
@@ -793,4 +847,4 @@ server.on('error', (error) => {
 - [Quick Start](/server/quickstart) - Get up and running quickly
 - [Configuration](/server/configuration) - Configure the server
 - [Tools](/server/tools) - Add custom tools
-- [Deployment](/server/deployment) - Deploy to production 
+- [Deployment](/server/deployment) - Deploy to production

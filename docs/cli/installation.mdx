@@ -3,6 +3,10 @@ title: "Installation"
 description: "Install and set up the HAIP CLI"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 The HAIP CLI can be installed and used in multiple ways. Choose the method that best fits your environment and requirements.
 
 ## Prerequisites
@@ -23,27 +27,14 @@ The HAIP CLI can be installed and used in multiple ways. Choose the method that 
 
 <Steps>
   <Step title="Clone the Repository">
-    ```bash
-    git clone https://github.com/haiprotocol/haip-cli.git
-    cd haip-cli
+    ```bash git clone https://github.com/haiprotocol/haip-cli.git cd haip-cli
     ```
   </Step>
-  <Step title="Install Dependencies">
-    ```bash
-    npm install
-    ```
-  </Step>
-  <Step title="Build the Project">
-    ```bash
-    npm run build
-    ```
-  </Step>
+  <Step title="Install Dependencies">```bash npm install ```</Step>
+  <Step title="Build the Project">```bash npm run build ```</Step>
   <Step title="Verify Installation">
-    ```bash
-    node dist/index.js --help
-    ```
-    
-    You should see the HAIP CLI banner and help information.
+    ```bash node dist/index.js --help ``` You should see the HAIP CLI banner and
+    help information.
   </Step>
 </Steps>
 
@@ -59,9 +50,7 @@ haip --help
 
 ## Method 2: From NPM
 
-<Note>
-  **Available Now**: The HAIP CLI is available on npm as `@haip/cli`.
-</Note>
+<Note>**Available Now**: The HAIP CLI is available on npm as `@haip/cli`.</Note>
 
 [![npm version](https://badge.fury.io/js/%40haip%2Fcli.svg)](https://badge.fury.io/js/%40haip%2Fcli)
 [![npm downloads](https://img.shields.io/npm/dm/@haip/cli)](https://www.npmjs.com/package/@haip/cli)
@@ -78,7 +67,8 @@ haip --help
 ## Method 3: Docker
 
 <Note>
-  **Docker**: Docker images will be available on Docker Hub as `haip/cli` in the future.
+  **Docker**: Docker images will be available on Docker Hub as `haip/cli` in the
+  future.
 </Note>
 
 ### Pull the Image
@@ -153,6 +143,7 @@ node dist/index.js version
 ```
 
 Expected output:
+
 ```
 HAIP CLI v1.0.0
 Human-Agent Interaction Protocol Command Line Interface
@@ -166,6 +157,7 @@ node dist/index.js info
 ```
 
 Expected output:
+
 ```
 HAIP CLI System Information
 ────────────────────────────────────────
@@ -305,4 +297,4 @@ If you encounter issues:
 - [Quick Start](/cli/quickstart) - Get up and running quickly
 - [Command Reference](/cli/commands) - Learn about available commands
 - [Configuration](/cli/configuration) - Configure the CLI
-- [Examples](/cli/examples) - See usage examples 
+- [Examples](/cli/examples) - See usage examples

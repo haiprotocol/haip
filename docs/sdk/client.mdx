@@ -1,7 +1,11 @@
 ---
-title: 'Client API'
-description: 'Complete reference for the HAIP client interface'
+title: "Client API"
+description: "Complete reference for the HAIP client interface"
 ---
+
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
 
 The HAIP client is the main interface for interacting with HAIP servers. It manages connections, handles protocol state, and provides methods for sending messages and managing runs.
 
@@ -10,46 +14,51 @@ The HAIP client is the main interface for interacting with HAIP servers. It mana
 ### Factory Function (Recommended)
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 const client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket'
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
 });
 ```
 
 ### Direct Constructor
 
 ```typescript
-import { HAIPClientImpl } from 'haip-sdk';
+import { HAIPClientImpl } from "haip-sdk";
 
 const client = new HAIPClientImpl({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket',
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
   flowControl: {
     initialCredits: 10,
-    initialCreditBytes: 1024 * 1024
+    initialCreditBytes: 1024 * 1024,
   },
   maxConcurrentRuns: 5,
   maxReconnectAttempts: 5,
   reconnectDelay: 1000,
-  heartbeatInterval: 30000
+  heartbeatInterval: 30000,
 });
 ```
 
 ## Configuration Options
 
 <ParamField body="url" type="string" required>
-  The server URL to connect to. Supports WebSocket, SSE, and HTTP streaming endpoints.
+  The server URL to connect to. Supports WebSocket, SSE, and HTTP streaming
+  endpoints.
 </ParamField>
 
 <ParamField body="token" type="string" required>
   JWT authentication token for server authentication.
 </ParamField>
 
-<ParamField body="transport" type="'websocket' | 'sse' | 'http-streaming'" default="'websocket'">
+<ParamField
+  body="transport"
+  type="'websocket' | 'sse' | 'http-streaming'"
+  default="'websocket'"
+>
   The transport protocol to use for communication.
 </ParamField>
 
@@ -86,6 +95,7 @@ await client.connect();
 **Returns:** `Promise<void>`
 
 **Events:**
+
 - `connect` - Emitted when connection is established
 - `handshake` - Emitted when handshake is completed
 - `error` - Emitted if connection fails
@@ -101,6 +111,7 @@ await client.disconnect();
 **Returns:** `Promise<void>`
 
 **Events:**
+
 - `disconnect` - Emitted when disconnection is complete
 
 ### isConnected()
@@ -331,36 +342,36 @@ The client extends EventEmitter and provides the following events:
 ### Connection Events
 
 ```typescript
-client.on('connect', () => {
-  console.log('Connected to server');
+client.on("connect", () => {
+  console.log("Connected to server");
 });
 
-client.on('disconnect', (reason: string) => {
-  console.log('Disconnected:', reason);
+client.on("disconnect", (reason: string) => {
+  console.log("Disconnected:", reason);
 });
 
-client.on('handshake', (payload: any) => {
-  console.log('Handshake completed:', payload);
+client.on("handshake", (payload: any) => {
+  console.log("Handshake completed:", payload);
 });
 ```
 
 ### Message Events
 
 ```typescript
-client.on('message', (message: HAIPMessage) => {
-  console.log('Received message:', message);
+client.on("message", (message: HAIPMessage) => {
+  console.log("Received message:", message);
 });
 
-client.on('binary', (data: ArrayBuffer) => {
-  console.log('Received binary data:', data.byteLength, 'bytes');
+client.on("binary", (data: ArrayBuffer) => {
+  console.log("Received binary data:", data.byteLength, "bytes");
 });
 ```
 
 ### Error Events
 
 ```typescript
-client.on('error', (error: Error) => {
-  console.error('Client error:', error);
+client.on("error", (error: Error) => {
+  console.error("Client error:", error);
 });
 ```
 
@@ -545,14 +556,14 @@ await client.sendAudioChunk(
 The client provides comprehensive error handling:
 
 ```typescript
-client.on('error', (error: Error) => {
+client.on("error", (error: Error) => {
   // Handle different error types
-  if (error.message.includes('AUTHENTICATION_FAILED')) {
-    console.log('Authentication failed - check your token');
-  } else if (error.message.includes('CONNECTION_FAILED')) {
-    console.log('Connection failed - will attempt to reconnect');
-  } else if (error.message.includes('FLOW_CONTROL')) {
-    console.log('Flow control error - message was dropped');
+  if (error.message.includes("AUTHENTICATION_FAILED")) {
+    console.log("Authentication failed - check your token");
+  } else if (error.message.includes("CONNECTION_FAILED")) {
+    console.log("Connection failed - will attempt to reconnect");
+  } else if (error.message.includes("FLOW_CONTROL")) {
+    console.log("Flow control error - message was dropped");
   }
 });
 ```
@@ -560,32 +571,16 @@ client.on('error', (error: Error) => {
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card
-    title="Transports"
-    href="/sdk/transports"
-    icon="wifi"
-  >
+  <Card title="Transports" href="/sdk/transports" icon="wifi">
     Learn about different transport options and configurations.
   </Card>
-  <Card
-    title="Examples"
-    href="/sdk/examples"
-    icon="book-open"
-  >
+  <Card title="Examples" href="/examples/basic-chat" icon="book-open">
     See practical examples of client usage.
   </Card>
-  <Card
-    title="Types"
-    href="/sdk/api-reference"
-    icon="code"
-  >
+  <Card title="Types" href="/sdk/api-reference" icon="code">
     Explore the complete type definitions.
   </Card>
-  <Card
-    title="API Reference"
-    href="/sdk/api-reference"
-    icon="laptop"
-  >
+  <Card title="API Reference" href="/sdk/api-reference" icon="laptop">
     Full API reference documentation.
   </Card>
-</CardGroup> 
+</CardGroup>{" "}

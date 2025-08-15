@@ -1,0 +1,23 @@
+{
+  "name": "haip-exampleclient",
+  "version": "0.0.1",
+  "description": "An example client",
+  "main": "test-client.ts",
+  "scripts": {
+    "dev": "ts-node test-client.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "HAIP",
+    "example",
+    "client"
+  ],
+  "author": "NiallB",
+  "license": "MIT",
+    "dependencies": {
+    "@haip/sdk": "file:../../haip-sdk",
+    "@types/haip": "file:../../@types",
+    "ts-node": "^10.9.2"
+  }
+  
+}

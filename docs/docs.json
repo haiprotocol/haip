@@ -18,6 +18,23 @@
           "technical_overview"        ]
       },
       {
+        "group": "Protocol",
+        "pages": [
+          "protocol/overview",
+          "protocol/openapi"
+
+        ]
+      },
+      {
+        "group": "Examples",
+        "pages": [
+          "examples/basic-chat",
+          "examples/using-cli",
+          "examples/audio-streaming",
+          "examples/flow-control"
+        ]
+      },
+      {
         "group": "TypeScript SDK",
         "pages": [
           "sdk/overview",
@@ -30,7 +47,6 @@
           "sdk/tools",
           "sdk/flow-control",
           "sdk/error-handling",
-          "sdk/examples",
           "sdk/api-reference"
         ]
       },
@@ -57,43 +73,7 @@
           "cli/quickstart",
           "cli/commands",
           "cli/configuration",
-          "cli/examples",
           "cli/api-reference"
-        ]
-      },
-      {
-        "group": "Protocol Essentials",
-        "pages": [
-          "essentials/authentication",
-          "essentials/transport",
-          "essentials/messaging",
-          "essentials/tools",
-          "essentials/flow-control",
-          "essentials/error-handling"
-        ]
-      },
-      {
-        "group": "Implementation",
-        "pages": [
-          "essentials/websocket",
-          "essentials/sse",
-          "essentials/http-streaming",
-          "essentials/binary-frames"
-        ]
-      },
-      {
-        "group": "Examples",
-        "pages": [
-          "examples/basic-chat",
-          "examples/audio-streaming",
-          "examples/tool-integration",
-          "examples/flow-control"
-        ]
-      },
-      {
-        "group": "API Reference",
-        "pages": [
-          "api-reference/openapi"
         ]
       }
     ]

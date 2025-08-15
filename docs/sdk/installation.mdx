@@ -3,6 +3,10 @@ title: "Installation"
 description: "Install and set up the HAIP TypeScript SDK"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 ## Installation
 
 The HAIP SDK is available as a TypeScript package with comprehensive type definitions and extensive test coverage.
@@ -10,7 +14,8 @@ The HAIP SDK is available as a TypeScript package with comprehensive type defini
 ### NPM Package
 
 <Note>
-  **Package Status**: The HAIP SDK package is now available on npm and ready for production use.
+  **Package Status**: The HAIP SDK package is now available on npm and ready for
+  production use.
 </Note>
 
 [![npm version](https://badge.fury.io/js/%40haip%2Fsdk.svg)](https://badge.fury.io/js/%40haip%2Fsdk)
@@ -27,11 +32,11 @@ npm install @haip/sdk
 The SDK is written in TypeScript and includes comprehensive type definitions:
 
 ```typescript
-import { createHAIPClient, HAIPConnectionConfig } from 'haip-sdk';
+import { createHAIPClient, HAIPConnectionConfig } from "haip-sdk";
 
 const config: HAIPConnectionConfig = {
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token'
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
 };
 
 const client = createHAIPClient(config);
@@ -40,7 +45,7 @@ const client = createHAIPClient(config);
 ### Browser Usage
 
 <Note>
-  **Browser Distribution**: UMD/ESM builds are planned but not yet available. 
+  **Browser Distribution**: UMD/ESM builds are planned but not yet available.
   For browser usage, you'll need to bundle the SDK with your application.
 </Note>
 
@@ -54,45 +59,22 @@ npm install @haip/sdk
 Then import in your browser code:
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 ```
 
 ### Development Setup
-
-<Steps>
-  <Step title="Clone Repository">
-    ```bash
-    git clone https://github.com/haiprotocol/haip-sdk-typescript.git
-    cd haip-sdk-typescript
-    ```
-  </Step>
-  <Step title="Install Dependencies">
-    ```bash
-    npm install
-    ```
-  </Step>
-  <Step title="Build SDK">
-    ```bash
-    npm run build
-    ```
-  </Step>
-  <Step title="Run Tests">
-    ```bash
-    npm test
-    npm run test:coverage
-    ```
-  </Step>
-</Steps>
 
 ## Requirements
 
 <CardGroup cols={3}>
   <Card title="Node.js" icon="code">
-    Version 20.0.0 or higher<br/>
+    Version 20.0.0 or higher
+    <br />
     Windows, macOS, Linux
   </Card>
   <Card title="Browser Support" icon="globe">
-    Chrome 88+, Firefox 85+<br/>
+    Chrome 88+, Firefox 85+
+    <br />
     Safari 14+, Edge 88+
   </Card>
   <Card title="Dependencies" icon="box">
@@ -121,4 +103,4 @@ import { createHAIPClient } from 'haip-sdk';
   <Card title="Documentation" icon="check">
     Comprehensive documentation with examples
   </Card>
-</CardGroup> 
+</CardGroup>

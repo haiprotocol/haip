@@ -1,0 +1,23 @@
+{
+  "name": "haip-serverexample",
+  "version": "0.0.1",
+  "description": "An example of the server",
+  "scripts": {
+    "dev": "ts-node test-server",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Example",
+    "Server",
+    "HAIP"
+  ],
+  "author": "NiallB",
+  "license": "MIT",
+  "dependencies": {
+    "@haip/server": "file:../../haip-server",
+    "@types/haip": "file:../../@types",
+    "jsonschema": "^1.5.0",
+    "openai": "^5.12.2",
+    "ts-node": "^10.9.2"
+  }
+}

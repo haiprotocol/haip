@@ -1,29 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import {
-    HAIPMessage,
-    HAIPEventType,
-    HAIPChannel,
-    HAIPRunStartedPayload,
-    HAIPRunFinishedPayload,
-    HAIPRunCancelPayload,
-    HAIPRunErrorPayload,
-    HAIPPingPayload,
-    HAIPPongPayload,
-    HAIPReplayRequestPayload,
-    HAIPTextMessageStartPayload,
-    HAIPTextMessagePartPayload,
-    HAIPTextMessageEndPayload,
-    HAIPAudioChunkPayload,
-    HAIPToolCallPayload,
-    HAIPToolUpdatePayload,
-    HAIPToolDonePayload,
-    HAIPToolCancelPayload,
-    HAIPToolListPayload,
-    HAIPToolSchemaPayload,
-    HAIPErrorPayload,
-    HAIPFlowUpdatePayload,
-    HAIPChannelControlPayload,
-} from "haip";
+import { HAIPMessage, HAIPEventType, HAIPChannel } from "haip";
 
 export class HAIPUtils {
     /**
@@ -94,7 +70,7 @@ export class HAIPUtils {
             return false;
         }
 
-        if (!message.payload || typeof message.payload !== "object") {
+        if (!message.payload) {
             return false;
         }
 
@@ -105,7 +81,7 @@ export class HAIPUtils {
      * Validate HAIP channel
      */
     static isValidChannel(channel: any): channel is HAIPChannel {
-        const validChannels: HAIPChannel[] = ["USER", "AGENT", "SYSTEM", "AUDIO_IN", "AUDIO_OUT"];
+        const validChannels: HAIPChannel[] = ["USER", "AGENT", "SYSTEM"];
         return validChannels.includes(channel);
     }
 
@@ -124,7 +100,7 @@ export class HAIPUtils {
         transactionId: string | null,
         channel: HAIPChannel,
         type: HAIPEventType,
-        payload: Record<string, any>,
+        payload: Record<string, any> | string,
         options?: {
             id?: string;
             seq?: string;
@@ -196,7 +172,7 @@ export class HAIPUtils {
 
     /**
      * Create a run started message
-     */
+     
     static createRunStartedMessage(
         sessionId: string,
         runId: string,
@@ -222,7 +198,7 @@ export class HAIPUtils {
 
     /**
      * Create a run finished message
-     */
+     
     static createRunFinishedMessage(
         sessionId: string,
         runId: string,
@@ -245,7 +221,7 @@ export class HAIPUtils {
 
     /**
      * Create a run cancel message
-     */
+     
     static createRunCancelMessage(sessionId: string, runId: string): HAIPMessage {
         return this.createMessage(
             sessionId,
@@ -261,7 +237,7 @@ export class HAIPUtils {
 
     /**
      * Create a run error message
-     */
+     
     static createRunErrorMessage(
         sessionId: string,
         runId: string,
@@ -320,7 +296,7 @@ export class HAIPUtils {
 
     /**
      * Create a text message start
-     */
+     
     static createTextMessageStartMessage(
         sessionId: string,
         transactionId: string,
@@ -339,22 +315,18 @@ export class HAIPUtils {
     /**
      * Create a text message part
      */
-    static createTextMessagePartMessage(
+    static createTextMessage(
         sessionId: string,
         transactionId: string,
         channel: HAIPChannel,
-        messageId: string,
         text: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, transactionId, channel, "MESSAGE_PART", {
-            message_id: messageId,
-            text,
-        });
+        return this.createMessage(sessionId, transactionId, channel, "MESSAGE", text);
     }
 
     /**
      * Create a text message end
-     */
+     
     static createTextMessageEndMessage(
         sessionId: string,
         transactionId: string,
@@ -379,7 +351,7 @@ export class HAIPUtils {
         data?: string,
         durationMs?: string
     ): HAIPMessage {
-        return this.createMessage(sessionId, null, channel, "AUDIO_CHUNK", {
+        return this.createMessage(sessionId, null, channel, "AUDIO", {
             message_id: messageId,
             mime,
             ...(data && { data }),
@@ -389,7 +361,7 @@ export class HAIPUtils {
 
     /**
      * Create a tool call message
-     */
+     
     static createToolCallMessage(
         sessionId: string,
         channel: HAIPChannel,
@@ -406,7 +378,7 @@ export class HAIPUtils {
 
     /**
      * Create a tool update message
-     */
+     
     static createToolUpdateMessage(
         sessionId: string,
         channel: HAIPChannel,
@@ -425,7 +397,7 @@ export class HAIPUtils {
 
     /**
      * Create a tool done message
-     */
+     
     static createToolDoneMessage(
         sessionId: string,
         channel: HAIPChannel,
@@ -442,7 +414,7 @@ export class HAIPUtils {
 
     /**
      * Create a tool cancel message
-     */
+     
     static createToolCancelMessage(
         sessionId: string,
         channel: HAIPChannel,
@@ -500,8 +472,7 @@ export class HAIPUtils {
     }
 
     /**
-     * Create a pause channel message
-     */
+
     static createPauseChannelMessage(sessionId: string, channel: string): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "PAUSE_CHANNEL", {
             channel,
@@ -510,12 +481,13 @@ export class HAIPUtils {
 
     /**
      * Create a resume channel message
-     */
+     *
     static createResumeChannelMessage(sessionId: string, channel: string): HAIPMessage {
         return this.createMessage(sessionId, null, "SYSTEM", "RESUME_CHANNEL", {
             channel,
         });
     }
+    */
 
     /**
      * Create an error message
@@ -753,7 +725,7 @@ export class HAIPUtils {
     }
 }
 
-export const HAIP_EVENT_TYPES = [
+export const HAIP_EVENT_TYPES: HAIPEventType[] = [
     "HAI",
     "PING",
     "PONG",
@@ -761,23 +733,12 @@ export const HAIP_EVENT_TYPES = [
     "FLOW_UPDATE",
     "TRANSACTION_START",
     "TRANSACTION_END",
-    // MAYBE GET RID OF?
-    //"RUN_STARTED",
-    //"RUN_FINISHED",
-    //"RUN_CANCEL",
-    //"RUN_ERROR",
+    "TRANSACTION_JOIN",
     "REPLAY_REQUEST",
-    "MESSAGE_START",
-    "MESSAGE_PART",
-    "MESSAGE_END",
-    "AUDIO_CHUNK",
-    //"TOOL_CALL",
-    //"TOOL_UPDATE",
-    //"TOOL_DONE",
-    //"TOOL_CANCEL",
+    "MESSAGE_UPDATE",
+    "MESSAGE",
+    "AUDIO",
     "INFO",
     "TOOL_LIST",
-    //"TOOL_SCHEMA",
-    //"PAUSE_CHANNEL",
-    //"RESUME_CHANNEL"
+    "TOOL_SCHEMA",
 ] as const;

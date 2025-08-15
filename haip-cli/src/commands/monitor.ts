@@ -1,6 +1,5 @@
-import { Command } from "commander";
+/*import { Command } from "commander";
 import chalk from "chalk";
-import { HAIPConnection } from "../connection";
 import { HAIPCLIConfig, HAIPCLIMonitorOptions } from "haip";
 
 export function createMonitorCommand(): Command {
@@ -168,3 +167,4 @@ function displayMessage(message: any, options: HAIPCLIMonitorOptions): void {
 
     console.log();
 }
+*/

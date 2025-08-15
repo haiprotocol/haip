@@ -8,32 +8,13 @@ import {
     HAIPEventType,
     HAIPChannel,
     HAIPMessageOptions,
-    HAIPRun,
     HAIPPerformanceMetrics,
     HAIPLogger,
     HAIPTransport,
-    HAIPTransportType,
     HAIPTransportConfig,
-    HAIPRunStartedPayload,
-    HAIPRunFinishedPayload,
-    HAIPRunCancelPayload,
-    HAIPRunErrorPayload,
     HAIPPingPayload,
     HAIPPongPayload,
-    HAIPReplayRequestPayload,
-    HAIPTextMessageStartPayload,
-    HAIPTextMessagePartPayload,
-    HAIPTextMessageEndPayload,
-    HAIPAudioChunkPayload,
-    HAIPToolCallPayload,
-    HAIPToolUpdatePayload,
-    HAIPToolDonePayload,
-    HAIPToolCancelPayload,
-    HAIPToolListPayload,
-    HAIPToolSchemaPayload,
     HAIPErrorPayload,
-    HAIPFlowUpdatePayload,
-    HAIPChannelControlPayload,
     HAIPTransaction,
 } from "haip";
 import { HAIPUtils, HAIP_EVENT_TYPES } from "./utils";
@@ -52,12 +33,13 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     private reconnectTimeout: NodeJS.Timeout | undefined;
     private performanceMetrics: HAIPPerformanceMetrics;
     private pendingAcks: Map<string, { timestamp: number; retries: number }> = new Map();
-    private messageQueue: Map<HAIPChannel, HAIPMessage[]> = new Map();
-    private runRegistry: Map<string, HAIPRun> = new Map();
     private authFn: () => Record<string, any>;
     private transactions: Map<string, HaipTransaction>;
 
-    constructor(config: HAIPConnectionConfig) {
+    constructor(
+        config: HAIPConnectionConfig,
+        options?: { logLevel?: "debug" | "info" | "warn" | "error" }
+    ) {
         super();
         this.config = {
             reconnectAttempts: 3,
@@ -66,7 +48,6 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
             heartbeatTimeout: 10000,
             flowControl: {
                 enabled: true,
-                initialCredits: 10,
                 minCredits: 1,
                 maxCredits: 100,
                 creditThreshold: 5,
@@ -218,9 +199,9 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     }
 
     private initializeFlowControl(): void {
-        const channels: HAIPChannel[] = ["USER", "AGENT", "SYSTEM", "AUDIO_IN", "AUDIO_OUT"];
+        const channels: HAIPChannel[] = ["USER", "AGENT", "SYSTEM"];
         channels.forEach(channel => {
-            this.state.credits.set(channel, this.config.flowControl?.initialCredits || 10);
+            this.state.credits.set(channel, 10);
             this.state.byteCredits.set(
                 channel,
                 this.config.flowControl?.initialCreditBytes || 1024 * 1024
@@ -309,9 +290,7 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
                 this.handleReplayRequest(message.payload as HAIPReplayRequestPayload, message);
                 break;
                 */
-            case "MESSAGE_START":
-            case "MESSAGE_PART":
-            case "MESSAGE_END":
+            case "MESSAGE":
                 if (transaction) {
                     this.logger.debug("Handling message for transaction:", transaction.id);
                     transaction.addToReplayWindow(message, this.config);
@@ -813,46 +792,17 @@ export class HAIPClientImpl extends EventEmitter implements HAIPClient {
     ): Promise<string> {
         const messageId = HAIPUtils.generateUUID();
 
-        const startMessage = HAIPUtils.createTextMessageStartMessage(
+        const message = HAIPUtils.createTextMessage(
             this.state.sessionId,
             transactionId,
             channel,
-            messageId,
-            author
+            text
         );
 
-        if (runId) startMessage.run_id = runId;
-        if (threadId) startMessage.thread_id = threadId;
+        if (runId) message.run_id = runId;
+        if (threadId) message.thread_id = threadId;
 
-        await this.sendMessage(startMessage);
-
-        const chunks = this.chunkText(text, 1000);
-        for (const chunk of chunks) {
-            const partMessage = HAIPUtils.createTextMessagePartMessage(
-                this.state.sessionId,
-                transactionId,
-                channel,
-                messageId,
-                chunk
-            );
-
-            if (runId) partMessage.run_id = runId;
-            if (threadId) partMessage.thread_id = threadId;
-
-            await this.sendMessage(partMessage);
-        }
-
-        const endMessage = HAIPUtils.createTextMessageEndMessage(
-            this.state.sessionId,
-            transactionId,
-            channel,
-            messageId
-        );
-
-        if (runId) endMessage.run_id = runId;
-        if (threadId) endMessage.thread_id = threadId;
-
-        await this.sendMessage(endMessage);
+        await this.sendMessage(message);
 
         return messageId;
     }

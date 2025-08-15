@@ -23,14 +23,8 @@ export type {
     HAIPPingPayload,
     HAIPPongPayload,
     HAIPReplayRequestPayload,
-    HAIPTextMessageStartPayload,
-    HAIPTextMessagePartPayload,
-    HAIPTextMessageEndPayload,
     HAIPAudioChunkPayload,
     HAIPToolCallPayload,
-    HAIPToolUpdatePayload,
-    HAIPToolDonePayload,
-    HAIPToolCancelPayload,
     HAIPToolListPayload,
     HAIPToolSchemaPayload,
     HAIPErrorPayload,
@@ -38,7 +32,6 @@ export type {
     HAIPChannelControlPayload,
     FlowControlConfig,
     PendingMessage,
-    HAIPToolExecution,
 } from "haip";
 
 export { HAIPUtils } from "./utils";
@@ -48,7 +41,10 @@ export { SSETransport } from "./transports/sse";
 export { HTTPStreamingTransport } from "./transports/http-streaming";
 
 export function createHAIPClient(
-    config: import("haip").HAIPConnectionConfig
+    config: import("haip").HAIPConnectionConfig,
+    options?: {
+        logLevel?: "debug" | "info" | "warn" | "error";
+    }
 ): import("haip").HAIPClient {
     const { HAIPClientImpl } = require("./client");
     return new HAIPClientImpl(config);
