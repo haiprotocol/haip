@@ -10,20 +10,25 @@ import {
     HAIPServerConfig,
     HAIPSession,
     HAIPMessage,
-    HAIPChannel,
     HAIPServerStats,
     HAIPHandshakePayload,
-    HAIPRun,
-    HAIPToolExecution,
     HAIPTool,
     HAIPToolSchema,
     HAIPEventType,
-    HAIPClient,
     HAIPSessionTransaction,
+    HAIPUser,
 } from "haip";
 import { HAIPServerUtils, HAIP_EVENT_TYPES } from "./utils";
 import { HaipTransaction } from "./transaction";
 import { HaipTool } from "./tool";
+import { validate } from "jsonschema";
+
+const ALLOWED_OUTSIDE_TRANSACTION: Set<HAIPEventType> = new Set([
+    "HAI",
+    "PING",
+    "PONG",
+    "TRANSACTION_START",
+]);
 
 export class HAIPServer extends EventEmitter {
     private app: express.Application;
@@ -31,14 +36,12 @@ export class HAIPServer extends EventEmitter {
     private wss: WebSocket.Server;
     private config: HAIPServerConfig;
     private sessions: Map<string, HAIPSession> = new Map();
-    private runs: Map<string, HAIPRun> = new Map();
     private tools: Map<string, HAIPTool> = new Map();
-    private toolExecutions: Map<string, HAIPToolExecution> = new Map();
     private stats: HAIPServerStats;
     private startTime: number;
     private statsInterval: NodeJS.Timeout | null = null;
     private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
-    private authFn: (req: any) => string | null;
+    private authFn: (req: any) => HAIPUser | null;
 
     constructor(config: Partial<HAIPServerConfig> = {}) {
         super();
@@ -54,7 +57,6 @@ export class HAIPServer extends EventEmitter {
             heartbeatTimeout: 5000,
             flowControl: {
                 enabled: true,
-                initialCredits: 1000,
                 minCredits: 100,
                 maxCredits: 10000,
                 creditThreshold: 200,
@@ -251,24 +253,10 @@ export class HAIPServer extends EventEmitter {
         const sessionId = HAIPServerUtils.generateUUID();
         const session: HAIPSession = {
             id: sessionId,
-            userId: null,
+            user: null,
             connected: true,
             handshakeCompleted: false,
             lastActivity: Date.now(),
-            credits: new Map([
-                ["USER", this.config.flowControl.initialCredits],
-                ["AGENT", this.config.flowControl.initialCredits],
-                ["SYSTEM", this.config.flowControl.initialCredits],
-                //["AUDIO_IN", this.config.flowControl.initialCredits],
-                //["AUDIO_OUT", this.config.flowControl.initialCredits],
-            ]),
-            byteCredits: new Map([
-                ["USER", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-                ["AGENT", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-                ["SYSTEM", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-                //["AUDIO_IN", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-                //["AUDIO_OUT", this.config.flowControl.initialCreditBytes || 1024 * 1024],
-            ]),
             lastAck: "",
             lastDeliveredSeq: "",
             activeRuns: new Set(),
@@ -301,17 +289,6 @@ export class HAIPServer extends EventEmitter {
 
     private handleMessage(sessionId: string, message: any): void {
         this.handleAuthentication(sessionId, message);
-
-        if (!HAIPServerUtils.validateMessage(message)) {
-            console.log("Invalid message:", message);
-            this.sendError(
-                sessionId,
-                message.transaction,
-                "INVALID_MESSAGE",
-                "Invalid message format"
-            );
-            return;
-        }
 
         const session = this.sessions.get(sessionId);
         if (!session) {
@@ -358,9 +335,7 @@ export class HAIPServer extends EventEmitter {
                 }
                 this.handleReplayRequest({ transaction, sessionId }, message);
                 break;
-            case "MESSAGE_START":
-            case "MESSAGE_PART":
-            case "MESSAGE_END":
+            case "MESSAGE":
                 if (!transaction || !transactionId) {
                     console.log("transaction not found for ID:", transactionId);
                     this.sendError(
@@ -372,18 +347,30 @@ export class HAIPServer extends EventEmitter {
                     return;
                 }
 
-                try {
-                    const tool = this.tools.get(transaction!.toolName);
-                    if (tool) {
-                        tool.handleMessage({ sessionId, transaction }, message);
+                const tool = this.tools.get(transaction!.toolName);
+                if (tool) {
+                    const jsonValidate = validate(message.payload, tool.schema().inputSchema);
+                    if (!jsonValidate.valid) {
+                        console.error("Invalid message payload:", jsonValidate.errors);
+                        this.sendError(
+                            sessionId,
+                            transactionId,
+                            "INVALID_PAYLOAD",
+                            `Invalid payload format: ${JSON.stringify(jsonValidate.errors)}`
+                        );
+                        return;
                     }
-                } finally {
-                    transaction.addToReplayWindow(message);
+
+                    try {
+                        tool.handleMessage({ sessionId, transaction }, message);
+                    } finally {
+                        transaction.addToReplayWindow(message);
+                    }
                 }
 
                 break;
 
-            case "AUDIO_CHUNK":
+            case "AUDIO":
                 if (!transaction || !transactionId) {
                     console.log("transaction not found for ID:", transactionId);
                     this.sendError(
@@ -477,37 +464,81 @@ export class HAIPServer extends EventEmitter {
             throw new Error("Session not found");
         }
 
-        if (session.userId === null) {
-            if (!HAIPServerUtils.validateMessage(message)) {
-                console.log("Invalid message:", message);
-                this.sendError(sessionId, null, "INVALID_MESSAGE", "Invalid message format");
-                session.ws?.close(1008, "Invalid token");
+        const transaction = session.transactions.get(message.transaction ?? "");
+        if (!ALLOWED_OUTSIDE_TRANSACTION.has(message.type) && !transaction) {
+            this.sendError(
+                sessionId,
+                message.transaction || null,
+                "TRANSACTION_NOT_FOUND",
+                "Transaction not found"
+            );
+            throw new Error("Transaction not found");
+        }
+
+        if (!HAIPServerUtils.validateMessage(message)) {
+            console.log("Invalid message:", message);
+            this.sendError(
+                sessionId,
+                message.transaction,
+                "INVALID_MESSAGE",
+                "Invalid message format"
+            );
+            if (session.user === null) {
+                session.ws?.close(1008, "Bad Message");
                 session.req?.close();
-                throw new Error("Invalid Message");
-            } else {
-                if (message.type === "HAI") {
-                    const userId = this.authFn(message.payload.auth);
+            }
+            throw new Error("Invalid Message");
+        }
 
-                    if (userId === null) {
-                        console.log("Invalid message:", message);
-                        this.sendError(sessionId, null, "FAILED_AUTH", "Failed Auth");
-                        session.ws?.close(1008, "Invalid token");
-                        session.req?.close();
-                        throw new Error("Failed Auth");
-                    }
+        if (session.user === null) {
+            if (message.type === "HAI") {
+                const user = this.authFn(message.payload.auth);
 
-                    session.userId = userId;
-                    session.handshakeCompleted = true;
-                    this.emit("handshake", sessionId, message.payload);
-                    // Success
-                    return;
-                } else {
-                    this.sendError(sessionId, null, "NOT HAI", "First message needs to be HAI");
+                if (user === null) {
+                    console.log("Invalid message:", message);
+                    this.sendError(sessionId, null, "FAILED_AUTH", "Failed Auth");
                     session.ws?.close(1008, "Invalid token");
                     session.req?.close();
-                    throw new Error("Not HAI");
+                    throw new Error("Failed Authentication");
+                }
+
+                session.user = user;
+                session.handshakeCompleted = true;
+                this.emit("handshake", sessionId, message.payload);
+                return;
+            } else {
+                this.sendError(sessionId, null, "NOT HAI", "First message needs to be HAI");
+                session.ws?.close(1008, "Invalid token");
+                session.req?.close();
+                throw new Error("Not HAI");
+            }
+        } else {
+            const user = session.user;
+            const permissions = user.permissions.get(message.type);
+
+            if (!permissions || permissions.length === 0) {
+                this.sendError(
+                    sessionId,
+                    message.transaction || null,
+                    "UNAUTHORIZED",
+                    `User does not have permission for ${message.type}`
+                );
+                throw new Error("Failed Authorization");
+            }
+
+            for (const perm of permissions) {
+                if (perm === "*" || perm === message.transaction) {
+                    // Permission matched, allow
+                    return;
                 }
             }
+            this.sendError(
+                sessionId,
+                message.transaction || null,
+                "UNAUTHORIZED",
+                `User does not have permission for ${message.type}:${message.transaction}`
+            );
+            throw new Error("Failed Authorization");
         }
     }
 
@@ -609,7 +640,9 @@ export class HAIPServer extends EventEmitter {
         }
 
         const channel = message.channel;
-        const credits = session.credits.get(channel) || 0;
+        //
+        // TODO
+        /* const credits = session.credits.get(channel) || 0;
 
         if (credits <= 0) {
             this.sendError(
@@ -622,6 +655,7 @@ export class HAIPServer extends EventEmitter {
         }
 
         session.credits.set(channel, credits - 1);
+        */
         return true;
     }
 
@@ -678,18 +712,10 @@ export class HAIPServer extends EventEmitter {
                     name: "echo",
                     description: "Echo back the input message",
                     inputSchema: {
-                        type: "object",
-                        properties: {
-                            message: { type: "string" },
-                        },
-                        required: ["message"],
+                        type: "string",
                     },
                     outputSchema: {
-                        type: "object",
-                        properties: {
-                            echoed: { type: "string" },
-                            timestamp: { type: "string" },
-                        },
+                        type: "string",
                     },
                 };
             }
@@ -714,7 +740,7 @@ export class HAIPServer extends EventEmitter {
         }, 1000);
     }
 
-    public authenticate(fn: (req: any) => string | null): void {
+    public authenticate(fn: (req: any) => HAIPUser | null): void {
         this.authFn = fn;
     }
 

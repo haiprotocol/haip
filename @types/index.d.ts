@@ -1,8 +1,9 @@
 import WebSocket from "ws";
+import { HAIPEventType } from "./constants";
 
 export type HAIPChannel = "USER" | "AGENT" | "SYSTEM";
 
-export type { HAIPEventType } from "../constants";
+export type { HAIPEventType } from "./constants";
 
 export type HAIPSessionTransaction = {
   sessionId: string;
@@ -56,34 +57,6 @@ export interface HAIPPongPayload {
   nonce?: string;
 }
 
-export interface HAIPReplayRequestPayload {
-  from_seq: string;
-  to_seq?: string;
-}
-
-export interface HAIPTextMessageStartPayload {
-  message_id: string;
-  author?: string;
-  text?: string;
-}
-
-export interface HAIPTextMessagePartPayload {
-  message_id: string;
-  text: string;
-}
-
-export interface HAIPTextMessageEndPayload {
-  message_id: string;
-  tokens?: string;
-}
-
-export interface HAIPAudioChunkPayload {
-  message_id: string;
-  mime: string;
-  data?: string;
-  duration_ms?: string;
-}
-
 export interface HAIPToolListPayload {
   tools: Array<{
     name: string;
@@ -91,31 +64,10 @@ export interface HAIPToolListPayload {
   }>;
 }
 
-export interface HAIPToolSchemaPayload {
-  schema: HAIPToolSchema;
-}
-
-export interface HAIPErrorPayload {
-  code: string;
-  message: string;
-  related_id?: string;
-  detail?: Record<string, any>;
-}
-
 export interface HAIPFlowUpdatePayload {
   channel: string;
   add_messages?: number;
   add_bytes?: number;
-}
-
-export interface HAIPChannelControlPayload {
-  channel: string;
-}
-
-export interface PendingMessage {
-  message: HAIPMessage;
-  timestamp: number;
-  retries: number;
 }
 
 export interface HAIPRun {
@@ -161,7 +113,6 @@ export interface HAIPServerConfig {
 
 export interface FlowControlConfig {
   enabled: boolean;
-  initialCredits: number;
   minCredits: number;
   maxCredits: number;
   creditThreshold: number;
@@ -173,12 +124,10 @@ export interface FlowControlConfig {
 
 export interface HAIPSession {
   id: string;
-  userId: string | null;
+  user: HAIPUser | null;
   connected: boolean;
   handshakeCompleted: boolean;
   lastActivity: number;
-  credits: Map<HAIPChannel, number>;
-  byteCredits: Map<HAIPChannel, number>;
   lastAck: string;
   lastDeliveredSeq: string;
   activeRuns: Set<string>;
@@ -232,22 +181,6 @@ export interface HAIPMessage {
   related_id?: string;
 }
 
-export interface HAIPHandshakePayload {
-  haip_version: string;
-  accept_major: number[];
-  accept_events: HAIPEventType[];
-  capabilities?: {
-    binary_frames?: boolean;
-    flow_control?: {
-      initial_credit_messages: number;
-      initial_credit_bytes: number;
-    };
-    max_concurrent_runs?: number;
-    signed_envelopes?: boolean;
-  };
-  last_rx_seq?: string;
-}
-
 export interface HAIPTransactionStartedPayload {
   referenceId: string | null;
 }
@@ -276,33 +209,9 @@ export interface HAIPRunErrorPayload {
   detail?: Record<string, any>;
 }
 
-export interface HAIPPingPayload {
-  nonce?: string;
-}
-
-export interface HAIPPongPayload {
-  nonce?: string;
-}
-
 export interface HAIPReplayRequestPayload {
   from_seq: string;
   to_seq?: string;
-}
-
-export interface HAIPTextMessageStartPayload {
-  message_id: string;
-  author?: string;
-  text?: string;
-}
-
-export interface HAIPTextMessagePartPayload {
-  message_id: string;
-  text: string;
-}
-
-export interface HAIPTextMessageEndPayload {
-  message_id: string;
-  tokens?: string;
 }
 
 export interface HAIPAudioChunkPayload {
@@ -318,34 +227,8 @@ export interface HAIPToolCallPayload {
   params?: Record<string, any>;
 }
 
-export interface HAIPToolUpdatePayload {
-  call_id: string;
-  status: "QUEUED" | "RUNNING" | "CANCELLING";
-  progress?: number;
-  partial?: any;
-}
-
-export interface HAIPToolDonePayload {
-  call_id: string;
-  status?: "OK" | "CANCELLED" | "ERROR";
-  result?: any;
-}
-
-export interface HAIPToolCancelPayload {
-  call_id: string;
-  reason?: string;
-}
-
-export interface HAIPToolListPayload {
-  tools: Array<{
-    name: string;
-    description?: string;
-  }>;
-}
-
 export interface HAIPToolSchemaPayload {
-  tool: string;
-  schema: Record<string, any>;
+  schema: HAIPToolSchema;
 }
 
 export interface HAIPErrorPayload {
@@ -353,12 +236,6 @@ export interface HAIPErrorPayload {
   message: string;
   related_id?: string;
   detail?: Record<string, any>;
-}
-
-export interface HAIPFlowUpdatePayload {
-  channel: string;
-  add_messages?: number;
-  add_bytes?: number;
 }
 
 export interface HAIPChannelControlPayload {
@@ -377,18 +254,6 @@ export interface HAIPConnectionConfig {
   maxConcurrentRuns?: number;
   replayWindowSize?: number;
   replayWindowTime?: number;
-}
-
-export interface FlowControlConfig {
-  enabled: boolean;
-  initialCredits: number;
-  minCredits: number;
-  maxCredits: number;
-  creditThreshold: number;
-  backPressureThreshold: number;
-  adaptiveAdjustment: boolean;
-  initialCreditMessages?: number;
-  initialCreditBytes?: number;
 }
 
 export interface HAIPConnectionState {
@@ -420,12 +285,7 @@ export interface HAIPEventHandlers {
   onPing?: (payload: HAIPPingPayload) => void;
   onPong?: (payload: HAIPPongPayload) => void;
   onReplayRequest?: (payload: HAIPReplayRequestPayload) => void;
-  onTextMessage?: (
-    payload:
-      | HAIPTextMessageStartPayload
-      | HAIPTextMessagePartPayload
-      | HAIPTextMessageEndPayload
-  ) => void;
+  onTextMessage?: (payload: HAIPMessage) => void;
   onAudioChunk?: (
     payload: HAIPAudioChunkPayload,
     binaryData?: ArrayBuffer
@@ -458,19 +318,6 @@ export interface HAIPToolDefinition {
   outputSchema?: Record<string, any>;
 }
 
-export interface HAIPToolExecution {
-  callId: string;
-  toolName: string;
-  arguments: Record<string, any>;
-  status: "pending" | "running" | "completed" | "error" | "cancelled";
-  startTime: number;
-  endTime?: number;
-  result?: Record<string, any>;
-  error?: string;
-  progress?: number;
-  partial?: any;
-}
-
 export interface HAIPPerformanceMetrics {
   messagesSent: number;
   messagesReceived: number;
@@ -494,88 +341,6 @@ export interface HAIPClient {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   authenticate(authFn: () => Record<string, any>): void;
-  /*sendMessage(
-    message: HAIPMessage,
-    options?: HAIPMessageOptions
-  ): Promise<void>;
-  sendBinary(data: ArrayBuffer): Promise<void>;
-  startRun(threadId?: string, metadata?: Record<string, any>): Promise<string>;
-  finishRun(
-    runId: string,
-    status?: "OK" | "CANCELLED" | "ERROR",
-    summary?: string
-  ): Promise<void>;
-  cancelRun(runId: string): Promise<void>;
-  sendTextMessage(
-    channel: HAIPChannel,
-    text: string,
-    author?: string,
-    runId?: string,
-    threadId?: string
-  ): Promise<string>;
-  sendAudioChunk(
-    channel: HAIPChannel,
-    messageId: string,
-    mime: string,
-    data: ArrayBuffer,
-    durationMs?: number,
-    runId?: string,
-    threadId?: string
-  ): Promise<void>;
-  callTool(
-    channel: HAIPChannel,
-    tool: string,
-    params?: Record<string, any>,
-    runId?: string,
-    threadId?: string
-  ): Promise<string>;
-  updateTool(
-    channel: HAIPChannel,
-    callId: string,
-    status: "QUEUED" | "RUNNING" | "CANCELLING",
-    progress?: number,
-    partial?: any,
-    runId?: string,
-    threadId?: string
-  ): Promise<void>;
-  completeTool(
-    channel: HAIPChannel,
-    callId: string,
-    status?: "OK" | "CANCELLED" | "ERROR",
-    result?: any,
-    runId?: string,
-    threadId?: string
-  ): Promise<void>;
-  cancelTool(
-    channel: HAIPChannel,
-    callId: string,
-    reason?: string,
-    runId?: string,
-    threadId?: string
-  ): Promise<void>;
-  listTools(
-    channel: HAIPChannel,
-    tools: Array<{ name: string; description?: string }>
-  ): Promise<void>;
-  sendToolSchema(
-    channel: HAIPChannel,
-    tool: string,
-    schema: Record<string, any>
-  ): Promise<void>;
-  requestReplay(fromSeq: string, toSeq?: string): Promise<void>;
-  pauseChannel(channel: string): Promise<void>;
-  resumeChannel(channel: string): Promise<void>;
-  sendFlowUpdate(
-    channel: string,
-    addMessages?: number,
-    addBytes?: number
-  ): Promise<void>;*/
-  //setHandlers(handlers: HAIPEventHandlers): void;
-  //getConnectionState(): HAIPConnectionState;
-  //getPerformanceMetrics(): HAIPPerformanceMetrics;
-  //getActiveRuns(): HAIPRun[];
-  //getRun(runId: string): HAIPRun | undefined;
-  //isConnected(): boolean;
   on(event: string, handler: (...args: any[]) => void): this;
   startTransaction(
     toolName: string,
@@ -617,17 +382,6 @@ export interface HAIPTransportConfig {
   type: HAIPTransportType;
   url: string;
   options?: Record<string, any>;
-}
-
-export interface HAIPRun {
-  runId: string;
-  threadId: string | undefined;
-  status: "active" | "finished" | "cancelled" | "error";
-  startTime: number;
-  endTime: number | undefined;
-  metadata: Record<string, any> | undefined;
-  summary: string | undefined;
-  error: string | undefined;
 }
 
 export interface HAIPCLIConfig {
@@ -683,4 +437,10 @@ export interface HAIPCLIOutput {
   message: string;
   data?: any;
   timestamp: Date;
+}
+
+export interface HAIPUser {
+  id: string;
+  permissions: Map<HAIPEventType, string[]>;
+  credits: number;
 }

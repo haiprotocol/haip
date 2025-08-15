@@ -1,254 +1,124 @@
 ---
-title: "Basic Chat Example"
-description: "Simple text messaging implementation with HAIP"
+title: "Simple Chat Example"
+description: "Speak to a pirate with HAIP"
 ---
 
 ## Overview
 
 This example demonstrates a basic chat implementation using HAI Protocol with WebSocket transport.
 
-## Client Implementation
-
-```typescript
-class HAIPChatClient {
-  private ws: WebSocket | null = null;
-  private sessionId: string;
-  private seqCounter = 1;
-
-  constructor(private url: string, private token: string) {
-    this.sessionId = this.generateUUID();
-  }
-
-  async connect(): Promise<void> {
-    const wsUrl = `${this.url}?token=${encodeURIComponent(this.token)}`;
-    this.ws = new WebSocket(wsUrl);
-
-    this.ws.onopen = () => {
-      console.log('Connected to HAIP chat');
-      this.sendHandshake();
-    };
-
-    this.ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      this.handleMessage(message);
-    };
-
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    this.ws.onclose = () => {
-      console.log('Disconnected from HAIP chat');
-    };
-  }
-
-  private sendHandshake() {
-    const handshake = {
-      id: this.generateUUID(),
-      session: this.sessionId,
-      seq: this.seqCounter++.toString(),
-      ts: Date.now().toString(),
-      channel: "SYSTEM",
-      type: "HAI",
-      payload: {
-        haip_version: "1.1.2",
-        accept_major: [1],
-        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"]
-      }
-    };
-
-    this.ws!.send(JSON.stringify(handshake));
-  }
-
-  sendMessage(text: string) {
-    const messageId = this.generateUUID();
-
-    // Send message start
-    const startMessage = {
-      id: this.generateUUID(),
-      session: this.sessionId,
-      seq: this.seqCounter++.toString(),
-      ts: Date.now().toString(),
-      channel: "USER",
-      type: "MESSAGE_START",
-      payload: {
-        message_id: messageId,
-        author: "USER",
-        text: text
-      }
-    };
-
-    this.ws!.send(JSON.stringify(startMessage));
-
-    // Send message end
-    const endMessage = {
-      id: this.generateUUID(),
-      session: this.sessionId,
-      seq: this.seqCounter++.toString(),
-      ts: Date.now().toString(),
-      channel: "USER",
-      type: "MESSAGE_END",
-      payload: {
-        message_id: messageId
-      }
-    };
-
-    this.ws!.send(JSON.stringify(endMessage));
-  }
-
-  private handleMessage(message: any) {
-    switch (message.type) {
-      case 'MESSAGE_START':
-        this.onMessageStart?.(message.payload);
-        break;
-      case 'MESSAGE_PART':
-        this.onMessagePart?.(message.payload);
-        break;
-      case 'MESSAGE_END':
-        this.onMessageEnd?.(message.payload);
-        break;
-      case 'HAI':
-        console.log('Handshake completed');
-        break;
-    }
-  }
-
-  disconnect() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-  }
-
-  private generateUUID(): string {
-    return crypto.randomUUID();
-  }
-
-  // Event handlers
-  onMessageStart?: (payload: any) => void;
-  onMessagePart?: (payload: any) => void;
-  onMessageEnd?: (payload: any) => void;
-}
-```
-
-## Usage Example
-
-```typescript
-// Create chat client
-const chatClient = new HAIPChatClient(
-  "wss://api.haiprotocol.com/haip/websocket",
-  "your-jwt-token"
-);
-
-// Set up event handlers
-chatClient.onMessageStart = (payload) => {
-  console.log(`Message started: ${payload.text}`);
-};
-
-chatClient.onMessagePart = (payload) => {
-  console.log(`Message part: ${payload.text}`);
-};
-
-chatClient.onMessageEnd = (payload) => {
-  console.log("Message completed");
-};
-
-// Connect and send message
-await chatClient.connect();
-chatClient.sendMessage("Hello, HAIP!");
-```
+We will be asking the LLM to act as a pirate and respond to the user.
 
 ## Server Implementation
 
 ```typescript
-import WebSocket from 'ws';
-import { v4 as uuidv4 } from 'uuid';
+import { HAIPServer } from "../src/server";
+import { HAIPMessage, HAIPSessionTransaction, HAIPToolSchema } from "haip";
+import { HaipTool } from "../src/tool";
+import OpenAI from "openai";
 
-class HAIPChatServer {
-  private wss: WebSocket.Server;
-  private sessions = new Map<string, any>();
+const server = new HAIPServer({
+  port: 8080,
+  host: "0.0.0.0",
+  jwtSecret: "CHANGE_THIS_TO_A_SECRET_STRING",
+  enableCORS: true,
+  enableLogging: true,
+  flowControl: {
+    enabled: true,
+    initialCredits: 1000,
+    minCredits: 100,
+    maxCredits: 10000,
+    creditThreshold: 200,
+    backPressureThreshold: 0.8,
+    adaptiveAdjustment: true,
+  },
+});
 
-  constructor(port: number) {
-    this.wss = new WebSocket.Server({ port });
-    this.setupServer();
+server.authenticate((req) => {
+  if (req.token === "Bearer TOKEN") {
+    return "userid";
   }
+  return null;
+});
 
-  private setupServer() {
-    this.wss.on('connection', (ws, req) => {
-      const sessionId = uuidv4();
-      this.sessions.set(sessionId, { ws, seqCounter: 1 });
+class PirateTool extends HaipTool {
+  private openai: OpenAI;
 
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-        this.handleMessage(sessionId, message);
-      });
-
-      ws.on('close', () => {
-        this.sessions.delete(sessionId);
-      });
+  constructor() {
+    super();
+    this.openai = new OpenAI({
+      apiKey: process.env["OPENAI_API_KEY"],
     });
   }
 
-  private handleMessage(sessionId: string, message: any) {
-    switch (message.type) {
-      case 'HAI':
-        this.handleHandshake(sessionId, message);
-        break;
-      case 'MESSAGE_START':
-      case 'MESSAGE_PART':
-      case 'MESSAGE_END':
-        this.handleTextMessage(sessionId, message);
-        break;
+  schema(): HAIPToolSchema {
+    return {
+      name: "pirate",
+      description: "Interact with a large language model",
+      inputSchema: {
+        type: "object",
+        properties: {
+          prompt: { type: "string" },
+        },
+        required: ["prompt"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          response: { type: "string" },
+        },
+      },
+    };
+  }
+
+  async handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
+    if (message.payload.text && message.payload.text.length > 0) {
+      let input = "";
+
+      const transaction = client.transaction.getReplayWindow();
+      for (const msg of transaction) {
+        if (msg.type === "MESSAGE_PART") {
+          if (msg.channel === "AGENT") {
+            input += `You: ${msg.payload.text}\n\n`;
+          } else if (msg.channel === "USER") {
+            input += `User: ${msg.payload.text}\n\n`;
+          }
+        }
+      }
+
+      input += "User: " + message.payload.text;
+
+      const response = await this.openai.responses.create({
+        model: "gpt-4o",
+        instructions: "You talk like a piarate.",
+        input: input,
+      });
+
+      this.sendTextMessage(
+        client,
+        response.output_text || "No response from LLM"
+      );
     }
-  }
-
-  private handleHandshake(sessionId: string, message: any) {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
-
-    const response = {
-      id: uuidv4(),
-      session: sessionId,
-      seq: session.seqCounter++.toString(),
-      ts: Date.now().toString(),
-      channel: "SYSTEM",
-      type: "HAI",
-      payload: {
-        haip_version: "1.1.2",
-        accept_major: [1],
-        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_PART", "MESSAGE_END"]
-      }
-    };
-
-    session.ws.send(JSON.stringify(response));
-  }
-
-  private handleTextMessage(sessionId: string, message: any) {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
-
-    // Echo the message back
-    const response = {
-      id: uuidv4(),
-      session: sessionId,
-      seq: session.seqCounter++.toString(),
-      ts: Date.now().toString(),
-      channel: "AGENT",
-      type: message.type,
-      payload: {
-        ...message.payload,
-        author: "AGENT",
-        text: `Echo: ${message.payload.text}`
-      }
-    };
-
-    session.ws.send(JSON.stringify(response));
   }
 }
 
-// Start server
-const server = new HAIPChatServer(8080);
-console.log('HAIP Chat Server running on port 8080');
+server.registerTool(new PirateTool());
+
+server.start();
+```
+
+## Usage Example
+
+Run the server:
+
+```bash
+node server.js
+```
+
+We will be using the CLI to interact with this tool.
+
+```bash
+haip chat --tool pirate
 ```
 
 ## Key Features

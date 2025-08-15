@@ -48,7 +48,7 @@ const server = new HAIPServer({
 });
 
 server.authenticate((req) => {
-  // Here you should validate your with your auth system
+  // Here you should call out to your identity provider.
   if (req.token === "Bearer TOKEN") {
     return "userid";
   }
@@ -56,18 +56,6 @@ server.authenticate((req) => {
 });
 
 server.start();
-
-server.on("connect", (sessionId) => {
-  console.log(`🔗 Client connected: ${sessionId}`);
-});
-
-server.on("disconnect", (sessionId) => {
-  console.log(`🔌 Client disconnected: ${sessionId}`);
-});
-
-server.on("handshake", (sessionId, payload) => {
-  console.log(`🤝 Handshake completed: ${sessionId}`, payload);
-});
 ```
 
 ### Step 2: Create client
@@ -78,29 +66,21 @@ Save this in client.js
 import { createHAIPClient } from "../src/index";
 
 async function main() {
-  // Create client
   const client = createHAIPClient({
-    url: "ws://localhost:8080", //,
-    //transport: "websocket",
-    //,
-    //token: ""
+    url: "ws://localhost:8080",
   });
 
   client.authenticate(() => {
-    // You should send an auth token/creds here. This can be any object.
-    // You need to re-call this if your token changes.
+    // You should send a token here.
     return {
       token: "Bearer TOKEN",
     };
   });
 
   try {
-    // Connect to server
     await client.connect();
 
-    const transaction = await client.startTransaction("echo", {
-      //metadata: { example: 'some data' }
-    });
+    const transaction = await client.startTransaction("echo", {});
 
     transaction.on("message", (message: any) => {
       console.log("🤖 Agent:", message.payload.text);
