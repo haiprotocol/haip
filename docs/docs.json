@@ -21,7 +21,6 @@
         "group": "Protocol",
         "pages": [
           "protocol/overview",
-          "protocol/specification",
           "protocol/openapi"
 
         ]
@@ -30,6 +29,7 @@
         "group": "Examples",
         "pages": [
           "examples/basic-chat",
+          "examples/using-cli",
           "examples/audio-streaming",
           "examples/flow-control"
         ]
@@ -47,7 +47,6 @@
           "sdk/tools",
           "sdk/flow-control",
           "sdk/error-handling",
-          "sdk/examples",
           "sdk/api-reference"
         ]
       },
@@ -74,7 +73,6 @@
           "cli/quickstart",
           "cli/commands",
           "cli/configuration",
-          "cli/examples",
           "cli/api-reference"
         ]
       }

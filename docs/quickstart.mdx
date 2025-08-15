@@ -7,6 +7,11 @@ description: "Get started with HAIP in minutes"
 
 Implement HAIP in your application with this quick guide.
 
+<Note>
+  [Link to the examples in the
+  repo](https://github.com/haiprotocol/haip/tree/docsupdate/examples).
+</Note>
+
 ### 📦 **Install Packages**
 
 ```bash
@@ -28,7 +33,14 @@ npm install -g @haip/cli
 Save this in server.js
 
 ```javascript
-import { HAIPServer } from "../src/server";
+import { createPermissionMap, HAIPServer, HAIPTool } from "@haip/server";
+import {
+  HAIPEventType,
+  HAIPMessage,
+  HAIPSessionTransaction,
+  HAIPToolSchema,
+} from "haip";
+import OpenAI from "openai";
 
 const server = new HAIPServer({
   port: 8080,
@@ -38,7 +50,6 @@ const server = new HAIPServer({
   enableLogging: true,
   flowControl: {
     enabled: true,
-    initialCredits: 1000,
     minCredits: 100,
     maxCredits: 10000,
     creditThreshold: 200,
@@ -48,9 +59,14 @@ const server = new HAIPServer({
 });
 
 server.authenticate((req) => {
-  // Here you should call out to your identity provider.
+  // Here you should validate your with your auth system
+  // Hardcoded check here
   if (req.token === "Bearer TOKEN") {
-    return "userid";
+    return {
+      id: "user123",
+      permissions: createPermissionMap({ MESSAGE: ["*"] }),
+      credits: 1000,
+    };
   }
   return null;
 });
@@ -63,7 +79,7 @@ server.start();
 Save this in client.js
 
 ```javascript
-import { createHAIPClient } from "../src/index";
+import { createHAIPClient } from "@haip/sdk";
 
 async function main() {
   const client = createHAIPClient({
@@ -83,7 +99,7 @@ async function main() {
     const transaction = await client.startTransaction("echo", {});
 
     transaction.on("message", (message: any) => {
-      console.log("🤖 Agent:", message.payload.text);
+      console.log("🤖 Agent:", message.payload);
     });
 
     console.log("✅ Sending to transaction:", "Hello! Can you echo this?");

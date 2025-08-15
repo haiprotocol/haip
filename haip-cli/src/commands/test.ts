@@ -1,4 +1,4 @@
-import { Command } from "commander";
+/*import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { HAIPConnection } from "../connection";
@@ -248,3 +248,4 @@ function displayTestResults(results: TestResults): void {
         process.exit(1);
     }
 }
+*/

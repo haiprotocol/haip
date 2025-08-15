@@ -3,12 +3,12 @@ title: "Overview"
 description: "HAIP Overview"
 ---
 
-## Core Concepts
+## Messages
 
 The protocol can connect using various protocols.
 
-- Websocket
-- SSE
+- WebSockets
+- Server-Sent Events (SSE)
 - Http Streaming
 
 The messages follow a standard format:
@@ -28,7 +28,7 @@ The parts are:
 - **type** – The [message type](https://github.com/haiprotocol/haip/tree/main/%40types/constants.ts). eg. `HAI`, `TRANSACTION_START`, `MESSAGE_START`.
 - **payload** – Custom payload for the data
 
-### Handshake
+## Handshakes
 
 The handsake process is as follows:
 
@@ -54,3 +54,45 @@ sequenceDiagram
 4. The sever responds with the a `START_TRANSACTION`
 5. The client can then send messages/audio to that transaction.
 6. Close the transaction when finished.
+
+## Authentication & Authorisation
+
+We support a wide range of Authentication protocols.
+On the client implement this method.
+
+```javascript
+HAIPClient.authenticate(authFn: () => Record<string, any>): void
+```
+
+In our examples we send `{token: "Bearer TOKEN" }`. This can be then validated on the server by implementing the method:
+
+```javascript
+HAIPServer.authenticate(fn: (req: any) => HAIPUser | null): void
+```
+
+Our example implements this with the following code. It checks for that exact string in the token. And then creates the user. If the token does not match that string it returns `null` which acts causes the authentication to fail.
+
+```javascript
+server.authenticate((req) => {
+  if (req.token === "Bearer TOKEN") {
+    return {
+      id: "user123",
+      permissions: createPermissionMap({ MESSAGE: ["*"] }),
+      credits: 1000,
+    };
+  }
+  return null;
+});
+```
+
+This defines the user, the ID should be a unchanging primary key that you use for that user.
+
+The permissions set what methods the user is allowed to call. In the case above it is allowing the user to call `MESSAGE` for all transactions.
+
+We also set the amount of credits the user has access to, this depends on if flow control has been enabled.
+
+## Message History
+
+The server stores a message history for each transaction. Using the javascript SDK this can be accessed with `transaction.getReplayWindow();`.
+
+The history size is determined by `windowSize` (number of messages) and `windowTime` (duration).

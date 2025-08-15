@@ -41,15 +41,36 @@ npm install @haip/sdk
 ```typescript
 import { createHAIPClient } from "@haip/sdk";
 
-const client = createHAIPClient({
-  url: "ws://localhost:8080",
-  token: "your-jwt-token",
-  transport: "websocket",
-});
+async function main() {
+  const client = createHAIPClient({
+    url: "ws://localhost:8080",
+  });
 
-await client.connect();
-const runId = await client.startRun("thread-123");
-await client.sendTextMessage("USER", "Hello, world!", "user", runId);
+  client.authenticate(() => {
+    // You should send a token here.
+    return {
+      token: "Bearer TOKEN",
+    };
+  });
+
+  try {
+    await client.connect();
+
+    const transaction = await client.startTransaction("echo", {});
+
+    transaction.on("message", (message: any) => {
+      console.log("🤖 Agent:", message.payload);
+    });
+
+    console.log("✅ Sending to transaction:", "Hello! Can you echo this?");
+    transaction.sendTextMessage("Hello! Can you echo this?");
+  } catch (error) {
+    console.error("Error:", error);
+    await client.disconnect();
+  }
+}
+
+main();
 ```
 
 ## Architecture
@@ -90,33 +111,16 @@ The SDK is built with a modular architecture that separates concerns and provide
 
 ## Protocol Support
 
-The SDK implements the complete HAIP v1.1.2 specification:
+The SDK implements the complete HAIP v1.1.2 specification.
 
-### Event Types
-
-- **Connection**: HAI (handshake), PING/PONG (heartbeat)
-- **Run Lifecycle**: RUN_STARTED, RUN_FINISHED, RUN_CANCEL, RUN_ERROR
-- **Messaging**: MESSAGE_START, MESSAGE_PART, MESSAGE_END
-- **Audio**: AUDIO_CHUNK for streaming audio data
-- **Tools**: TOOL_CALL, TOOL_UPDATE, TOOL_DONE, TOOL_CANCEL, TOOL_LIST, TOOL_SCHEMA
-- **Control**: FLOW_UPDATE, PAUSE_CHANNEL, RESUME_CHANNEL, REPLAY_REQUEST
-- **Error**: ERROR for protocol and application errors
-
-### Channels
-
-- **USER**: User messages and interactions
-- **AGENT**: Agent responses and actions
-- **SYSTEM**: Protocol control messages
-- **AUDIO_IN**: Incoming audio data
-- **AUDIO_OUT**: Outgoing audio data
-
-## Performance Features
-
-- **Flow Control**: Automatic credit-based back-pressure management
-- **Reconnection**: Exponential backoff with configurable retry limits
-- **Heartbeat**: Configurable ping/pong for connection health monitoring
-- **Metrics**: Real-time performance metrics and connection statistics
-- **Replay**: Message replay support with cumulative acknowledgments
+<Card
+  title="View the spec"
+  icon="book-open"
+  href="/protocol/openapi"
+  horizontal
+>
+  OpenAPI Specification
+</Card>
 
 ## Getting Started
 
@@ -132,7 +136,7 @@ Choose your next step:
   <Card title="Client API" href="/sdk/client" icon="code">
     Explore the main client interface and its methods.
   </Card>
-  <Card title="Examples" href="/sdk/examples" icon="book-open">
+  <Card title="Examples" href="/examples/basic-chat" icon="book-open">
     Browse complete examples for common use cases.
   </Card>
 </CardGroup>{" "}

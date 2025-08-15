@@ -12,9 +12,13 @@ We will be asking the LLM to act as a pirate and respond to the user.
 ## Server Implementation
 
 ```typescript
-import { HAIPServer } from "../src/server";
-import { HAIPMessage, HAIPSessionTransaction, HAIPToolSchema } from "haip";
-import { HaipTool } from "../src/tool";
+import { createPermissionMap, HAIPServer, HAIPTool } from "@haip/server";
+import {
+  HAIPEventType,
+  HAIPMessage,
+  HAIPSessionTransaction,
+  HAIPToolSchema,
+} from "haip";
 import OpenAI from "openai";
 
 const server = new HAIPServer({
@@ -25,7 +29,6 @@ const server = new HAIPServer({
   enableLogging: true,
   flowControl: {
     enabled: true,
-    initialCredits: 1000,
     minCredits: 100,
     maxCredits: 10000,
     creditThreshold: 200,
@@ -35,13 +38,19 @@ const server = new HAIPServer({
 });
 
 server.authenticate((req) => {
+  // Here you should validate your with your auth system
+  // Hardcoded check here
   if (req.token === "Bearer TOKEN") {
-    return "userid";
+    return {
+      id: "user123",
+      permissions: createPermissionMap({ MESSAGE: ["*"] }),
+      credits: 1000,
+    };
   }
   return null;
 });
 
-class PirateTool extends HaipTool {
+class LLMTool extends HAIPTool {
   private openai: OpenAI;
 
   constructor() {
@@ -53,40 +62,35 @@ class PirateTool extends HaipTool {
 
   schema(): HAIPToolSchema {
     return {
-      name: "pirate",
+      name: "llm",
       description: "Interact with a large language model",
       inputSchema: {
-        type: "object",
-        properties: {
-          prompt: { type: "string" },
-        },
-        required: ["prompt"],
+        type: "string",
       },
       outputSchema: {
-        type: "object",
-        properties: {
-          response: { type: "string" },
-        },
+        type: "string",
       },
     };
   }
 
   async handleMessage(client: HAIPSessionTransaction, message: HAIPMessage) {
-    if (message.payload.text && message.payload.text.length > 0) {
+    if (message.payload.length > 0) {
       let input = "";
 
       const transaction = client.transaction.getReplayWindow();
       for (const msg of transaction) {
-        if (msg.type === "MESSAGE_PART") {
+        if (msg.type === "MESSAGE") {
           if (msg.channel === "AGENT") {
-            input += `You: ${msg.payload.text}\n\n`;
+            input += `You: ${msg.payload}\n\n`;
           } else if (msg.channel === "USER") {
-            input += `User: ${msg.payload.text}\n\n`;
+            input += `User: ${msg.payload}\n\n`;
           }
         }
       }
 
-      input += "User: " + message.payload.text;
+      input += "User: " + message.payload;
+
+      console.log("Input to LLM:", input);
 
       const response = await this.openai.responses.create({
         model: "gpt-4o",
@@ -102,7 +106,7 @@ class PirateTool extends HaipTool {
   }
 }
 
-server.registerTool(new PirateTool());
+server.registerTool(new LLMTool());
 
 server.start();
 ```

@@ -1,5 +1,4 @@
 import { createHAIPClient } from "@haip/sdk";
-import { log } from "console";
 
 async function main() {
   const client = createHAIPClient({

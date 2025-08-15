@@ -3,6 +3,10 @@ title: "Deployment"
 description: "Deploy the HAIP Server to production environments"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 The HAIP Server is designed for easy deployment across various environments, from development to production. This guide covers deployment strategies, containerization, and production best practices.
 
 <CardGroup cols={2}>
@@ -75,7 +79,7 @@ docker run -p 8080:8080 \
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 
 services:
   haip-server:
@@ -176,7 +180,7 @@ http {
         # WebSocket support
         location /haip/websocket {
             limit_req zone=haip burst=20 nodelay;
-            
+
             proxy_pass http://haip_backend;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
@@ -185,7 +189,7 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            
+
             proxy_read_timeout 86400;
             proxy_send_timeout 86400;
         }
@@ -193,7 +197,7 @@ http {
         # HTTP endpoints
         location /haip/ {
             limit_req zone=haip burst=20 nodelay;
-            
+
             proxy_pass http://haip_backend;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -239,53 +243,53 @@ spec:
         app: haip-server
     spec:
       containers:
-      - name: haip-server
-        image: haip-protocol/server:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: NODE_ENV
-          value: "production"
-        - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: haip-secrets
-              key: jwt-secret
-        - name: PORT
-          value: "8080"
-        - name: MAX_CONNECTIONS
-          value: "1000"
-        - name: ENABLE_CORS
-          value: "false"
-        - name: ENABLE_COMPRESSION
-          value: "true"
-        - name: ENABLE_LOGGING
-          value: "true"
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        volumeMounts:
-        - name: logs
-          mountPath: /app/logs
+        - name: haip-server
+          image: haip-protocol/server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: haip-secrets
+                  key: jwt-secret
+            - name: PORT
+              value: "8080"
+            - name: MAX_CONNECTIONS
+              value: "1000"
+            - name: ENABLE_CORS
+              value: "false"
+            - name: ENABLE_COMPRESSION
+              value: "true"
+            - name: ENABLE_LOGGING
+              value: "true"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
       volumes:
-      - name: logs
-        emptyDir: {}
+        - name: logs
+          emptyDir: {}
 ```
 
 ### Service Manifest
@@ -301,10 +305,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 80
-    targetPort: 8080
-    protocol: TCP
-    name: http
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
   selector:
     app: haip-server
 ```
@@ -324,20 +328,20 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
 spec:
   tls:
-  - hosts:
-    - haip.yourdomain.com
-    secretName: haip-tls
+    - hosts:
+        - haip.yourdomain.com
+      secretName: haip-tls
   rules:
-  - host: haip.yourdomain.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: haip-server-service
-            port:
-              number: 80
+    - host: haip.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: haip-server-service
+                port:
+                  number: 80
 ```
 
 ### Secrets
@@ -369,18 +373,18 @@ spec:
   minReplicas: 3
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
 ```
 
 ## Cloud Platform Deployment
@@ -431,7 +435,10 @@ spec:
         }
       },
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/health || exit 1"
+        ],
         "interval": 30,
         "timeout": 5,
         "retries": 3,
@@ -460,23 +467,23 @@ spec:
       containerConcurrency: 1000
       timeoutSeconds: 300
       containers:
-      - image: gcr.io/your-project/haip-server:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: NODE_ENV
-          value: "production"
-        - name: PORT
-          value: "8080"
-        - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: haip-secrets
-              key: jwt-secret
-        resources:
-          limits:
-            cpu: "1000m"
-            memory: "512Mi"
+        - image: gcr.io/your-project/haip-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "8080"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: haip-secrets
+                  key: jwt-secret
+          resources:
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
 ```
 
 ## Production Configuration
@@ -520,31 +527,31 @@ REPLAY_WINDOW_TIME=60000
 const productionConfig = {
   // Basic settings
   port: 8080,
-  host: '0.0.0.0',
+  host: "0.0.0.0",
   jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: '1h', // Short expiration for security
-  
+  jwtExpiresIn: "1h", // Short expiration for security
+
   // Connection limits
   maxConnections: 1000,
-  
+
   // Security features
   enableCORS: false, // Disable CORS in production
   enableCompression: true,
   enableLogging: true,
-  
+
   // Flow control
   flowControl: {
     enabled: true,
     initialCredits: 1000,
-    adaptiveAdjustment: true
+    adaptiveAdjustment: true,
   },
-  
+
   // Additional security
   rateLimiting: {
     enabled: true,
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
-  }
+    max: 100, // limit each IP to 100 requests per windowMs
+  },
 };
 ```
 
@@ -552,48 +559,52 @@ const productionConfig = {
 
 ```typescript
 // Production monitoring
-import winston from 'winston';
-import { createLogger, format, transports } from 'winston';
+import winston from "winston";
+import { createLogger, format, transports } from "winston";
 
 const logger = createLogger({
-  level: 'info',
+  level: "info",
   format: format.combine(
     format.timestamp(),
     format.errors({ stack: true }),
     format.json()
   ),
-  defaultMeta: { service: 'haip-server' },
+  defaultMeta: { service: "haip-server" },
   transports: [
-    new transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new transports.File({ filename: 'logs/combined.log' })
-  ]
+    new transports.File({ filename: "logs/error.log", level: "error" }),
+    new transports.File({ filename: "logs/combined.log" }),
+  ],
 });
 
 // Add cloud logging for production
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === "production") {
   // Google Cloud Logging
   if (process.env.GOOGLE_CLOUD_PROJECT) {
-    const { LoggingWinston } = require('@google-cloud/logging-winston');
-    logger.add(new LoggingWinston({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT,
-      logName: 'haip-server'
-    }));
+    const { LoggingWinston } = require("@google-cloud/logging-winston");
+    logger.add(
+      new LoggingWinston({
+        projectId: process.env.GOOGLE_CLOUD_PROJECT,
+        logName: "haip-server",
+      })
+    );
   }
-  
+
   // AWS CloudWatch
   if (process.env.AWS_REGION) {
-    const WinstonCloudWatch = require('winston-cloudwatch');
-    logger.add(new WinstonCloudWatch({
-      logGroupName: 'haip-server',
-      logStreamName: 'production',
-      awsRegion: process.env.AWS_REGION
-    }));
+    const WinstonCloudWatch = require("winston-cloudwatch");
+    logger.add(
+      new WinstonCloudWatch({
+        logGroupName: "haip-server",
+        logStreamName: "production",
+        awsRegion: process.env.AWS_REGION,
+      })
+    );
   }
 }
 
 const server = new HAIPServer({
   ...productionConfig,
-  logger
+  logger,
 });
 ```
 
@@ -603,7 +614,7 @@ const server = new HAIPServer({
 
 ```yaml
 # docker-compose.scale.yml
-version: '3.8'
+version: "3.8"
 
 services:
   haip-server:
@@ -617,10 +628,10 @@ services:
       replicas: 3
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 256M
       restart_policy:
         condition: on-failure
@@ -653,7 +664,7 @@ upstream haip_backend {
 server {
     listen 80;
     server_name your-domain.com;
-    
+
     location / {
         proxy_pass http://haip_backend;
         proxy_set_header Host $host;
@@ -661,7 +672,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-    
+
     location /haip/websocket {
         proxy_pass http://haip_backend;
         proxy_http_version 1.1;
@@ -753,4 +764,4 @@ aws s3 cp config_backup_$(date +%Y%m%d_%H%M%S).tar.gz s3://your-backup-bucket/
 
 - [API Reference](/server/api-reference) - Complete API documentation
 - [Monitoring](/server/monitoring) - Set up monitoring and alerting
-- [Tools](/server/tools) - Add custom tools to the server 
+- [Tools](/server/tools) - Add custom tools to the server
