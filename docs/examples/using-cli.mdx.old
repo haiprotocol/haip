@@ -1,0 +1,31 @@
+---
+title: "Example CLI Use"
+description: "Usage examples and patterns for the HAIP CLI"
+---
+
+This page provides comprehensive examples of how to use the HAIP CLI for various scenarios and use cases.
+
+## Basic Examples
+
+### Server Health Check
+
+```bash
+# Check if server is running
+node dist/index.js health
+
+# Check specific server
+node dist/index.js health --url http://my-server:8080
+
+# Get detailed health information
+node dist/index.js health --format json
+```
+
+### Send Messages
+
+```bash
+# Send open a chat with the echo tool
+node dist/index.js chat
+
+# Send open a chat with the llm tool
+node dist/index.js chat --tool llm
+```

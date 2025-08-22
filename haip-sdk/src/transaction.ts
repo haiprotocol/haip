@@ -43,7 +43,7 @@ export class HaipTransaction extends EventEmitter implements HAIPTransaction {
     }
 
     handleMessage(message: HAIPMessage): void {
-        if (message.type === "MESSAGE_PART") {
+        if (message.type === "MESSAGE") {
             this.emit("message", message);
         }
     }

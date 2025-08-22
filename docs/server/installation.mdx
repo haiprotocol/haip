@@ -3,6 +3,10 @@ title: "Installation"
 description: "Install and set up the HAIP Server"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 # Installation
 
 The HAIP Server can be installed and deployed in multiple ways. Choose the method that best fits your environment and requirements.
@@ -25,29 +29,13 @@ The HAIP Server can be installed and deployed in multiple ways. Choose the metho
 
 <Steps>
   <Step title="Clone the Repository">
-    ```bash
-    git clone https://github.com/haiprotocol/haip
-    cd haip/haip-server
+    ```bash git clone https://github.com/haiprotocol/haip cd haip/haip-server
     ```
   </Step>
-  <Step title="Install Dependencies">
-    ```bash
-    npm install
-    ```
-  </Step>
-  <Step title="Build the Project">
-    ```bash
-    npm run build
-    ```
-  </Step>
+  <Step title="Install Dependencies">```bash npm install ```</Step>
+  <Step title="Build the Project">```bash npm run build ```</Step>
   <Step title="Start the Server">
-    ```bash
-    # Development mode
-    npm run dev
-    
-    # Production mode
-    npm start
-    ```
+    ```bash # Development mode npm run dev # Production mode npm start ```
   </Step>
 </Steps>
 
@@ -70,7 +58,7 @@ docker run -p 8080:8080 haip-protocol/server:latest
 Create a `docker-compose.yml` file:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   haip-server:
     image: haip-protocol/server:latest
@@ -104,7 +92,7 @@ npm install @haip/server
 ```
 
 ```typescript
-import { HAIPServer } from '@haip/server';
+import { HAIPServer } from "@haip/server";
 
 const server = new HAIPServer();
 server.start();
@@ -256,7 +244,7 @@ FLOW_CONTROL_ENABLED=true
 ### Docker Production Setup
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   haip-server:
     image: haip-protocol/server:latest
@@ -291,6 +279,7 @@ curl http://localhost:8080/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "ok",
@@ -307,6 +296,7 @@ curl http://localhost:8080/stats
 ```
 
 Expected response:
+
 ```json
 {
   "totalConnections": 0,
@@ -331,15 +321,17 @@ wscat -c "ws://localhost:8080/haip/websocket?token=your-jwt-token"
 ### Common Issues
 
 1. **Port Already in Use**
+
    ```bash
    # Check what's using the port
    lsof -i :8080
-   
+
    # Kill the process or change the port
    PORT=8081 npm start
    ```
 
 2. **JWT Secret Not Set**
+
    ```bash
    # Set the JWT secret
    export JWT_SECRET=your-secret-key
@@ -347,16 +339,18 @@ wscat -c "ws://localhost:8080/haip/websocket?token=your-jwt-token"
    ```
 
 3. **Permission Denied**
+
    ```bash
    # Fix permissions
    sudo chown -R $USER:$USER .
    ```
 
 4. **Docker Issues**
+
    ```bash
    # Check Docker logs
    docker logs haip-server
-   
+
    # Restart the container
    docker-compose restart
    ```
@@ -381,4 +375,4 @@ tail -f logs/haip-server.log
 - [Quick Start](/server/quickstart) - Get up and running quickly
 - [Configuration](/server/configuration) - Configure the server
 - [Deployment](/server/deployment) - Deploy to production
-- [API Reference](/server/api-reference) - Complete API documentation 
+- [API Reference](/server/api-reference) - Complete API documentation

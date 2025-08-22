@@ -3,6 +3,10 @@ title: "Authentication"
 description: "Configure authentication and security for the HAIP Server"
 ---
 
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
 The HAIP Server uses JWT (JSON Web Tokens) for authentication, providing secure, stateless authentication for all client connections.
 
 <CardGroup cols={2}>
@@ -26,8 +30,8 @@ The HAIP Server uses JWT (JSON Web Tokens) for authentication, providing secure,
 
 ```typescript
 const server = new HAIPServer({
-  jwtSecret: 'your-secret-key-here',
-  jwtExpiresIn: '24h'
+  jwtSecret: "your-secret-key-here",
+  jwtExpiresIn: "24h",
 });
 ```
 
@@ -47,9 +51,9 @@ JWT_EXPIRES_IN=24h
 // Production configuration
 const secureConfig = {
   jwtSecret: process.env.JWT_SECRET, // Use environment variable
-  jwtExpiresIn: '1h', // Short expiration for security
+  jwtExpiresIn: "1h", // Short expiration for security
   enableCORS: false, // Disable CORS in production
-  enableLogging: true
+  enableLogging: true,
 };
 ```
 
@@ -86,15 +90,15 @@ const secureConfig = {
 
 ```javascript
 // Connect with JWT token
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
 const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${token}`);
 
-ws.on('open', () => {
-  console.log('Authenticated WebSocket connection');
+ws.on("open", () => {
+  console.log("Authenticated WebSocket connection");
 });
 
-ws.on('error', (error) => {
-  console.error('Authentication failed:', error);
+ws.on("error", (error) => {
+  console.error("Authentication failed:", error);
 });
 ```
 
@@ -102,15 +106,17 @@ ws.on('error', (error) => {
 
 ```javascript
 // Connect with JWT token
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
-const eventSource = new EventSource(`http://localhost:8080/haip/sse?token=${token}`);
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+const eventSource = new EventSource(
+  `http://localhost:8080/haip/sse?token=${token}`
+);
 
 eventSource.onopen = () => {
-  console.log('Authenticated SSE connection');
+  console.log("Authenticated SSE connection");
 };
 
 eventSource.onerror = (error) => {
-  console.error('Authentication failed:', error);
+  console.error("Authentication failed:", error);
 };
 ```
 
@@ -118,21 +124,21 @@ eventSource.onerror = (error) => {
 
 ```javascript
 // Connect with JWT token in Authorization header
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
 
-const response = await fetch('http://localhost:8080/haip/stream', {
-  method: 'POST',
+const response = await fetch("http://localhost:8080/haip/stream", {
+  method: "POST",
   headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
   },
-  body: JSON.stringify(handshakeMessage)
+  body: JSON.stringify(handshakeMessage),
 });
 
 if (response.ok) {
-  console.log('Authenticated HTTP streaming connection');
+  console.log("Authenticated HTTP streaming connection");
 } else {
-  console.error('Authentication failed:', response.status);
+  console.error("Authentication failed:", response.status);
 }
 ```
 
@@ -141,29 +147,33 @@ if (response.ok) {
 ### Server-Side Token Generation
 
 ```typescript
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 // Generate JWT token
-function generateToken(userId: string, secret: string, expiresIn: string = '24h') {
+function generateToken(
+  userId: string,
+  secret: string,
+  expiresIn: string = "24h"
+) {
   const payload = {
     userId,
     iat: Math.floor(Date.now() / 1000),
-    iss: 'haip-server',
-    aud: 'haip-client'
+    iss: "haip-server",
+    aud: "haip-client",
   };
 
   return jwt.sign(payload, secret, { expiresIn });
 }
 
 // Example usage
-const token = generateToken('user-123', process.env.JWT_SECRET, '1h');
-console.log('Generated token:', token);
+const token = generateToken("user-123", process.env.JWT_SECRET, "1h");
+console.log("Generated token:", token);
 ```
 
 ### Token Validation
 
 ```typescript
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 // Validate JWT token
 function validateToken(token: string, secret: string) {
@@ -171,12 +181,12 @@ function validateToken(token: string, secret: string) {
     const decoded = jwt.verify(token, secret);
     return {
       valid: true,
-      payload: decoded
+      payload: decoded,
     };
   } catch (error) {
     return {
       valid: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -184,9 +194,9 @@ function validateToken(token: string, secret: string) {
 // Example usage
 const result = validateToken(token, process.env.JWT_SECRET);
 if (result.valid) {
-  console.log('Valid token for user:', result.payload.userId);
+  console.log("Valid token for user:", result.payload.userId);
 } else {
-  console.error('Invalid token:', result.error);
+  console.error("Invalid token:", result.error);
 }
 ```
 
@@ -199,15 +209,15 @@ When a client connects with a valid token, the server automatically creates a se
 ```typescript
 // Session is created automatically
 const session = {
-  id: 'session-uuid',
-  userId: 'user-123',
+  id: "session-uuid",
+  userId: "user-123",
   connected: true,
   handshakeCompleted: false,
   lastActivity: Date.now(),
   credits: new Map([
-    ['USER', 1000],
-    ['AGENT', 1000],
-    ['SYSTEM', 1000]
+    ["USER", 1000],
+    ["AGENT", 1000],
+    ["SYSTEM", 1000],
   ]),
   // ... other session properties
 };
@@ -217,11 +227,11 @@ const session = {
 
 ```typescript
 // Get session information
-const session = server.getSession('session-id');
+const session = server.getSession("session-id");
 if (session) {
-  console.log('Session user:', session.userId);
-  console.log('Session connected:', session.connected);
-  console.log('Last activity:', session.lastActivity);
+  console.log("Session user:", session.userId);
+  console.log("Session connected:", session.connected);
+  console.log("Last activity:", session.lastActivity);
 }
 ```
 
@@ -231,8 +241,8 @@ Sessions are automatically cleaned up when clients disconnect:
 
 ```typescript
 // Session cleanup happens automatically
-server.on('disconnect', (sessionId) => {
-  console.log('Session disconnected:', sessionId);
+server.on("disconnect", (sessionId) => {
+  console.log("Session disconnected:", sessionId);
   // Session is automatically removed from memory
 });
 ```
@@ -277,21 +287,21 @@ server.on('disconnect', (sessionId) => {
 
 ```javascript
 // Handle authentication errors
-ws.on('message', (data) => {
+ws.on("message", (data) => {
   const message = JSON.parse(data.toString());
-  
-  if (message.type === 'ERROR') {
+
+  if (message.type === "ERROR") {
     switch (message.payload.code) {
-      case 'INVALID_TOKEN':
-        console.error('Invalid token, please re-authenticate');
+      case "INVALID_TOKEN":
+        console.error("Invalid token, please re-authenticate");
         // Redirect to login or refresh token
         break;
-      case 'TOKEN_EXPIRED':
-        console.error('Token expired, please refresh');
+      case "TOKEN_EXPIRED":
+        console.error("Token expired, please refresh");
         // Refresh token or redirect to login
         break;
-      case 'MISSING_TOKEN':
-        console.error('No token provided');
+      case "MISSING_TOKEN":
+        console.error("No token provided");
         // Redirect to login
         break;
     }
@@ -314,14 +324,14 @@ class HAIPClient {
 
   async refreshToken() {
     try {
-      const response = await fetch('/auth/refresh', {
-        method: 'POST',
+      const response = await fetch("/auth/refresh", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          refreshToken: this.refreshToken
-        })
+          refreshToken: this.refreshToken,
+        }),
       });
 
       if (response.ok) {
@@ -331,7 +341,7 @@ class HAIPClient {
         return true;
       }
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error("Token refresh failed:", error);
     }
     return false;
   }
@@ -339,7 +349,7 @@ class HAIPClient {
   async connect() {
     // Try to connect with current token
     this.ws = new WebSocket(`${this.url}?token=${this.token}`);
-    
+
     this.ws.onerror = async (error) => {
       // If authentication fails, try to refresh token
       if (await this.refreshToken()) {
@@ -347,7 +357,7 @@ class HAIPClient {
         this.connect();
       } else {
         // Redirect to login
-        window.location.href = '/login';
+        window.location.href = "/login";
       }
     };
   }
@@ -363,15 +373,15 @@ class HAIPClient {
 class TokenManager {
   static setToken(token) {
     // Store in memory for session duration
-    sessionStorage.setItem('haip_token', token);
+    sessionStorage.setItem("haip_token", token);
   }
 
   static getToken() {
-    return sessionStorage.getItem('haip_token');
+    return sessionStorage.getItem("haip_token");
   }
 
   static clearToken() {
-    sessionStorage.removeItem('haip_token');
+    sessionStorage.removeItem("haip_token");
   }
 }
 ```
@@ -383,14 +393,18 @@ class TokenManager {
 class TokenService {
   static async rotateToken(oldToken: string, secret: string) {
     const decoded = jwt.verify(oldToken, secret);
-    
+
     // Generate new token with same user
-    const newToken = jwt.sign({
-      userId: decoded.userId,
-      iat: Math.floor(Date.now() / 1000),
-      iss: 'haip-server',
-      aud: 'haip-client'
-    }, secret, { expiresIn: '1h' });
+    const newToken = jwt.sign(
+      {
+        userId: decoded.userId,
+        iat: Math.floor(Date.now() / 1000),
+        iss: "haip-server",
+        aud: "haip-client",
+      },
+      secret,
+      { expiresIn: "1h" }
+    );
 
     return newToken;
   }
@@ -401,15 +415,15 @@ class TokenService {
 
 ```typescript
 // Implement rate limiting for authentication
-import rateLimit from 'express-rate-limit';
+import rateLimit from "express-rate-limit";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // limit each IP to 5 requests per windowMs
-  message: 'Too many authentication attempts'
+  message: "Too many authentication attempts",
 });
 
-app.use('/auth', authLimiter);
+app.use("/auth", authLimiter);
 ```
 
 ### 4. HTTPS in Production
@@ -421,8 +435,8 @@ const productionConfig = {
   ssl: {
     enabled: true,
     cert: process.env.SSL_CERT,
-    key: process.env.SSL_KEY
-  }
+    key: process.env.SSL_KEY,
+  },
 };
 ```
 
@@ -432,12 +446,12 @@ const productionConfig = {
 
 ```typescript
 // Listen for authentication events
-server.on('connect', (sessionId) => {
+server.on("connect", (sessionId) => {
   const session = server.getSession(sessionId);
   console.log(`User ${session?.userId} connected with session ${sessionId}`);
 });
 
-server.on('disconnect', (sessionId) => {
+server.on("disconnect", (sessionId) => {
   const session = server.getSession(sessionId);
   console.log(`User ${session?.userId} disconnected from session ${sessionId}`);
 });
@@ -448,8 +462,8 @@ server.on('disconnect', (sessionId) => {
 ```typescript
 // Get authentication statistics
 const stats = server.getStats();
-console.log('Active sessions:', stats.activeConnections);
-console.log('Total connections:', stats.totalConnections);
+console.log("Active sessions:", stats.activeConnections);
+console.log("Total connections:", stats.totalConnections);
 ```
 
 ## Testing Authentication
@@ -458,37 +472,39 @@ console.log('Total connections:', stats.totalConnections);
 
 ```typescript
 // Generate test tokens for development
-function generateTestToken(userId: string = 'test-user') {
+function generateTestToken(userId: string = "test-user") {
   const payload = {
     userId,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour
-    iss: 'haip-server',
-    aud: 'haip-client'
+    iss: "haip-server",
+    aud: "haip-client",
   };
 
-  return jwt.sign(payload, 'test-secret-key');
+  return jwt.sign(payload, "test-secret-key");
 }
 
 // Usage
-const testToken = generateTestToken('test-user-123');
-console.log('Test token:', testToken);
+const testToken = generateTestToken("test-user-123");
+console.log("Test token:", testToken);
 ```
 
 ### Test Authentication
 
 ```javascript
 // Test authentication with generated token
-const testToken = generateTestToken('test-user');
-const ws = new WebSocket(`ws://localhost:8080/haip/websocket?token=${testToken}`);
+const testToken = generateTestToken("test-user");
+const ws = new WebSocket(
+  `ws://localhost:8080/haip/websocket?token=${testToken}`
+);
 
-ws.on('open', () => {
-  console.log('✅ Authentication test passed');
+ws.on("open", () => {
+  console.log("✅ Authentication test passed");
   ws.close();
 });
 
-ws.on('error', (error) => {
-  console.error('❌ Authentication test failed:', error);
+ws.on("error", (error) => {
+  console.error("❌ Authentication test failed:", error);
 });
 ```
 
@@ -496,4 +512,4 @@ ws.on('error', (error) => {
 
 - [Monitoring](/server/monitoring) - Monitor authentication and security
 - [Deployment](/server/deployment) - Deploy with proper security configuration
-- [API Reference](/server/api-reference) - Complete API documentation 
+- [API Reference](/server/api-reference) - Complete API documentation

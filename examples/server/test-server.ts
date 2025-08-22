@@ -1,17 +1,3 @@
----
-title: "Simple Chat Example"
-description: "Speak to a pirate with HAIP"
----
-
-## Overview
-
-This example demonstrates a basic chat implementation using HAI Protocol with WebSocket transport.
-
-We will be asking the LLM to act as a pirate and respond to the user.
-
-## Server Implementation
-
-```typescript
 import { createPermissionMap, HAIPServer, HAIPTool } from "@haip/server";
 import {
   HAIPEventType,
@@ -109,47 +95,15 @@ class LLMTool extends HAIPTool {
 server.registerTool(new LLMTool());
 
 server.start();
-```
 
-## Usage Example
+server.on("connect", (sessionId) => {
+  console.log(`🔗 Client connected: ${sessionId}`);
+});
 
-Run the server:
+server.on("disconnect", (sessionId) => {
+  console.log(`🔌 Client disconnected: ${sessionId}`);
+});
 
-```bash
-node server.js
-```
-
-We will be using the CLI to interact with this tool.
-
-```bash
-haip chat --tool pirate
-```
-
-## Key Features
-
-<CardGroup cols={2}>
-  <Card title="Real-time Messaging" icon="message">
-    WebSocket transport for instant bidirectional communication with low
-    latency.
-  </Card>
-  <Card title="Message Streaming" icon="arrow-up">
-    Support for message start/part/end events for streaming large content.
-  </Card>
-  <Card title="Session Management" icon="user">
-    Unique session IDs for managing multiple concurrent connections.
-  </Card>
-  <Card title="Sequence Numbering" icon="list-ol">
-    Automatic sequence numbering for maintaining message order and detecting
-    duplicates.
-  </Card>
-  <Card title="Event-Driven Architecture" icon="bolt">
-    Extensible event system for handling different message types and custom
-    events.
-  </Card>
-  <Card title="Protocol Compliance" icon="shield">
-    Full HAIP v1.1.2 specification compliance with all required handshake and
-    messaging events.
-  </Card>
-</CardGroup>
-
-This example provides a foundation for building more complex chat applications with HAI Protocol.
+server.on("handshake", (sessionId, payload) => {
+  console.log(`🤝 Handshake completed: ${sessionId}`, payload);
+});

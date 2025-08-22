@@ -1,5 +1,145 @@
-# Justfile for HAIP Package Management
-# Run with: just <command>
+#!/usr/bin/env just --justfile
+
+# Just version of Commake (v0.2.0) - https://niallbunting.com/commake/
+
+# lint, test and run
+all: lint test run
+
+# Use this to check if you need to ensure the correct version of dep
+# To use update the if statement and the message.
+versioncheck:
+  @if [ 0 -gt 0 ]; then echo "Wrong version of: <DEP>" && exit 1; fi
+
+# Run through dependencies and check
+init: 
+  @echo Not Implemented
+
+# Install packages
+install: versioncheck 
+  @echo Not Implemented
+
+# Build all packages
+build:
+    #!/usr/bin/env bash
+    set -e
+    
+    # Source NVM
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    
+    # Set NVM version
+    if command -v nvm &> /dev/null; then
+        echo "📦 Setting Node.js version to 20..."
+        nvm use 20 || nvm install 20
+    else
+        echo "⚠️  NVM not found. Please install NVM first."
+        exit 1
+    fi
+    
+    echo "🔨 Building all HAIP packages..."
+    
+    for package in haip-sdk haip-server haip-cli; do
+        if [ -d "$package" ]; then
+            echo "📦 Building $package..."
+            cd "$package"
+            npm install
+            npm run build
+            cd ..
+        fi
+    done
+    
+    echo "✅ All packages built successfully!"
+
+# Run locally
+run:
+  @echo Not Implemented
+
+# Run linting
+lint:
+    #!/usr/bin/env bash
+    set -e
+    
+    # Source NVM
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    
+    # Set NVM version
+    if command -v nvm &> /dev/null; then
+        echo "📦 Setting Node.js version to 20..."
+        nvm use 20 || nvm install 20
+    else
+        echo "⚠️  NVM not found. Please install NVM first."
+        exit 1
+    fi
+    
+    echo "🔍 Linting all HAIP packages..."
+    
+    for package in haip-sdk haip-server haip-cli; do
+        if [ -d "$package" ]; then
+            echo "📦 Linting $package..."
+            cd "$package"
+            npm run lint
+            cd ..
+        fi
+    done
+    
+    echo "✅ All packages linted successfully!"
+
+# Run the unit tests
+test:
+    #!/usr/bin/env bash
+    set -e
+    
+    # Source NVM
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    
+    # Set NVM version
+    if command -v nvm &> /dev/null; then
+        echo "📦 Setting Node.js version to 20..."
+        nvm use 20 || nvm install 20
+    else
+        echo "⚠️  NVM not found. Please install NVM first."
+        exit 1
+    fi
+    
+    echo "🧪 Testing all HAIP packages..."
+    
+    for package in haip-sdk haip-server haip-cli; do
+        if [ -d "$package" ]; then
+            echo "📦 Testing $package..."
+            cd "$package"
+            npm install
+            npm test || echo "⚠️  Tests failed for $package, but continuing..."
+            cd ..
+        fi
+    done
+    
+    echo "✅ Testing completed!"
+
+# Run the int tests
+int: 
+  @echo Not Implemented
+
+# Run the e2e tests
+e2e:
+  @echo Not Implemented
+
+# Plan to run any infra changes
+plan:
+  @echo Not Implemented
+
+# Run any infra changes
+deploy:
+  @echo Not Implemented
+
+# Custom Commands - Put your custom commands below
+
+docs:
+    cd docs && mint dev
 
 # Default recipe
 default:
@@ -295,39 +435,6 @@ release-package package:
     echo
     print_success "🎉 Released $package_name@$new_version successfully!"
 
-# Build all packages
-build:
-    #!/usr/bin/env bash
-    set -e
-    
-    # Source NVM
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-    
-    # Set NVM version
-    if command -v nvm &> /dev/null; then
-        echo "📦 Setting Node.js version to 20..."
-        nvm use 20 || nvm install 20
-    else
-        echo "⚠️  NVM not found. Please install NVM first."
-        exit 1
-    fi
-    
-    echo "🔨 Building all HAIP packages..."
-    
-    for package in haip-sdk haip-server haip-cli; do
-        if [ -d "$package" ]; then
-            echo "📦 Building $package..."
-            cd "$package"
-            npm install
-            npm run build
-            cd ..
-        fi
-    done
-    
-    echo "✅ All packages built successfully!"
-
 # Format all packages
 format:
     #!/usr/bin/env bash
@@ -360,37 +467,6 @@ format:
     
     echo "✅ All packages formatted successfully!"
 
-# Lint all packages
-lint:
-    #!/usr/bin/env bash
-    set -e
-    
-    # Source NVM
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-    
-    # Set NVM version
-    if command -v nvm &> /dev/null; then
-        echo "📦 Setting Node.js version to 20..."
-        nvm use 20 || nvm install 20
-    else
-        echo "⚠️  NVM not found. Please install NVM first."
-        exit 1
-    fi
-    
-    echo "🔍 Linting all HAIP packages..."
-    
-    for package in haip-sdk haip-server haip-cli; do
-        if [ -d "$package" ]; then
-            echo "📦 Linting $package..."
-            cd "$package"
-            npm run lint
-            cd ..
-        fi
-    done
-    
-    echo "✅ All packages linted successfully!"
 
 # Fix linting issues in all packages
 lint-fix:
@@ -423,39 +499,6 @@ lint-fix:
     done
     
     echo "✅ All packages linting issues fixed successfully!"
-
-# Test all packages
-test:
-    #!/usr/bin/env bash
-    set -e
-    
-    # Source NVM
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-    
-    # Set NVM version
-    if command -v nvm &> /dev/null; then
-        echo "📦 Setting Node.js version to 20..."
-        nvm use 20 || nvm install 20
-    else
-        echo "⚠️  NVM not found. Please install NVM first."
-        exit 1
-    fi
-    
-    echo "🧪 Testing all HAIP packages..."
-    
-    for package in haip-sdk haip-server haip-cli; do
-        if [ -d "$package" ]; then
-            echo "📦 Testing $package..."
-            cd "$package"
-            npm install
-            npm test || echo "⚠️  Tests failed for $package, but continuing..."
-            cd ..
-        fi
-    done
-    
-    echo "✅ Testing completed!"
 
 # Clean all packages
 clean:

@@ -26,14 +26,16 @@ You can explore the complete HAI Protocol specification using the interactive Op
 All HAIP messages follow a consistent envelope structure:
 
 ```json
+
 {
   "id": "uuid",
   "session": "session-id",
+  "transaction": "transaction-id",
   "seq": "sequence-number",
   "ts": "timestamp",
-  "channel": "USER|AGENT|SYSTEM|AUDIO_IN|AUDIO_OUT",
+  "channel": "USER|AGENT|SYSTEM",
   "type": "event-type",
-  "payload": {},
+  "payload": {} or "string",
   "bin_len": 0,
   "bin_mime": "mime-type"
 }
@@ -43,44 +45,38 @@ All HAIP messages follow a consistent envelope structure:
 
 #### Core Events
 
-- `HAI` - Protocol handshake
-- `ERROR` - Error reporting
-- `FLOW_UPDATE` - Flow control updates
-
-#### Messaging Events
-
-- `MESSAGE_START` - Text message beginning
-- `MESSAGE_PART` - Text message continuation
-- `MESSAGE_END` - Text message completion
-- `AUDIO_CHUNK` - Audio data transmission
-
-#### Tool Events
-
-- `TOOL_CALL` - Tool invocation
-- `TOOL_UPDATE` - Tool progress updates
-- `TOOL_DONE` - Tool completion
-- `TOOL_ERROR` - Tool error reporting
-- `TOOL_CANCELLED` - Tool cancellation
-
-#### Flow Control Events
-
-- `PAUSE_CHANNEL` - Channel pause
-- `RESUME_CHANNEL` - Channel resume
+- `HAI` - Initial Message To Open Connection
+- `PING`/`PONG` - Keep alive messages
+- `INFO` - Info messages
+- `ERROR` - Error message
+- `FLOW_UPDATE` - Flow control
+- `TRANSACTION_START` - Start a new transaction
+- `TRANSACTION_END` - End transaction
+- `TRANSACTION_JOIN` - Join an existing transaction
+- `REPLAY_REQUEST` - replay messages
+- `MESSAGE` - Send a message that will be validated against the tool schema
+- `MESSAGE_UPDATE` - Edit/delete messages
+- `AUDIO` - Send audio to a tool
+- `TOOL_LIST` - List out all the tools
+- `TOOL_SCHEMA` - Get the schema for a tool
 
 ### Authentication
 
-HAIP uses JWT Bearer token authentication with required claims:
+HAIP allows the user to bring their own authentication. Which is converted into a `HAIPUser`:
 
 ```json
 {
-  "sub": "user-id",
-  "iss": "issuer",
-  "aud": "audience",
-  "exp": "expiration",
-  "iat": "issued-at",
-  "haip_version": "1.1.2"
+  "id": "users primary key",
+  "permissions": {"MESSAGE": ["*"], ...},
+  "credits": 10000
 }
 ```
+
+The permissions restricts what the user has access to. In the above example the user can send messages to all transactions they have joined/created.
+
+If you wanted to only use a specific transaction you could set `{"MESSAGE": ["46ec7297-399c-40c5-bf5a-28503a3899b1"]}`
+
+Often you will want to give admins permissions to join all transactions and edit all messages.
 
 ### Binary Frames
 
@@ -94,12 +90,14 @@ For audio, video, and file transmission, HAIP supports binary frames:
 
 Credit-based back-pressure management:
 
-- **Initial Credits**: Configurable per channel
+- **Initial Credits**: Configurable per user
 - **Credit Thresholds**: Automatic credit requests
 - **Back-Pressure Detection**: Automatic channel pausing
 - **Adaptive Adjustment**: Performance-based credit tuning
 
 ## Implementation Examples
+
+These are examples that don't use the existing SDK. We reccomend using the SDK, for most applications.
 
 ### WebSocket Client
 
@@ -121,7 +119,7 @@ ws.onopen = () => {
       payload: {
         haip_version: "1.1.2",
         accept_major: [1],
-        accept_events: ["HAI", "MESSAGE_START", "MESSAGE_END"],
+        accept_events: ["HAI", "MESSAGE"],
       },
     })
   );
@@ -195,8 +193,8 @@ HAIP defines standard error codes and recovery strategies:
 
 1. **Authentication**
 
-   - Validate JWT tokens
-   - Check required claims
+   - Validate credentials
+   - Check permissions
    - Implement proper error responses
 
 2. **Message Processing**

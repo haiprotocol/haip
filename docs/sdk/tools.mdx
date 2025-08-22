@@ -1,15 +1,22 @@
 ---
-title: 'Tools'
-description: 'Model Context Protocol (MCP) integration, tool registration, and external service connectivity in the HAIP SDK'
+title: "Tools"
+description: "Model Context Protocol (MCP) integration, tool registration, and external service connectivity in the HAIP SDK"
 ---
 
-Extend your HAIP applications with powerful tool integration capabilities. Leverage the Model Context Protocol (MCP) to connect AI agents with external services, APIs, and custom tools for enhanced functionality.
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
+
+Extend your HAIP applications with powerful tool integration capabilities. Leverage
+the Model Context Protocol (MCP) to connect AI agents with external services, APIs,
+and custom tools for enhanced functionality.
 
 ## Tool Integration Overview
 
 ### What are Tools?
 
 Tools are external functions or services that AI agents can call to:
+
 - Retrieve information (web search, database queries)
 - Perform actions (send emails, create files)
 - Process data (calculations, image analysis)
@@ -21,15 +28,15 @@ The HAIP SDK implements the Model Context Protocol (MCP) for tool lifecycle mana
 
 ```typescript
 // Register available tools
-await client.listTools('AGENT', [
-  { name: 'search', description: 'Search the web for information' },
-  { name: 'calculator', description: 'Perform mathematical calculations' },
-  { name: 'weather', description: 'Get weather information for a location' }
+await client.listTools("AGENT", [
+  { name: "search", description: "Search the web for information" },
+  { name: "calculator", description: "Perform mathematical calculations" },
+  { name: "weather", description: "Get weather information for a location" },
 ]);
 
 // Handle tool calls
-client.on('message', (message: HAIPMessage) => {
-  if (message.type === 'TOOL_CALL') {
+client.on("message", (message: HAIPMessage) => {
+  if (message.type === "TOOL_CALL") {
     handleToolCall(message);
   }
 });
@@ -45,37 +52,37 @@ Register available tools with the agent:
 // Define tools
 const tools = [
   {
-    name: 'search',
-    description: 'Search the web for information',
+    name: "search",
+    description: "Search the web for information",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {
         query: {
-          type: 'string',
-          description: 'Search query'
-        }
+          type: "string",
+          description: "Search query",
+        },
       },
-      required: ['query']
-    }
+      required: ["query"],
+    },
   },
   {
-    name: 'calculator',
-    description: 'Perform mathematical calculations',
+    name: "calculator",
+    description: "Perform mathematical calculations",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {
         expression: {
-          type: 'string',
-          description: 'Mathematical expression to evaluate'
-        }
+          type: "string",
+          description: "Mathematical expression to evaluate",
+        },
       },
-      required: ['expression']
-    }
-  }
+      required: ["expression"],
+    },
+  },
 ];
 
 // Register tools
-await client.listTools('AGENT', tools);
+await client.listTools("AGENT", tools);
 ```
 
 ### 2. Tool Call Handling
@@ -85,36 +92,35 @@ Handle incoming tool calls:
 ```typescript
 async function handleToolCall(message: HAIPMessage) {
   const { tool, params, call_id } = message.payload;
-  
+
   try {
     // Update tool status to running
-    await client.updateTool('AGENT', call_id, 'RUNNING', 0);
-    
+    await client.updateTool("AGENT", call_id, "RUNNING", 0);
+
     // Execute the tool
     const result = await executeTool(tool, params);
-    
+
     // Complete the tool call
-    await client.completeTool('AGENT', call_id, 'OK', result);
-    
+    await client.completeTool("AGENT", call_id, "OK", result);
   } catch (error) {
     console.error(`Tool execution failed:`, error);
-    await client.completeTool('AGENT', call_id, 'ERROR', {
-      error: error.message
+    await client.completeTool("AGENT", call_id, "ERROR", {
+      error: error.message,
     });
   }
 }
 
 async function executeTool(tool: string, params: any) {
   switch (tool) {
-    case 'search':
+    case "search":
       return await performSearch(params.query);
-      
-    case 'calculator':
+
+    case "calculator":
       return { result: eval(params.expression) };
-      
-    case 'weather':
+
+    case "weather":
       return await getWeather(params.location);
-      
+
     default:
       throw new Error(`Unknown tool: ${tool}`);
   }
@@ -127,18 +133,18 @@ Update tool execution status:
 
 ```typescript
 // Tool is queued
-await client.updateTool('AGENT', callId, 'QUEUED');
+await client.updateTool("AGENT", callId, "QUEUED");
 
 // Tool is running with progress
-await client.updateTool('AGENT', callId, 'RUNNING', 50); // 50% progress
+await client.updateTool("AGENT", callId, "RUNNING", 50); // 50% progress
 
 // Tool is running with partial results
-await client.updateTool('AGENT', callId, 'RUNNING', 75, {
-  partial: 'Partial results available...'
+await client.updateTool("AGENT", callId, "RUNNING", 75, {
+  partial: "Partial results available...",
 });
 
 // Tool is being cancelled
-await client.updateTool('AGENT', callId, 'CANCELLING');
+await client.updateTool("AGENT", callId, "CANCELLING");
 ```
 
 ### 4. Tool Completion
@@ -147,20 +153,20 @@ Complete tool execution with results:
 
 ```typescript
 // Successful completion
-await client.completeTool('AGENT', callId, 'OK', {
-  results: ['Result 1', 'Result 2'],
-  metadata: { source: 'web-search' }
+await client.completeTool("AGENT", callId, "OK", {
+  results: ["Result 1", "Result 2"],
+  metadata: { source: "web-search" },
 });
 
 // Error completion
-await client.completeTool('AGENT', callId, 'ERROR', {
-  error: 'Network timeout',
-  details: 'Failed to connect to search service'
+await client.completeTool("AGENT", callId, "ERROR", {
+  error: "Network timeout",
+  details: "Failed to connect to search service",
 });
 
 // Cancelled completion
-await client.completeTool('AGENT', callId, 'CANCELLED', {
-  reason: 'User cancelled the operation'
+await client.completeTool("AGENT", callId, "CANCELLED", {
+  reason: "User cancelled the operation",
 });
 ```
 
@@ -173,20 +179,24 @@ class WebSearchTool {
   constructor(private apiKey: string) {}
 
   async search(query: string): Promise<any> {
-    const response = await fetch(`https://api.search.com/search?q=${encodeURIComponent(query)}&key=${this.apiKey}`);
-    
+    const response = await fetch(
+      `https://api.search.com/search?q=${encodeURIComponent(query)}&key=${
+        this.apiKey
+      }`
+    );
+
     if (!response.ok) {
       throw new Error(`Search failed: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     return {
       results: data.results.map((result: any) => ({
         title: result.title,
         url: result.url,
-        snippet: result.snippet
+        snippet: result.snippet,
       })),
-      totalResults: data.totalResults
+      totalResults: data.totalResults,
     };
   }
 }
@@ -199,7 +209,7 @@ async function handleSearchTool(params: any) {
   return {
     query: params.query,
     results: results.results,
-    totalResults: results.totalResults
+    totalResults: results.totalResults,
   };
 }
 ```
@@ -210,16 +220,16 @@ async function handleSearchTool(params: any) {
 class CalculatorTool {
   private safeEval(expression: string): number {
     // Remove potentially dangerous characters
-    const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, '');
-    
+    const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, "");
+
     try {
       // Use Function constructor for safer evaluation
       const result = new Function(`return ${sanitized}`)();
-      
-      if (typeof result !== 'number' || !isFinite(result)) {
-        throw new Error('Invalid calculation result');
+
+      if (typeof result !== "number" || !isFinite(result)) {
+        throw new Error("Invalid calculation result");
       }
-      
+
       return result;
     } catch (error) {
       throw new Error(`Calculation failed: ${error.message}`);
@@ -231,7 +241,7 @@ class CalculatorTool {
     return {
       expression,
       result,
-      formatted: result.toLocaleString()
+      formatted: result.toLocaleString(),
     };
   }
 }
@@ -252,20 +262,22 @@ class WeatherTool {
 
   async getWeather(location: string): Promise<any> {
     const response = await fetch(
-      `https://api.weatherapi.com/v1/current.json?key=${this.apiKey}&q=${encodeURIComponent(location)}`
+      `https://api.weatherapi.com/v1/current.json?key=${
+        this.apiKey
+      }&q=${encodeURIComponent(location)}`
     );
-    
+
     if (!response.ok) {
       throw new Error(`Weather API failed: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     return {
       location: data.location.name,
       temperature: data.current.temp_c,
       condition: data.current.condition.text,
       humidity: data.current.humidity,
-      windSpeed: data.current.wind_kph
+      windSpeed: data.current.wind_kph,
     };
   }
 }
@@ -297,7 +309,7 @@ class ToolRegistry {
     if (!handler) {
       throw new Error(`Tool not found: ${name}`);
     }
-    
+
     return await handler(params);
   }
 
@@ -309,12 +321,12 @@ class ToolRegistry {
 // Usage
 const registry = new ToolRegistry();
 
-registry.register('search', handleSearchTool);
-registry.register('calculator', handleCalculatorTool);
-registry.register('weather', handleWeatherTool);
+registry.register("search", handleSearchTool);
+registry.register("calculator", handleCalculatorTool);
+registry.register("weather", handleWeatherTool);
 
 // Execute tool
-const result = await registry.execute('search', { query: 'TypeScript' });
+const result = await registry.execute("search", { query: "TypeScript" });
 ```
 
 ### Tool Schema Management
@@ -323,12 +335,12 @@ Get tool schemas for validation:
 
 ```typescript
 async function getToolSchema(toolName: string) {
-  await client.getToolSchema('AGENT', toolName);
+  await client.getToolSchema("AGENT", toolName);
 }
 
 // Handle schema response
-client.on('message', (message: HAIPMessage) => {
-  if (message.type === 'TOOL_SCHEMA') {
+client.on("message", (message: HAIPMessage) => {
+  if (message.type === "TOOL_SCHEMA") {
     const { tool, schema } = message.payload;
     console.log(`Schema for ${tool}:`, schema);
   }
@@ -350,38 +362,37 @@ class ToolErrorHandler {
   ) {
     try {
       // Update status to running
-      await client.updateTool('AGENT', callId, 'RUNNING', 0);
-      
+      await client.updateTool("AGENT", callId, "RUNNING", 0);
+
       // Execute with timeout
       const result = await Promise.race([
         executor(params),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Tool execution timeout')), 30000)
-        )
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Tool execution timeout")), 30000)
+        ),
       ]);
-      
+
       // Complete successfully
-      await client.completeTool('AGENT', callId, 'OK', result);
-      
+      await client.completeTool("AGENT", callId, "OK", result);
     } catch (error) {
       console.error(`Tool ${toolName} failed:`, error);
-      
+
       // Determine error type
-      let errorType = 'ERROR';
+      let errorType = "ERROR";
       let errorDetails = { error: error.message };
-      
-      if (error.message.includes('timeout')) {
-        errorType = 'ERROR';
-        errorDetails = { error: 'Tool execution timed out' };
-      } else if (error.message.includes('permission')) {
-        errorType = 'ERROR';
-        errorDetails = { error: 'Insufficient permissions for this tool' };
-      } else if (error.message.includes('network')) {
-        errorType = 'ERROR';
-        errorDetails = { error: 'Network error occurred' };
+
+      if (error.message.includes("timeout")) {
+        errorType = "ERROR";
+        errorDetails = { error: "Tool execution timed out" };
+      } else if (error.message.includes("permission")) {
+        errorType = "ERROR";
+        errorDetails = { error: "Insufficient permissions for this tool" };
+      } else if (error.message.includes("network")) {
+        errorType = "ERROR";
+        errorDetails = { error: "Network error occurred" };
       }
-      
-      await client.completeTool('AGENT', callId, errorType, errorDetails);
+
+      await client.completeTool("AGENT", callId, errorType, errorDetails);
     }
   }
 }
@@ -390,8 +401,8 @@ class ToolErrorHandler {
 await ToolErrorHandler.handleToolExecution(
   client,
   callId,
-  'search',
-  { query: 'TypeScript' },
+  "search",
+  { query: "TypeScript" },
   handleSearchTool
 );
 ```
@@ -406,21 +417,23 @@ class ToolRetryHandler {
     delay: number = 1000
   ): Promise<any> {
     let lastError: Error;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await executor();
       } catch (error) {
         lastError = error as Error;
-        
+
         if (attempt < maxRetries) {
-          console.log(`Tool attempt ${attempt} failed, retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          console.log(
+            `Tool attempt ${attempt} failed, retrying in ${delay}ms...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // Exponential backoff
         }
       }
     }
-    
+
     throw lastError!;
   }
 }
@@ -457,12 +470,12 @@ class MockToolRegistry {
     if (error) {
       throw error;
     }
-    
+
     const result = this.mockResults.get(toolName);
     if (result) {
       return result;
     }
-    
+
     throw new Error(`No mock result set for tool: ${toolName}`);
   }
 }
@@ -470,52 +483,54 @@ class MockToolRegistry {
 // Usage in tests
 const mockRegistry = new MockToolRegistry();
 
-mockRegistry.setMockResult('search', {
-  results: [{ title: 'Test Result', url: 'https://example.com' }],
-  totalResults: 1
+mockRegistry.setMockResult("search", {
+  results: [{ title: "Test Result", url: "https://example.com" }],
+  totalResults: 1,
 });
 
-mockRegistry.setMockError('calculator', new Error('Invalid expression'));
+mockRegistry.setMockError("calculator", new Error("Invalid expression"));
 
 // Test tool execution
-const result = await mockRegistry.execute('search', { query: 'test' });
+const result = await mockRegistry.execute("search", { query: "test" });
 expect(result.results).toHaveLength(1);
 ```
 
 ### Tool Integration Testing
 
 ```typescript
-describe('Tool Integration', () => {
-  test('should handle tool call successfully', async () => {
+describe("Tool Integration", () => {
+  test("should handle tool call successfully", async () => {
     const client = createHAIPClient({
-      url: 'ws://localhost:8080',
-      token: 'test-token',
-      transport: 'websocket'
+      url: "ws://localhost:8080",
+      token: "test-token",
+      transport: "websocket",
     });
 
     // Mock tool execution
     const mockToolCall = {
-      type: 'TOOL_CALL',
+      type: "TOOL_CALL",
       payload: {
-        tool: 'calculator',
-        params: { expression: '2 + 2' },
-        call_id: 'call-123'
-      }
+        tool: "calculator",
+        params: { expression: "2 + 2" },
+        call_id: "call-123",
+      },
     };
 
     // Set up expectations
-    const updateSpy = jest.spyOn(client, 'updateTool');
-    const completeSpy = jest.spyOn(client, 'completeTool');
+    const updateSpy = jest.spyOn(client, "updateTool");
+    const completeSpy = jest.spyOn(client, "completeTool");
 
     // Simulate tool call
-    client.emit('message', mockToolCall);
+    client.emit("message", mockToolCall);
 
     // Wait for processing
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Verify tool lifecycle
-    expect(updateSpy).toHaveBeenCalledWith('AGENT', 'call-123', 'RUNNING', 0);
-    expect(completeSpy).toHaveBeenCalledWith('AGENT', 'call-123', 'OK', { result: 4 });
+    expect(updateSpy).toHaveBeenCalledWith("AGENT", "call-123", "RUNNING", 0);
+    expect(completeSpy).toHaveBeenCalledWith("AGENT", "call-123", "OK", {
+      result: 4,
+    });
   });
 });
 ```
@@ -526,25 +541,28 @@ describe('Tool Integration', () => {
 
 ```typescript
 class ToolMetrics {
-  private metrics = new Map<string, {
-    calls: number;
-    totalTime: number;
-    errors: number;
-    lastCall: number;
-  }>();
+  private metrics = new Map<
+    string,
+    {
+      calls: number;
+      totalTime: number;
+      errors: number;
+      lastCall: number;
+    }
+  >();
 
   recordCall(toolName: string, duration: number, success: boolean) {
     const current = this.metrics.get(toolName) || {
       calls: 0,
       totalTime: 0,
       errors: 0,
-      lastCall: 0
+      lastCall: 0,
     };
 
     current.calls++;
     current.totalTime += duration;
     current.lastCall = Date.now();
-    
+
     if (!success) {
       current.errors++;
     }
@@ -585,7 +603,7 @@ async function executeToolWithMetrics(
 ): Promise<any> {
   const startTime = Date.now();
   let success = true;
-  
+
   try {
     const result = await executor();
     return result;
@@ -602,32 +620,16 @@ async function executeToolWithMetrics(
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card
-    title="Client API"
-    href="/sdk/client"
-    icon="code"
-  >
+  <Card title="Client API" href="/sdk/client" icon="code">
     Learn about the client interface and methods.
   </Card>
-  <Card
-    title="Examples"
-    href="/sdk/examples"
-    icon="book-open"
-  >
+  <Card title="Examples" href="/examples/basic-chat" icon="book-open">
     See practical examples of tool integration.
   </Card>
-  <Card
-    title="Error Handling"
-    href="/sdk/error-handling"
-    icon="exclamation"
-  >
+  <Card title="Error Handling" href="/sdk/error-handling" icon="exclamation">
     Understand error handling and recovery.
   </Card>
-  <Card
-    title="API Reference"
-    href="/sdk/api-reference"
-    icon="laptop"
-  >
+  <Card title="API Reference" href="/sdk/api-reference" icon="laptop">
     Full API reference documentation.
   </Card>
-</CardGroup> 
+</CardGroup>{" "}

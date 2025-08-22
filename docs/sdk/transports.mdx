@@ -1,7 +1,11 @@
 ---
-title: 'Transports'
-description: 'Transport layer options and configurations for the HAIP SDK'
+title: "Transports"
+description: "Transport layer options and configurations for the HAIP SDK"
 ---
+
+<Note>
+  **New protocol version released**: This page may contain outdated information.
+</Note>
 
 The HAIP SDK supports multiple transport protocols for different environments and use cases. Each transport implements the same interface but uses different underlying communication mechanisms.
 
@@ -12,6 +16,7 @@ The HAIP SDK supports multiple transport protocols for different environments an
 The default and most feature-complete transport, supporting real-time bidirectional communication.
 
 **Features:**
+
 - Real-time bidirectional communication
 - Binary data support
 - Automatic reconnection
@@ -21,12 +26,12 @@ The default and most feature-complete transport, supporting real-time bidirectio
 **Usage:**
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 const client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket'
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
 });
 ```
 
@@ -49,7 +54,7 @@ interface WebSocketTransportOptions {
   maxReconnectAttempts?: number;
   reconnectDelay?: number;
   heartbeatInterval?: number;
-  binaryType?: 'arraybuffer' | 'blob';
+  binaryType?: "arraybuffer" | "blob";
 }
 ```
 
@@ -58,6 +63,7 @@ interface WebSocketTransportOptions {
 Browser-only transport using Server-Sent Events for receiving data and HTTP POST for sending.
 
 **Features:**
+
 - Browser-native support
 - Automatic reconnection
 - HTTP POST for sending messages
@@ -66,12 +72,12 @@ Browser-only transport using Server-Sent Events for receiving data and HTTP POST
 **Usage:**
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 const client = createHAIPClient({
-  url: 'http://localhost:8080/sse',
-  token: 'your-jwt-token',
-  transport: 'sse'
+  url: "http://localhost:8080/sse",
+  token: "your-jwt-token",
+  transport: "sse",
 });
 ```
 
@@ -99,6 +105,7 @@ interface SSETransportOptions {
 ```
 
 **Limitations:**
+
 - Browser environment only
 - No binary data support
 - Unidirectional for receiving (uses HTTP POST for sending)
@@ -108,6 +115,7 @@ interface SSETransportOptions {
 Universal transport using fetch streaming for both sending and receiving.
 
 **Features:**
+
 - Works in Node.js and browsers
 - Fetch-based streaming
 - Automatic reconnection
@@ -116,12 +124,12 @@ Universal transport using fetch streaming for both sending and receiving.
 **Usage:**
 
 ```typescript
-import { createHAIPClient } from 'haip-sdk';
+import { createHAIPClient } from "haip-sdk";
 
 const client = createHAIPClient({
-  url: 'http://localhost:8080/stream',
-  token: 'your-jwt-token',
-  transport: 'http-streaming'
+  url: "http://localhost:8080/stream",
+  token: "your-jwt-token",
+  transport: "http-streaming",
 });
 ```
 
@@ -150,33 +158,36 @@ interface HTTPStreamingTransportOptions {
 
 ## Transport Comparison
 
-| Feature | WebSocket | SSE | HTTP Streaming |
-|---------|-----------|-----|----------------|
-| **Environment** | Node.js + Browser | Browser only | Node.js + Browser |
-| **Bidirectional** | ✅ | ❌ (POST for sending) | ✅ |
-| **Binary Support** | ✅ | ❌ | ✅ |
-| **Real-time** | ✅ | ✅ | ✅ |
-| **Reconnection** | ✅ | ✅ | ✅ |
-| **Flow Control** | ✅ | ✅ | ✅ |
-| **Heartbeat** | ✅ | ❌ | ❌ |
-| **Performance** | Excellent | Good | Good |
-| **Compatibility** | High | Medium | High |
+| Feature            | WebSocket         | SSE                   | HTTP Streaming    |
+| ------------------ | ----------------- | --------------------- | ----------------- |
+| **Environment**    | Node.js + Browser | Browser only          | Node.js + Browser |
+| **Bidirectional**  | ✅                | ❌ (POST for sending) | ✅                |
+| **Binary Support** | ✅                | ❌                    | ✅                |
+| **Real-time**      | ✅                | ✅                    | ✅                |
+| **Reconnection**   | ✅                | ✅                    | ✅                |
+| **Flow Control**   | ✅                | ✅                    | ✅                |
+| **Heartbeat**      | ✅                | ❌                    | ❌                |
+| **Performance**    | Excellent         | Good                  | Good              |
+| **Compatibility**  | High              | Medium                | High              |
 
 ## Transport Selection
 
 ### Choose WebSocket when:
+
 - You need full bidirectional communication
 - Binary data support is required
 - Maximum performance is needed
 - Both Node.js and browser environments
 
 ### Choose SSE when:
+
 - Browser-only application
 - Server-sent events are preferred
 - Simpler server implementation
 - Real-time updates are the primary need
 
 ### Choose HTTP Streaming when:
+
 - Universal compatibility is required
 - Fetch API is preferred
 - Both Node.js and browser support needed
@@ -188,13 +199,13 @@ interface HTTPStreamingTransportOptions {
 
 ```typescript
 const client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket',
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
   // Global transport options
   maxReconnectAttempts: 5,
   reconnectDelay: 1000,
-  heartbeatInterval: 30000
+  heartbeatInterval: 30000,
 });
 ```
 
@@ -203,41 +214,41 @@ const client = createHAIPClient({
 ```typescript
 // WebSocket with custom options
 const wsClient = createHAIPClient({
-  url: 'wss://secure-server.com',
-  token: 'your-jwt-token',
-  transport: 'websocket',
+  url: "wss://secure-server.com",
+  token: "your-jwt-token",
+  transport: "websocket",
   options: {
     maxReconnectAttempts: 10,
     reconnectDelay: 2000,
     heartbeatInterval: 15000,
-    binaryType: 'arraybuffer'
-  }
+    binaryType: "arraybuffer",
+  },
 });
 
 // SSE with custom headers
 const sseClient = createHAIPClient({
-  url: 'https://api.example.com/sse',
-  token: 'your-jwt-token',
-  transport: 'sse',
+  url: "https://api.example.com/sse",
+  token: "your-jwt-token",
+  transport: "sse",
   options: {
     withCredentials: true,
     headers: {
-      'X-Custom-Header': 'value'
-    }
-  }
+      "X-Custom-Header": "value",
+    },
+  },
 });
 
 // HTTP Streaming with timeout
 const httpClient = createHAIPClient({
-  url: 'https://api.example.com/stream',
-  token: 'your-jwt-token',
-  transport: 'http-streaming',
+  url: "https://api.example.com/stream",
+  token: "your-jwt-token",
+  transport: "http-streaming",
   options: {
     timeout: 30000,
     headers: {
-      'User-Agent': 'HAIP-Client/1.0'
-    }
-  }
+      "User-Agent": "HAIP-Client/1.0",
+    },
+  },
 });
 ```
 
@@ -249,26 +260,26 @@ All transports support automatic reconnection with exponential backoff:
 
 ```typescript
 const client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket',
-  maxReconnectAttempts: 5,    // Maximum reconnection attempts
-  reconnectDelay: 1000        // Initial delay (doubles each attempt)
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
+  maxReconnectAttempts: 5, // Maximum reconnection attempts
+  reconnectDelay: 1000, // Initial delay (doubles each attempt)
 });
 ```
 
 ### Manual Reconnection
 
 ```typescript
-client.on('disconnect', (reason) => {
-  console.log('Disconnected:', reason);
-  
+client.on("disconnect", (reason) => {
+  console.log("Disconnected:", reason);
+
   // Manual reconnection
   setTimeout(async () => {
     try {
       await client.connect();
     } catch (error) {
-      console.error('Reconnection failed:', error);
+      console.error("Reconnection failed:", error);
     }
   }, 5000);
 });
@@ -279,24 +290,24 @@ client.on('disconnect', (reason) => {
 All transports emit the same events:
 
 ```typescript
-client.on('connect', () => {
-  console.log('Transport connected');
+client.on("connect", () => {
+  console.log("Transport connected");
 });
 
-client.on('disconnect', (reason) => {
-  console.log('Transport disconnected:', reason);
+client.on("disconnect", (reason) => {
+  console.log("Transport disconnected:", reason);
 });
 
-client.on('error', (error) => {
-  console.error('Transport error:', error);
+client.on("error", (error) => {
+  console.error("Transport error:", error);
 });
 
-client.on('message', (message) => {
-  console.log('Message received:', message);
+client.on("message", (message) => {
+  console.log("Message received:", message);
 });
 
-client.on('binary', (data) => {
-  console.log('Binary data received:', data.byteLength, 'bytes');
+client.on("binary", (data) => {
+  console.log("Binary data received:", data.byteLength, "bytes");
 });
 ```
 
@@ -306,11 +317,11 @@ client.on('binary', (data) => {
 
 ```typescript
 const state = client.getConnectionState();
-console.log('Connection state:', {
+console.log("Connection state:", {
   connected: state.connected,
   handshakeCompleted: state.handshakeCompleted,
   sessionId: state.sessionId,
-  reconnectAttempts: state.reconnectAttempts
+  reconnectAttempts: state.reconnectAttempts,
 });
 ```
 
@@ -318,12 +329,12 @@ console.log('Connection state:', {
 
 ```typescript
 const metrics = client.getPerformanceMetrics();
-console.log('Transport metrics:', {
+console.log("Transport metrics:", {
   messagesSent: metrics.messagesSent,
   messagesReceived: metrics.messagesReceived,
   bytesSent: metrics.bytesSent,
   bytesReceived: metrics.bytesReceived,
-  connectionTime: metrics.connectionTime
+  connectionTime: metrics.connectionTime,
 });
 ```
 
@@ -334,24 +345,24 @@ You can switch transports by creating a new client:
 ```typescript
 // Start with WebSocket
 let client = createHAIPClient({
-  url: 'ws://localhost:8080',
-  token: 'your-jwt-token',
-  transport: 'websocket'
+  url: "ws://localhost:8080",
+  token: "your-jwt-token",
+  transport: "websocket",
 });
 
 // Switch to HTTP streaming if WebSocket fails
-client.on('error', async (error) => {
-  if (error.message.includes('WebSocket connection failed')) {
-    console.log('Switching to HTTP streaming...');
-    
+client.on("error", async (error) => {
+  if (error.message.includes("WebSocket connection failed")) {
+    console.log("Switching to HTTP streaming...");
+
     await client.disconnect();
-    
+
     client = createHAIPClient({
-      url: 'http://localhost:8080/stream',
-      token: 'your-jwt-token',
-      transport: 'http-streaming'
+      url: "http://localhost:8080/stream",
+      token: "your-jwt-token",
+      transport: "http-streaming",
     });
-    
+
     await client.connect();
   }
 });
@@ -364,64 +375,50 @@ client.on('error', async (error) => {
 ```typescript
 async function testTransport(transportType: string) {
   const client = createHAIPClient({
-    url: transportType === 'websocket' ? 'ws://localhost:8080' : 'http://localhost:8080/stream',
-    token: 'test-token',
-    transport: transportType as any
+    url:
+      transportType === "websocket"
+        ? "ws://localhost:8080"
+        : "http://localhost:8080/stream",
+    token: "test-token",
+    transport: transportType as any,
   });
 
   try {
     await client.connect();
     console.log(`${transportType} transport connected successfully`);
-    
-    const runId = await client.startRun('test-run');
-    await client.sendTextMessage('USER', 'Test message', 'test', runId);
-    
+
+    const runId = await client.startRun("test-run");
+    await client.sendTextMessage("USER", "Test message", "test", runId);
+
     await client.disconnect();
     console.log(`${transportType} transport test completed`);
-    
   } catch (error) {
     console.error(`${transportType} transport test failed:`, error);
   }
 }
 
 // Test all transports
-await testTransport('websocket');
-await testTransport('http-streaming');
+await testTransport("websocket");
+await testTransport("http-streaming");
 // SSE only works in browser
-if (typeof window !== 'undefined') {
-  await testTransport('sse');
+if (typeof window !== "undefined") {
+  await testTransport("sse");
 }
 ```
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card
-    title="Client API"
-    href="/sdk/client"
-    icon="code"
-  >
+  <Card title="Client API" href="/sdk/client" icon="code">
     Learn about the client interface and methods.
   </Card>
-  <Card
-    title="Examples"
-    href="/sdk/examples"
-    icon="book-open"
-  >
+  <Card title="Examples" href="/examples/basic-chat" icon="book-open">
     See practical examples of transport usage.
   </Card>
-  <Card
-    title="Authentication"
-    href="/sdk/authentication"
-    icon="key"
-  >
+  <Card title="Authentication" href="/sdk/authentication" icon="key">
     Understand authentication across different transports.
   </Card>
-  <Card
-    title="API Reference"
-    href="/sdk/api-reference"
-    icon="laptop"
-  >
+  <Card title="API Reference" href="/sdk/api-reference" icon="laptop">
     Full API reference documentation.
   </Card>
-</CardGroup> 
+</CardGroup>{" "}
