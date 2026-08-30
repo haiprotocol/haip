@@ -11,14 +11,22 @@ Draft contracts, schemas, generated types, OpenAPI, reference service, native ho
 SDK/CLI, independent HTTP review/App and fixed-counter demonstrations, HITL mapping,
 delivery, quotas, retention, recovery, backups, migrations and operations are implemented.
 Exact results are in the research manifest; [ACCEPTANCE.md](ACCEPTANCE.md) maps coverage.
-The [review follow-up](REVIEW-FIXES.md) records the later fixes and expanded local
-coverage without treating historical run records as current-source evidence.
+The [review follow-up](REVIEW-FIXES.md) records the later fixes and expanded
+clean-copy and hosted coverage without treating historical run records as
+current-source evidence.
 
 [Hosted CI](https://github.com/haiprotocol/haip/actions/runs/33334308802) passed on
 `5f70557e7d8a0f29a1e0ea87170689d452375d31`: 46 tests, 25 cross-language comparisons,
 zero known production dependency vulnerabilities and four package dry runs.
 [Retained remote evidence](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json)
 is separate from historical local records. Current PR checks govern later revisions.
+
+The [review-regression run](https://github.com/haiprotocol/haip/actions/runs/33339089387)
+passed 68 tests, 25 comparisons, the production dependency audit, four package dry
+runs and nine development-container checks on `bc1feed4aac1dbe5ea6e47d2c9ad5ce8dd9f9fcd`.
+[Separate evidence](research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md)
+retains the clean-copy results, publication checks and hosted artefacts. The image
+was built and exercised with local fixtures, not published or deployed.
 
 Optional Azure Blob locked WORM and permanent safety records replace the Amazon
 adapter. Free local development needs no cloud account. R2/Clerk/Vercel suitability

@@ -66,8 +66,9 @@ That original local suite passed **46 tests**, with **25 cross-language comparis
 tarballs are prepared under `output/packages`; nothing is published.
 The [review follow-up](REVIEW-FIXES.md) adds the confirmation, request-admission,
 startup, quota, isolation, documentation and publication corrections. The expanded
-local suite passes **68 tests** with 25 comparisons and a clean production audit;
-new run evidence is kept separately from those historical snapshots.
+clean-copy and hosted suites pass **68 tests** with 25 comparisons and a clean
+production dependency audit. [New evidence](research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md)
+is kept separately from those historical snapshots.
 
 [The first hosted CI run](https://github.com/haiprotocol/haip/actions/runs/33334308802)
 also passed 46 tests, 25 comparisons, the production dependency audit and all four
@@ -75,6 +76,14 @@ package dry runs. It tested `5f70557e7d8a0f29a1e0ea87170689d452375d31` through G
 PR merge checkout, whose tree matches that commit.
 [Remote evidence](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json)
 preserves its actual versions, results and artefacts separately from local snapshots.
+
+The [review-regression hosted run](https://github.com/haiprotocol/haip/actions/runs/33339089387)
+tested `bc1feed4aac1dbe5ea6e47d2c9ad5ce8dd9f9fcd` through a matching PR merge tree.
+Alongside the expanded suite it built the development image, passed nine packaged
+service checks and verified that checks preserve tracked files. The
+[hosted record](research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/manifest.json)
+distinguishes Compose configuration validation from the Linux container smoke;
+neither establishes production acceptance.
 
 Local tests use throwaway PostgreSQL, a local OIDC provider, browser/TLS/SMTP fixtures
 and fixed mock effects. Recovery performs real dump/restore, including a matching

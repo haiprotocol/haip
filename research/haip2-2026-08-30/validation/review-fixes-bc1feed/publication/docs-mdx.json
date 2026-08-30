@@ -1,0 +1,9 @@
+{
+  "scope": "Read-only parsing of exact staged MDX blobs.",
+  "index_listing_sha256": "07439662fccc8ca4aa228f4bde6b3b12653fdf61c48257798b9b0a4fc452a0ce",
+  "mdx_parsed": 73,
+  "live_documents": 27,
+  "live_documents_formatted": 27,
+  "archive_formatting": "Original body formatting retained; archive MDX parsed without writing.",
+  "errors": []
+}

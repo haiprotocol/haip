@@ -1,0 +1,131 @@
+{
+  "scope": "Read-only review of staged publication documents and recorded local results; not hosted CI or real-provider validation.",
+  "index_listing_sha256": "07439662fccc8ca4aa228f4bde6b3b12653fdf61c48257798b9b0a4fc452a0ce",
+  "index_unchanged_at_completion": true,
+  "documents": [
+    "REVIEW-FIXES.md",
+    "ACCEPTANCE.md",
+    "IMPLEMENTATION.md",
+    "RELEASE.md",
+    "docs/server/deployment.mdx",
+    "deployment/development.md"
+  ],
+  "evidence": [
+    {
+      "path": ".local/validation/review-fixes/check.txt",
+      "sha256": "e474007b7129e4e33d579368a7a0f80bced7ca88e1141211dbb565ef0b1fe627",
+      "test_summary": {
+        "tests": 68,
+        "suites": 0,
+        "pass": 68,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "path": ".local/validation/review-fixes/clean-check.txt",
+      "sha256": "722b2d26c8d861fdc5d9059e3daa35a941cdf5d743fe3ecbbb38d0e0b6e69de8",
+      "test_summary": {
+        "tests": 68,
+        "suites": 0,
+        "pass": 68,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "path": ".local/validation/review-fixes/cross-language.txt",
+      "sha256": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3",
+      "cross_language_checks": 25
+    },
+    {
+      "path": ".local/validation/review-fixes/clean-cross-language.txt",
+      "sha256": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3",
+      "cross_language_checks": 25
+    },
+    {
+      "path": ".local/validation/review-fixes/audit.json",
+      "sha256": "a15df6fce68cf7f8b794f1945c6cae93392b21fae42fcd89afdcdcf223948aea",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    {
+      "path": ".local/validation/review-fixes/clean-audit.json",
+      "sha256": "a15df6fce68cf7f8b794f1945c6cae93392b21fae42fcd89afdcdcf223948aea",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    {
+      "path": ".local/validation/review-fixes/packages.txt",
+      "sha256": "ee7694e94def1f78f38ba22ca9bea9059985fb4dd19d4fa67f47f4075070dfd7",
+      "packages": [
+        {
+          "name": "@haip/protocol",
+          "version": "2.0.0-draft.1"
+        },
+        {
+          "name": "@haip/sdk",
+          "version": "2.0.0-draft.1"
+        },
+        {
+          "name": "@haip/server",
+          "version": "2.0.0-draft.1"
+        },
+        {
+          "name": "@haip/cli",
+          "version": "2.0.0-draft.1"
+        }
+      ],
+      "dry_run_command": true
+    },
+    {
+      "path": ".local/validation/review-fixes/clean-packages.txt",
+      "sha256": "66ba6b018d24dbd27704b34039ee46ed1a85926ef7b25454197a00273b920006",
+      "packages": [
+        {
+          "name": "@haip/protocol",
+          "version": "2.0.0-draft.1"
+        },
+        {
+          "name": "@haip/sdk",
+          "version": "2.0.0-draft.1"
+        },
+        {
+          "name": "@haip/server",
+          "version": "2.0.0-draft.1"
+        },
+        {
+          "name": "@haip/cli",
+          "version": "2.0.0-draft.1"
+        }
+      ],
+      "dry_run_command": true
+    }
+  ],
+  "assessment": {
+    "historical_and_current_runs_distinguished": true,
+    "no_current_container_ci_pass_claimed": true,
+    "container_runtime_smoke_distinguished_from_compose_config_check": true,
+    "no_production_or_plasm_acceptance_claimed": true,
+    "no_package_publication_or_cloud_deployment_claimed": true,
+    "local_clean_test_result_verified": true
+  },
+  "remaining_verification": "The configured Linux container build/smoke and the current hosted CI revision still require execution; deployment acceptance remains external.",
+  "issues": []
+}

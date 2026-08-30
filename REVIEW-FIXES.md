@@ -38,12 +38,19 @@ Further corrections cover:
 
 ## Validation
 
-The integrated working-tree run passed **68 tests**, **25 cross-language
-comparisons**, the production dependency audit (**zero known vulnerabilities at
-the recorded run**) and four package dry runs. New coverage includes actual
-browser timing attacks, database concurrency, interrupted request bodies and
-atomic session insertion failure; these are isolated fixtures, not deployed
-provider acceptance.
+The [clean-copy run](research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/manifest.json)
+and [hosted run](https://github.com/haiprotocol/haip/actions/runs/33339089387) both
+passed **68 tests**, **25 cross-language comparisons**, the production dependency
+audit (**zero known vulnerabilities at the recorded runs**) and four package dry
+runs. New coverage includes actual browser timing attacks, database concurrency,
+interrupted request bodies and atomic session insertion failure; these are isolated
+fixtures, not deployed provider acceptance. Checks preserved all tracked files.
+
+Hosted CI also built the development image and passed **nine packaged-service
+checks** against disposable PostgreSQL and OIDC fixtures. The image ran without
+root; its context exclusions, bootstrap, signed confirmation, browser assets and
+isolation headers were exercised. Compose configuration was validated separately;
+runtime smoke used Linux host networking, not `docker compose up`.
 
 Documentation checks cover 27 distinct live guides, 41 redirects, 292 internal
 links and parsing of all 73 MDX pages. All 128 archived HAIP 1 source files remain
@@ -51,9 +58,11 @@ unchanged. [Publication edits](research/haip2-2026-08-30/publication-edits.json)
 declare redactions and attribution additions without rewriting historical outcomes.
 Hosted documentation rendering has not been claimed.
 
-The final clean-copy and hosted results will be recorded separately from the
-original 46-test validation records. The draft PR's current checks identify which
-revision GitHub has tested.
+[Retained evidence](research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md)
+records commit `bc1feed4aac1dbe5ea6e47d2c9ad5ce8dd9f9fcd`, exact versions and hashes,
+including populated review and frozen-confirmation screenshots captured before
+confirmation. These results remain separate from the original 46-test records.
+The draft PR's current checks identify which later revision GitHub has tested.
 
 ## Remaining release boundary
 

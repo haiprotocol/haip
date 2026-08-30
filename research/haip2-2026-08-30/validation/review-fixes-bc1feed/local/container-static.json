@@ -1,0 +1,30 @@
+{
+  "classification": "development_container_static_validation",
+  "checked_at": "2026-08-30T22:20:57.254Z",
+  "node": "v24.15.0",
+  "image_executed": false,
+  "reason": "No Docker, Podman or Colima runtime is installed on this Mac; real image smoke is assigned to Linux CI.",
+  "checks": {
+    "official_registry_digests_and_image_config_versions": "passed",
+    "compose_yaml_and_loopback_publication": "passed",
+    "smoke_script_node_syntax": "passed",
+    "smoke_script_standalone_strict_typescript": "passed",
+    "prettier": "passed",
+    "isolated_native_build_from_docker_inputs": "passed",
+    "isolated_production_dependency_install_and_runtime_imports": "passed"
+  },
+  "production_workspace_links": {
+    "protocol": "../../@types",
+    "server": "../../haip-server"
+  },
+  "official_images": {
+    "node": "node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e",
+    "postgres": "postgres:17.11-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0"
+  },
+  "sha256": {
+    "Dockerfile": "36f43aede98b722350660a570983a43a6cce176d891fdc888bd1ccb0d0fbe763",
+    ".dockerignore": "6b636db1f008026a29893b0c893ccaf73d5ea512ac34340f0a01764dda194320",
+    "deployment/compose.dev.yml": "4079273c8d043925f1431fd6195489450ae2904f50e4d04dcfee6daa6d6e4784",
+    "scripts/smoke-container.ts": "84fda380226773c55ebc1c92f57025c526dcaecfe2a605a7286d12d79184f7c5"
+  }
+}
