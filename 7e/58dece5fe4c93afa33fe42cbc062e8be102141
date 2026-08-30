@@ -1,0 +1,41 @@
+research/haip2-2026-08-30/validation/remote-ci-33334308802/check.txt
+  s_08f73032aa8e41::t_d8ce91f63afa1a 1-91
+.github/workflows/check.yml
+  s_08f73032aa8e41::t_027b16038dd19c 17,22,26,42
+research/haip2-2026-08-30/INDEX.md
+  s_08f73032aa8e41::t_027b16038dd19c 71-74,88-93
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_354f67b9889073 6
+  s_08f73032aa8e41::t_027b16038dd19c 3,5,68-74,94-96,107-108
+research/haip2-2026-08-30/validation/remote-ci-33334308802/cross-language.json
+  s_08f73032aa8e41::t_d8ce91f63afa1a 1-184
+research/haip2-2026-08-30/validation/remote-ci-33334308802/audit.txt
+  s_08f73032aa8e41::t_d8ce91f63afa1a 1-2
+research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json
+  s_08f73032aa8e41::t_d8ce91f63afa1a 1-85
+RELEASE.md
+  s_08f73032aa8e41::t_354f67b9889073 5-6,8
+  s_08f73032aa8e41::t_027b16038dd19c 3-4,15-20,37-38
+research/haip2-2026-08-30/validation/remote-ci-33334308802/pack-check.json
+  s_08f73032aa8e41::t_d8ce91f63afa1a 1-578
+ACCEPTANCE.md
+  s_08f73032aa8e41::t_027b16038dd19c 4-5,9-11,47
+research/haip2-2026-08-30/validation/remote-ci-33334308802/runtime-versions.txt
+  s_08f73032aa8e41::t_d8ce91f63afa1a 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7e58dece5fe4c93afa33fe42cbc062e8be102141",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
