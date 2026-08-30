@@ -1,0 +1,87 @@
+RELEASE.md
+  s_08f73032aa8e41::t_1f1aa0ea21bcc1 14-16,24-29
+  s_08f73032aa8e41::t_5f3b281ec898cf 30
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/container-smoke.json
+  s_08f73032aa8e41::t_553074fd8c525c 1-28
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/manifest.json
+  s_08f73032aa8e41::t_9a68d3225cba92 1-75
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/publication/manifest.json
+  s_08f73032aa8e41::t_941458f56cfe1b 1-17
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/container-build.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-73,75-89,91-127,129-130,132-137,139-140,143-144,147-148,151-152,155-156,158-192
+  s_08f73032aa8e41::t_da7b0051f4d94d 74,90,128,131,138,141-142,145-146,149-150,153-154,157
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/publication/publication-integrity.json
+  s_08f73032aa8e41::t_941458f56cfe1b 1-60
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/container-server.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/install.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-11
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/evidence-scan.json
+  s_08f73032aa8e41::t_29fc70cd2763c7 1-17
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/check.txt
+  s_08f73032aa8e41::t_9a68d3225cba92 1-114
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/audit.json
+  s_08f73032aa8e41::t_9a68d3225cba92 1-22
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md
+  s_08f73032aa8e41::t_1f1aa0ea21bcc1 1-32
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/secret-review.json
+  s_08f73032aa8e41::t_9a68d3225cba92 1-43
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/container-smoke.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_1f1aa0ea21bcc1 69-71,80-86
+  s_08f73032aa8e41::t_a53dec66124767 87
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/container-postgres.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-56
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/pack-check.json
+  s_08f73032aa8e41::t_9a68d3225cba92 1-598
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/publication/claims.json
+  s_08f73032aa8e41::t_941458f56cfe1b 1-131
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/pack-check.json
+  s_08f73032aa8e41::t_553074fd8c525c 1-598
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/container-static.json
+  s_08f73032aa8e41::t_9a68d3225cba92 1-30
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/check.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-114
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/runtime-versions.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-4
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/cross-language.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-5
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/cross-language-results.json
+  s_08f73032aa8e41::t_553074fd8c525c 1-184
+REVIEW-FIXES.md
+  s_08f73032aa8e41::t_1f1aa0ea21bcc1 41-53,61-65
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/cross-language-results.json
+  s_08f73032aa8e41::t_9a68d3225cba92 1-184
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/publication/docs-targets.json
+  s_08f73032aa8e41::t_941458f56cfe1b 1-11
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/audit-and-pack.txt
+  s_08f73032aa8e41::t_553074fd8c525c 1-603
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/install.txt
+  s_08f73032aa8e41::t_9a68d3225cba92 1-7
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/cross-language.txt
+  s_08f73032aa8e41::t_9a68d3225cba92 1-5
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/publication/docs-mdx.json
+  s_08f73032aa8e41::t_941458f56cfe1b 1-9
+research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/manifest.json
+  s_08f73032aa8e41::t_553074fd8c525c 1-81,83-104,106-119
+  s_08f73032aa8e41::t_da7b0051f4d94d 82,105
+ACCEPTANCE.md
+  s_08f73032aa8e41::t_1f1aa0ea21bcc1 13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "67b6f1752e5865cd0fa0843dac54885340cdce2a",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
