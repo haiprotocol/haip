@@ -1,20 +1,30 @@
 ---
-title: "SDK \u2014 api reference"
+title: 'SDK method reference'
+description: 'The public client methods and their result boundaries.'
 ---
 
-`@haip/sdk` provides ordinary HTTP creation, status, cancellation, event cursors, audit export, exclusive claims, admission and outcome reporting. It does not expose human confirmation as a machine convenience method.
+`HAIPClient` sends canonical JSON, follows no redirects and uses a 15-second request timeout. Successful responses are decoded with the protocol JSON parser. Non-success HTTP responses raise `HAIPError`; transport or decoding errors can be ordinary errors.
+
+| Method                       | Result and requirements                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `create(input, key)`         | Accepted `RequestStatus`; provide a stable creation key.                                                 |
+| `status(id)`                 | Current scoped `RequestStatus`.                                                                          |
+| `cancel(id, key)`            | Updated status after an authorised cancellation.                                                         |
+| `events(after = 0)`          | Signed event `items` and the next cursor. Persist processing before advancing.                           |
+| `audit(id)`                  | Retained request evidence and response material, subject to access and retention.                        |
+| `claim(id, input, key)`      | Signed exclusive execution claim for the supplied stable identity and binding.                           |
+| `admission(id, claim)`       | Signed fresh admission, nonce and local wall/monotonic timing observations.                              |
+| `outcome(id, input, key)`    | Signed outcome record. Reporting must not repeat an effect.                                              |
+| `request(path, body?, key?)` | Low-level access limited to `/v2/` and `/.well-known/` paths; normal server authorisation still applies. |
+
+`verifyRecord` authenticates an original signed record against independently supplied trust and expected identity. It is not a substitute for the complete [execution verifier](/sdk/execution).
 
 ```ts
-import { HAIPClient } from '@haip/sdk';
-const client = new HAIPClient('https://review.example', producerToken);
-const request = await client.create(input, stableIdempotencyKey);
-const status = await client.status(request.request.id);
 const page = await client.events(savedCursor);
-// Process page.items durably, then save page.next.
+await persistEvents(page.items); // Your durable consumer implementation.
+await saveCursor(page.next);
 ```
 
-`verifyExecutionAuthority` checks trusted signatures, immutable request/response/material commitments, purpose/profile, receipt/claim/admission identity, fresh nonce, checkpoint proof and timing. Supply trust independently and implement the independent anchor-acceptance callback. Included manifests and supplied acceptance objects are not self-authenticating trust.
+The consumer functions are application responsibilities, not SDK exports. Re-fetch request status when acting on an event; never launch work solely because an event says it was authorised.
 
-Record monotonic and wall-clock time around admission. Thirty seconds is clock-health tolerance, not extra validity. Keep the returned deadline check at the launch fence and first covered mutation. Fresh status never moves the original dispatch deadline.
-
-`verifyWebhook` checks the envelope and nested signed event, exact identity and a five-minute replay window. `PostgresWebhookInbox` commits deduplication and a status-refresh queue before acknowledgement. Its queue contains advisory revisions; a consumer fetches current status. No callback launches work.
+Only `create`, `cancel`, `claim` and `outcome` take explicit idempotency keys in these convenience methods. `admission` generates a fresh nonce for each check and does not extend the original dispatch deadline.

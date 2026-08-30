@@ -37,7 +37,16 @@ decision to build HAIP's native inbox. See the note for method, links and limita
 ## Caveats
 
 - These directories were copied from macOS temporary storage on 2026-08-30; reports
-  may internally reference their original `/var/folders/...` paths (e.g. the
-  decimal-fixture path inside `check-results.json`).
+  originally referenced machine-specific temporary workspaces. Published copies now
+  replace those roots with labelled placeholders; see `../publication-edits.json`.
 - The combined check runner and standalone locked build were not retained — only the
   probes and results. Milestone 1 packages reproducible, locked runners.
+
+## Publication copies
+
+Machine-specific checkout and temporary-directory roots have been redacted, and the
+two copied MCP sandbox files have provenance headers. These retained bytes are not
+claimed to be untouched raw captures. [The publication record](../publication-edits.json)
+contains original and retained SHA-256 values; original copies are kept in ignored local
+storage, outside the published evidence. Original experiment hashes and test outcomes have not been relabelled
+as a later run.

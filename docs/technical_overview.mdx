@@ -1,28 +1,22 @@
 ---
-title: "Architecture"
+title: 'Architecture and ownership'
+description: 'How the protocol, reference service, browser host and executor fit together.'
 ---
 
-HAIP is an independent MIT protocol. JSON Schema, OpenAPI 3.1 and generated types define `2.0.0-draft.1`. Unsupported revisions or required profiles fail; they are never silently ignored. Unknown metadata remains signed and non-authorising.
+HAIP separates a person's decision from the system that might act on it. The protocol defines portable requests, responses, signatures and authority bindings. The reference service stores and authenticates those records; an executor is responsible for enforcing them before a protected effect.
 
-| Purpose | Result | Execution authority |
-|---|---|---|
-| `review` | Structured response and signed receipt | Never |
-| `authorise_execution` | Explicit human decision plus an execution binding | Requires anchored grant, exclusive claim and fresh admission |
+| Component             | Responsibility                                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Protocol and profiles | Versioned wire contracts, commitments, trust rules and required capabilities.                                                    |
+| Reference service     | Scoped identities and routes, immutable reviews, trusted confirmation, claims, admission, audit and notifications.               |
+| Trusted browser host  | Full retained material, response validation and explicit confirmation by the signed-in person.                                   |
+| Optional MCP App      | Sandboxed presentation and response proposals. No confirmation or execution authority.                                           |
+| Producer or executor  | Submit the intended material; verify the result. An executor additionally maintains a durable launch fence and reports outcomes. |
 
-Requests capture tenant, producer, operator-mapped requester, route revision, artefact/payload/schema/document digests, optional bundle, purpose, profiles, limits and deadlines. Execution adds a stable occurrence, proposal/context/policy commitments, mode, provenance and a service authority namespace.
+The service uses PostgreSQL transactions to order authority changes per tenant. A state change, its audit record, producer event and delivery job commit together. The delivery worker may retry notifications, but cannot renew a deadline or authorise an effect.
 
-A candidate freezes the exact response. Confirmation identifies both its ID and digest. Changing a candidate invalidates the earlier confirmation target. Producer credentials and App tools cannot confirm.
+For execution, independent checkpoint acceptance must precede a usable grant. Separate permanent safety records fence generations, occurrences and execution identities across restoration. The current production design permits one process per generation; a restart needs offline recovery and fresh provisioning rather than transparent failover.
 
-Decision, audit, grant and execution states are separate. A signature authenticates a record; it does not prove understanding, correctness, dispatch or completion. Human review is oversight, not an execution engine.
+The [generic counter](/examples/counter) exercises this boundary with one fixed mock effect. It is not a general execution engine. Live contexts, credentials, durable continuations and approval-bound execution evidence belong to Plasm's separate integration, not to this HAIP implementation.
 
-Only `haip.execution=1-draft.1` and the optional `haip.mcp-app=1-draft.1` are advertised. The Plasm profile remains a set of externally owned integration requirements. Full HAIP 2 release gates are tracked separately from the working HAIP-owned implementation.
-
-The reference service uses Node 24, Express 5 and PostgreSQL. Tenant transactions serialize authority changes and read PostgreSQL UTC after acquiring the lock. Decisions, signed events and outbox jobs commit together.
-
-The native inbox provides pending/history filters, assignment, full retained documents, searchable payload fields, deadlines, separate authority states and delivery failures. A host response form always remains available when an optional App fails.
-
-Operator-managed directory entries separate producers, publishers and OIDC humans. Each producer has an owner, allowed routes and one optional webhook destination. Verified owners receive notifications after the original agent session ends. Without SMTP the service explicitly reports polling-only operation.
-
-Independent Azure Blob checkpoints hold execution grants pending until accepted. Permanent safety records prevent namespace and occurrence reuse after restart or restoration. Production has no transparent failover: one process owns a generation, and a restart requires recovery and fresh provisioning.
-
-The runtime does not contain Plasm code, continuation reconstruction, live credentials or a general executor. See [deployment](/server/deployment), [monitoring](/server/monitoring) and [authentication](/server/authentication).
+See the [protocol overview](/protocol/overview), [service configuration](/server/configuration) and [execution verification guide](/sdk/execution) for the contracts at each boundary.

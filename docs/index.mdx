@@ -1,11 +1,19 @@
 ---
-title: "HAIP — Human-Agent Interaction Protocol"
+title: 'HAIP — Human-Agent Interaction Protocol'
+description: 'Portable human review and bounded execution authorisation in HAIP 2.'
 ---
 
-HAIP 2 is an independent draft protocol for portable human review and verifiable execution authorisation. Producers supply immutable material, an optional MCP App and a response schema. Authenticated humans confirm exact responses in a trusted host.
+HAIP 2 is an independent protocol for asking a person to review immutable material and returning a verifiable decision. The current revision is **2.0.0-draft.1**. It is not a stable release or a claim of production readiness.
 
-The reference implementation provides a native inbox, PostgreSQL service, TypeScript SDK and CLI. Review works through ordinary HTTP without Plasm or an agent framework. Execution uses separate purpose-bound grants, exclusive claims and fresh admission.
+A producer submits a document, structured payload and response schema. An authenticated person reviews them in a trusted host, proposes a response and confirms that exact response. An optional MCP App can help present the material; it cannot confirm on the person's behalf.
 
-**Status: draft implementation, not a full HAIP 2 release.** Plasm delayed approval is not yet available. See the repository implementation ledger for tested behaviour and remaining gates.
+| Request purpose       | What the result means                                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `review`              | An authenticated structured response. It grants no execution authority.                                                                   |
+| `authorise_execution` | An explicit human decision bound to one proposed occurrence. Execution still requires a valid grant, exclusive claim and fresh admission. |
 
-[Start with the review contract](/protocol/overview). [HAIP 1 archive](/archive/v1/index).
+The Node.js reference service, TypeScript SDK and CLI implement the draft without requiring Plasm or an agent framework. Plasm remains an externally owned execution integration; the presence of a draft profile is not evidence that integration is complete.
+
+Start with the [local walkthrough](/quickstart), read the [review lifecycle](/protocol/review), or inspect the [HTTP contract](/protocol/openapi). The [deployment guide](/server/deployment) explains the remaining operational gates.
+
+HAIP retains its Human-Agent Interaction Protocol name and MIT licence. HAIP 1 chat and streaming guidance is available only in the [unsupported archive](/archive/v1/index).

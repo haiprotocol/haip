@@ -62,6 +62,19 @@ export interface RequestRow {
   material: { payload: unknown; response_schema: unknown; review_document: string } | null;
   retained_bytes: number;
 }
+interface PreparedRequest {
+  material: NonNullable<RequestRow['material']>;
+  material_json: string;
+  material_bytes: number;
+  payload_bytes: number;
+  schema_bytes: number;
+  document_bytes: number;
+  metadata_bytes: number;
+  provenance_bytes: number;
+  payload_digest: string;
+  response_schema_digest: string;
+  document_digest: string;
+}
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
 export class ReviewService {
@@ -120,12 +133,12 @@ export class ReviewService {
     if (!rows[0]) throw missing();
     return rows[0];
   }
-  async owned(tx: Tx, p: Principal, id: string): Promise<RequestRow> {
+  async owned(tx: Tx, p: Principal, id: string, includeMaterial = true): Promise<RequestRow> {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw missing();
-    const { rows } = await tx.query('SELECT * FROM haip_requests WHERE tenant=$1 AND id=$2', [
-      p.tenant,
-      id,
-    ]);
+    const { rows } = await tx.query(
+      `SELECT tenant,id,producer,route,data,retained_bytes,${includeMaterial ? 'material' : 'NULL::jsonb AS material'} FROM haip_requests WHERE tenant=$1 AND id=$2`,
+      [p.tenant, id],
+    );
     const row: RequestRow | undefined = rows[0];
     if (!row) throw missing();
     if (p.kind === 'producer' && row.producer === p.id) return row;
@@ -150,13 +163,14 @@ export class ReviewService {
     key: string | undefined,
     input: unknown,
     fn: () => Promise<T>,
+    preparedDigest?: string,
   ): Promise<T> {
     requireThat(
       key && key.length <= 160 && /^[\x21-\x7e]+$/.test(key),
       400,
       'idempotency_key_required',
     );
-    const hash = digest(input);
+    const hash = preparedDigest ?? digest(input);
     const { rows } = await tx.query(
       'SELECT digest,result FROM haip_idempotency WHERE tenant=$1 AND actor=$2 AND operation=$3 AND key=$4',
       [p.tenant, p.id, operation, key],
@@ -292,7 +306,8 @@ export class ReviewService {
       );
     }
   }
-  async refresh(tx: Tx, p: Principal, row: RequestRow, now: Date): Promise<void> {
+  /** Effective expiry is visible immediately, without making a GET request an audit actor. */
+  private project(row: RequestRow, now: Date): { reason?: string; materialDiscarded: boolean } {
     const d = row.data;
     let reason: string | undefined;
     if (d.decision_state === 'pending' && now.getTime() >= Date.parse(d.request.review_deadline)) {
@@ -309,42 +324,62 @@ export class ReviewService {
       d.grant_state = 'expired';
       reason = 'expiry';
     }
-    if (
+    const materialDiscarded =
+      !d.material_deleted &&
       now.getTime() >=
         Math.min(
           Date.parse(d.request.private_delete_at),
           Date.parse(d.private_discard_at ?? d.request.private_delete_at),
-        ) &&
-      !d.material_deleted
-    ) {
+        );
+    if (materialDiscarded) {
       row.material = null;
       d.material_deleted = true;
       delete d.candidate;
       if (d.decision_state === 'pending') d.decision_state = 'expired';
       row.retained_bytes = 0;
+      if (d.request.execution) d.invalidated = 'retention';
+      if (['available', 'pending_anchor'].includes(d.grant_state)) d.grant_state = 'revoked';
+      reason = 'material_deleted';
+    }
+    return { reason, materialDiscarded };
+  }
+  async refresh(
+    tx: Tx,
+    p: Principal,
+    row: RequestRow,
+    now: Date,
+    initiator?: Principal,
+  ): Promise<void> {
+    const { reason, materialDiscarded } = this.project(row, now),
+      d = row.data;
+    if (materialDiscarded) {
       await tx.query(
         'UPDATE haip_requests SET material=NULL,retained_bytes=0 WHERE tenant=$1 AND id=$2',
-        [p.tenant, row.id],
+        [row.tenant, row.id],
       );
       await tx.query('UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND operation=$2', [
-        p.tenant,
+        row.tenant,
         'decision.propose:' + row.id,
       ]);
       await tx.query(
         "UPDATE haip_outbox SET body='{}',destination=NULL,state=CASE WHEN state='pending' THEN 'expired' ELSE state END WHERE tenant=$1 AND request_id=$2 AND kind='smtp'",
-        [p.tenant, row.id],
+        [row.tenant, row.id],
       );
-      if (d.request.execution) d.invalidated = 'retention';
-      if (['available', 'pending_anchor'].includes(d.grant_state)) d.grant_state = 'revoked';
       await this.audit(
         tx,
-        p,
+        { ...p, tenant: row.tenant, id: row.producer },
         now,
         'MaterialDiscarded',
-        { request_id: row.id, request_digest: d.request_digest, reason: 'retention' },
+        {
+          request_id: row.id,
+          request_digest: d.request_digest,
+          reason: 'retention',
+          recorded_by: initiator
+            ? { kind: initiator.kind, subject: initiator.id }
+            : { kind: 'system', subject: 'haip.retention' },
+        },
         d.request,
       );
-      reason = 'material_deleted';
     }
     if (reason) {
       await this.event(tx, p, row, now, reason);
@@ -379,14 +414,15 @@ export class ReviewService {
       const row = await this.owned(tx, p, id);
       return this.idempotent(tx, p, 'discard:' + id, key, {}, async () => {
         row.data.private_discard_at = iso(now);
-        await this.refresh(tx, p, row, now);
+        await this.refresh(tx, p, row, now, p);
         await this.notifications(tx, p, row, now, [row.data.request.requester.subject]);
         return this.statusIn(tx, p, row, now);
       });
     });
   }
-  async statusIn(tx: Tx, p: Principal, row: RequestRow, now: Date) {
-    await this.refresh(tx, p, row, now);
+  async statusIn(tx: Tx, p: Principal, row: RequestRow, now: Date, readOnly = false) {
+    if (readOnly) this.project(row, now);
+    else await this.refresh(tx, p, row, now);
     const d = row.data;
     const deliveries = (
       await tx.query(
@@ -412,200 +448,381 @@ export class ReviewService {
     };
   }
   async status(p: Principal, id: string) {
-    return this.store.transaction(p.tenant, async (tx, now) => {
+    return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
-      return this.statusIn(tx, p, await this.owned(tx, p, id), now);
+      return this.statusIn(tx, p, await this.owned(tx, p, id, false), now, true);
     });
   }
   async list(p: Principal, filter: string | undefined, offset = 0) {
-    return this.store.transaction(p.tenant, async (tx, now) => {
+    requireThat(
+      Number.isSafeInteger(offset) && offset >= 0 && offset <= 100000,
+      400,
+      'invalid_offset',
+    );
+    requireThat(
+      !filter || ['pending', 'confirmed', 'cancelled', 'superseded', 'expired'].includes(filter),
+      400,
+      'invalid_state',
+    );
+    return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       requireThat(['producer', 'human', 'operator'].includes(p.kind), 403, 'forbidden');
-      const { rows } = await tx.query(
-        'SELECT * FROM haip_requests WHERE tenant=$1 ORDER BY created_at DESC,id',
-        [p.tenant],
+      const access =
+        p.kind === 'producer'
+          ? 'r.producer=$2'
+          : p.kind === 'human'
+            ? "EXISTS (SELECT 1 FROM haip_routes route WHERE route.tenant=r.tenant AND route.id=r.route AND route.config->'reviewers' ? $2)"
+            : '$2::text IS NOT NULL';
+      const privateDue =
+        "(r.data->>'material_deleted'='true' OR LEAST(r.data->'request'->>'private_delete_at',r.data->>'private_discard_at') <= $3)";
+      const decision = `CASE WHEN r.data->>'decision_state'='pending' AND
+        (r.data->'request'->>'review_deadline' <= $3 OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
+      const visible = `r.tenant=$1 AND ${access} AND ($4::text IS NULL OR (${decision})=$4)`;
+      const parameters = [p.tenant, p.id, iso(now), filter ?? null];
+      const total = Number(
+        (await tx.query(`SELECT count(*) FROM haip_requests r WHERE ${visible}`, parameters))
+          .rows[0].count,
       );
-      const visible = [];
-      for (const row of rows as RequestRow[]) {
-        if (p.kind === 'producer' && row.producer !== p.id) continue;
-        if (
-          p.kind === 'human' &&
-          !(await this.route(tx, p, row.route)).config.reviewers.includes(p.id)
-        )
-          continue;
-        await this.refresh(tx, p, row, now);
-        if (filter && row.data.decision_state !== filter) continue;
-        visible.push({
-          id: row.id,
-          summary: row.data.request.summary,
-          deadline: row.data.request.review_deadline,
-          decision: row.data.decision_state,
-          audit: row.data.audit_state,
-          grant: row.data.grant_state,
-          execution: row.data.execution_state,
-          assignment:
-            row.data.review_claim && Date.parse(row.data.review_claim.expires_at) > now.getTime()
-              ? row.data.review_claim
-              : null,
-        });
-      }
-      return {
-        items: visible.slice(offset, offset + 50),
-        total: visible.length,
-        next_offset: offset + 50 < visible.length ? offset + 50 : null,
-      };
+      const { rows } = await tx.query(
+        `SELECT r.id,r.data->'request'->>'summary' AS summary,r.data->'request'->>'review_deadline' AS deadline,
+         ${decision} AS decision,r.data->>'audit_state' AS audit,r.data->>'execution_state' AS execution,
+         CASE WHEN r.data->>'grant_state' IN ('pending_anchor','available') AND r.data->>'grant_deadline' <= $3 THEN 'expired'
+              WHEN r.data->>'grant_state' IN ('pending_anchor','available') AND ${privateDue} THEN 'revoked'
+              ELSE r.data->>'grant_state' END AS grant,
+         CASE WHEN r.data->'review_claim'->>'expires_at' > $3 THEN r.data->'review_claim' ELSE NULL END AS assignment
+         FROM haip_requests r WHERE ${visible} ORDER BY r.created_at DESC,r.id LIMIT 50 OFFSET $5`,
+        [...parameters, offset],
+      );
+      return { items: rows, total, next_offset: offset + 50 < total ? offset + 50 : null };
     });
   }
-  async registerBundle(p: Principal, input: BundleRegistration, key?: string) {
-    validate('BundleRegistration', input);
-    return this.store.transaction(p.tenant, async (tx, now) => {
+  private async preflight(
+    p: Principal,
+    operation: string,
+    key: string | undefined,
+    check: (tx: Tx, p: Principal, now: Date) => Promise<void>,
+  ): Promise<boolean> {
+    requireThat(
+      key && key.length <= 160 && /^[\x21-\x7e]+$/.test(key),
+      400,
+      'idempotency_key_required',
+    );
+    return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
-      requireThat(p.kind === 'publisher', 403, 'publisher_required');
-      return this.idempotent(tx, p, 'bundle.register', key, input, async () => {
-        requireThat(
-          Buffer.byteLength(input.html) <= DEFAULT_LIMITS.bundle_bytes,
-          413,
-          'bundle_too_large',
-        );
-        requireThat(
-          input.compatibility.ext_apps === RENDERER.ext_apps &&
-            input.compatibility.mcp_sdk === RENDERER.mcp_sdk,
-          422,
-          'unsupported_renderer',
-        );
-        const size = Buffer.byteLength(input.html);
-        const total = Number(
-          (
-            await tx.query(
-              'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_bundles WHERE tenant=$1 AND publisher=$2',
-              [p.tenant, p.id],
-            )
-          ).rows[0].total,
-        );
-        requireThat(total + size <= DEFAULT_LIMITS.retained_bytes, 429, 'retained_quota');
-        const producers = (
-          await tx.query(
-            "SELECT id FROM haip_principals WHERE tenant=$1 AND kind='producer' AND config->>'publisher'=$2",
-            [p.tenant, p.id],
-          )
-        ).rows;
-        for (const producer of producers) {
-          const retained = Number(
-            (
-              await tx.query(
-                'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_requests WHERE tenant=$1 AND producer=$2',
-                [p.tenant, producer.id],
-              )
-            ).rows[0].total,
-          );
-          requireThat(
-            retained + total + size <= DEFAULT_LIMITS.retained_bytes,
-            429,
-            'retained_quota',
-          );
-        }
-        const manifest = {
-          id: randomUUID(),
-          tenant: p.tenant,
-          publisher: p.id,
-          digest: digestBytes(input.html),
-          compatibility: input.compatibility,
-          author: input.author,
-          licence: input.licence,
-          created_at: iso(now),
-        };
-        await tx.query(
-          'INSERT INTO haip_bundles(tenant,id,publisher,manifest,html,retained_bytes) VALUES($1,$2,$3,$4,$5,$6)',
-          [p.tenant, manifest.id, p.id, JSON.stringify(manifest), input.html, size],
-        );
-        await this.audit(tx, p, now, 'BundleRegistered', manifest);
-        return manifest;
-      });
+      const previous = await tx.query(
+        'SELECT 1 FROM haip_idempotency WHERE tenant=$1 AND actor=$2 AND operation=$3 AND key=$4',
+        [p.tenant, p.id, operation, key],
+      );
+      if (previous.rowCount) return true;
+      await check(tx, p, now);
+      return false;
     });
   }
-  async creationQuota(
+  /** Cheap admission before a large HTTP body is buffered. The commit transaction rechecks everything. */
+  async preflightCreate(p: Principal, key?: string, supersedesId?: string): Promise<void> {
+    requireThat(p.kind === 'producer', 403, 'producer_required');
+    await this.preflight(
+      p,
+      supersedesId ? 'supersede:' + supersedesId : 'request.create',
+      key,
+      async (tx, current, now) => {
+        requireThat(current.kind === 'producer', 403, 'producer_required');
+        if (supersedesId) await this.owned(tx, current, supersedesId);
+        await this.creationQuota(tx, current, undefined, 0, DEFAULT_LIMITS, now, false);
+      },
+    );
+  }
+  async preflightBundle(p: Principal, key?: string): Promise<void> {
+    requireThat(p.kind === 'publisher', 403, 'publisher_required');
+    await this.preflight(p, 'bundle.register', key, async (tx, current, now) => {
+      requireThat(current.kind === 'publisher', 403, 'publisher_required');
+      await this.bundleQuota(tx, current, 0, now, false);
+    });
+  }
+  private async rateQuota(
     tx: Tx,
     p: Principal,
-    route: string,
-    size: number,
-    limits: Limits,
     now: Date,
-  ): Promise<void> {
-    const { rows } = await tx.query(
-      `SELECT producer,route,created_at,retained_bytes,data->>'decision_state' AS state,data->'request'->>'review_deadline' AS deadline FROM haip_requests WHERE tenant=$1`,
-      [p.tenant],
-    );
-    const own = rows.filter((r) => r.producer === p.id);
-    const day = iso(now).slice(0, 10);
-    // Daily counts survive request/audit deletion and credential rotation.
-    // The tenant transaction lock serialises checks and increments together.
-    for (const [scope, subject, maximum] of [
-      ['tenant', '', 1000],
-      ['producer', p.id, 200],
-      ['route', route, 100],
-    ] as const) {
-      const used = await tx.query(
-        'SELECT count FROM haip_creation_windows WHERE tenant=$1 AND day=$2 AND scope=$3 AND subject=$4',
-        [p.tenant, day, scope, subject],
-      );
-      requireThat((used.rows[0]?.count ?? 0) < maximum, 429, 'daily_quota');
-      await tx.query(
-        `INSERT INTO haip_creation_windows(tenant,day,scope,subject,count) VALUES($1,$2,$3,$4,1)
-         ON CONFLICT(tenant,day,scope,subject) DO UPDATE SET count=haip_creation_windows.count+1`,
-        [p.tenant, day, scope, subject],
-      );
-    }
-    requireThat(
-      own.filter((r) => r.state === 'pending' && Date.parse(r.deadline) > now.getTime()).length <
-        100 &&
-        rows.filter((r) => r.state === 'pending' && Date.parse(r.deadline) > now.getTime()).length <
-          500,
-      429,
-      'outstanding_quota',
-    );
-    // Token buckets are scoped to stable producer/tenant identities, never credentials.
-    const tenantRow = (await tx.query('SELECT config FROM haip_tenants WHERE id=$1', [p.tenant]))
-      .rows[0];
-    const config = tenantRow.config;
+    buckets: readonly (readonly [string, number, number])[],
+    error: string,
+    reserve: boolean,
+  ) {
+    const config = (await tx.query('SELECT config FROM haip_tenants WHERE id=$1', [p.tenant]))
+      .rows[0].config;
     config.buckets ??= {};
-    for (const [name, rate, burst] of [
-      ['tenant', 50, 100],
-      [`producer:${p.id}`, 10, 20],
-    ] as const) {
+    for (const [name, rate, burst] of buckets) {
       const old = config.buckets[name] ?? { tokens: burst, at: now.getTime() };
       const tokens = Math.min(
         burst,
         old.tokens + (Math.max(0, now.getTime() - old.at) * rate) / 60000,
       );
-      requireThat(tokens >= 1, 429, 'creation_rate');
+      requireThat(tokens >= 1, 429, error);
       config.buckets[name] = { tokens: tokens - 1, at: now.getTime() };
     }
-    await tx.query('UPDATE haip_tenants SET config=$2 WHERE id=$1', [
-      p.tenant,
-      JSON.stringify(config),
-    ]);
-    const bundles = Number(
-      (
+    if (reserve)
+      await tx.query('UPDATE haip_tenants SET config=$2 WHERE id=$1', [
+        p.tenant,
+        JSON.stringify(config),
+      ]);
+  }
+  private async retainedQuota(tx: Tx, p: Principal, size: number, limits: Limits) {
+    const result = (
+      await tx.query(
+        `SELECT
+       (SELECT COALESCE(sum(retained_bytes),0) FROM haip_requests WHERE tenant=$1 AND producer=$2) +
+       (SELECT COALESCE(sum(retained_bytes),0) FROM haip_bundles WHERE tenant=$1 AND publisher=$3) AS total`,
+        [p.tenant, p.id, p.config.publisher ?? ''],
+      )
+    ).rows[0];
+    requireThat(Number(result.total) + size <= limits.retained_bytes, 429, 'retained_quota');
+  }
+  async creationQuota(
+    tx: Tx,
+    p: Principal,
+    route: string | undefined,
+    size: number,
+    limits: Limits,
+    now: Date,
+    reserve = true,
+  ): Promise<void> {
+    const day = iso(now).slice(0, 10);
+    // Read-only preflight rejects already-exhausted credentials before preparation or lock acquisition.
+    // These checks and reservations run again under the tenant lock before a new request is accepted.
+    const scopes: [string, string, number][] = [
+      ['tenant', '', 1000],
+      ['producer', p.id, 200],
+    ];
+    if (route) scopes.push(['route', route, 100]);
+    for (const [scope, subject, maximum] of scopes) {
+      const used = await tx.query(
+        'SELECT count FROM haip_creation_windows WHERE tenant=$1 AND day=$2 AND scope=$3 AND subject=$4',
+        [p.tenant, day, scope, subject],
+      );
+      requireThat((used.rows[0]?.count ?? 0) < maximum, 429, 'daily_quota');
+      if (reserve)
         await tx.query(
-          'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_bundles WHERE tenant=$1 AND publisher=$2',
-          [p.tenant, p.config.publisher ?? ''],
-        )
-      ).rows[0].total,
-    );
+          `INSERT INTO haip_creation_windows(tenant,day,scope,subject,count) VALUES($1,$2,$3,$4,1)
+         ON CONFLICT(tenant,day,scope,subject) DO UPDATE SET count=haip_creation_windows.count+1`,
+          [p.tenant, day, scope, subject],
+        );
+    }
+    const pending = (
+      await tx.query(
+        `SELECT count(*) AS tenant_count,count(*) FILTER(WHERE producer=$2) AS producer_count
+       FROM haip_requests WHERE tenant=$1 AND data->>'decision_state'='pending'
+       AND data->'request'->>'review_deadline' > $3`,
+        [p.tenant, p.id, iso(now)],
+      )
+    ).rows[0];
     requireThat(
-      own.reduce((sum, r) => sum + Number(r.retained_bytes), 0) + bundles + size <=
-        limits.retained_bytes,
+      Number(pending.producer_count) < 100 && Number(pending.tenant_count) < 500,
+      429,
+      'outstanding_quota',
+    );
+    await this.rateQuota(
+      tx,
+      p,
+      now,
+      [
+        ['tenant', 50, 100],
+        [`producer:${p.id}`, 10, 20],
+      ],
+      'creation_rate',
+      reserve,
+    );
+    await this.retainedQuota(tx, p, size, limits);
+  }
+  private async bundleQuota(tx: Tx, p: Principal, size: number, now: Date, reserve = true) {
+    const day = iso(now).slice(0, 10);
+    for (const [scope, subject, maximum] of [
+      ['tenant', '', 100],
+      ['publisher', p.id, 20],
+    ] as const) {
+      const used = await tx.query(
+        'SELECT count FROM haip_bundle_windows WHERE tenant=$1 AND day=$2 AND scope=$3 AND subject=$4',
+        [p.tenant, day, scope, subject],
+      );
+      requireThat((used.rows[0]?.count ?? 0) < maximum, 429, 'bundle_daily_quota');
+      if (reserve)
+        await tx.query(
+          `INSERT INTO haip_bundle_windows(tenant,day,scope,subject,count) VALUES($1,$2,$3,$4,1)
+         ON CONFLICT(tenant,day,scope,subject) DO UPDATE SET count=haip_bundle_windows.count+1`,
+          [p.tenant, day, scope, subject],
+        );
+    }
+    await this.rateQuota(
+      tx,
+      p,
+      now,
+      [
+        ['bundle:tenant', 10, 20],
+        [`bundle:publisher:${p.id}`, 2, 5],
+      ],
+      'bundle_rate',
+      reserve,
+    );
+    const retained = (
+      await tx.query(
+        `SELECT COALESCE(sum(retained_bytes),0) AS tenant_bytes,
+       COALESCE(sum(retained_bytes) FILTER(WHERE publisher=$2),0) AS publisher_bytes
+       FROM haip_bundles WHERE tenant=$1`,
+        [p.tenant, p.id],
+      )
+    ).rows[0];
+    const producers = (
+      await tx.query(
+        `SELECT COALESCE(max(used),0) AS maximum FROM (
+         SELECT sum(r.retained_bytes) AS used FROM haip_principals p
+         JOIN haip_requests r ON r.tenant=p.tenant AND r.producer=p.id
+         WHERE p.tenant=$1 AND p.kind='producer' AND p.config->>'publisher'=$2 GROUP BY p.id
+       ) usage`,
+        [p.tenant, p.id],
+      )
+    ).rows[0];
+    requireThat(
+      Number(retained.tenant_bytes) + size <= DEFAULT_LIMITS.retained_bytes &&
+        Number(retained.publisher_bytes) + Number(producers.maximum) + size <=
+          DEFAULT_LIMITS.retained_bytes,
       429,
       'retained_quota',
     );
   }
-  async createIn(tx: Tx, p: Principal, now: Date, input: RequestInput, supersedes?: RequestRow) {
-    requireThat(p.kind === 'producer', 403, 'producer_required');
+  async registerBundle(p: Principal, input: BundleRegistration, key?: string) {
+    requireThat(p.kind === 'publisher', 403, 'publisher_required');
+    const replay = await this.preflight(p, 'bundle.register', key, (tx, current, now) =>
+      this.bundleQuota(tx, current, 0, now, false),
+    );
+    const canonical = canonicalise(input),
+      inputDigest = digestBytes(canonical);
+    input = JSON.parse(canonical);
+    if (!replay) {
+      validate('BundleRegistration', input);
+      requireThat(
+        Buffer.byteLength(input.html) <= DEFAULT_LIMITS.bundle_bytes,
+        413,
+        'bundle_too_large',
+      );
+      requireThat(
+        input.compatibility.ext_apps === RENDERER.ext_apps &&
+          input.compatibility.mcp_sdk === RENDERER.mcp_sdk,
+        422,
+        'unsupported_renderer',
+      );
+    }
+    const contentDigest = replay ? '' : digestBytes(input.html),
+      size = replay ? 0 : Buffer.byteLength(input.html);
+    return this.store.transaction(p.tenant, async (tx, now) => {
+      p = await this.principal(tx, p);
+      requireThat(p.kind === 'publisher', 403, 'publisher_required');
+      return this.idempotent(
+        tx,
+        p,
+        'bundle.register',
+        key,
+        input,
+        async () => {
+          requireThat(!replay, 409, 'idempotency_changed');
+          await this.bundleQuota(tx, p, size, now);
+          const manifest = {
+            id: randomUUID(),
+            tenant: p.tenant,
+            publisher: p.id,
+            digest: contentDigest,
+            compatibility: input.compatibility,
+            author: input.author,
+            licence: input.licence,
+            created_at: iso(now),
+          };
+          await tx.query(
+            'INSERT INTO haip_bundles(tenant,id,publisher,manifest,html,retained_bytes) VALUES($1,$2,$3,$4,$5,$6)',
+            [p.tenant, manifest.id, p.id, JSON.stringify(manifest), input.html, size],
+          );
+          await this.audit(tx, p, now, 'BundleRegistered', manifest);
+          return manifest;
+        },
+        inputDigest,
+      );
+    });
+  }
+  private prepareRequest(input: RequestInput, limits: Limits): PreparedRequest {
     validate('RequestInput', input);
-    const namespace = this.recovery
-      ? (await this.recovery.check(tx, p.tenant)).generation
-      : (await tx.query('SELECT generation FROM haip_tenants WHERE id=$1', [p.tenant])).rows[0]
-          .generation;
+    const payload = canonicalise(input.payload),
+      schema = canonicalise(input.response_schema);
+    const material = {
+      payload: input.payload,
+      response_schema: input.response_schema,
+      review_document: input.review_document,
+    };
+    const materialJSON = JSON.stringify(material);
+    const prepared = {
+      material,
+      material_json: materialJSON,
+      material_bytes: Buffer.byteLength(materialJSON),
+      payload_bytes: Buffer.byteLength(payload),
+      schema_bytes: Buffer.byteLength(schema),
+      document_bytes: Buffer.byteLength(input.review_document),
+      metadata_bytes: bytes(input.metadata ?? {}),
+      provenance_bytes: bytes(input.execution?.provenance.references ?? {}),
+      payload_digest: digestBytes(payload),
+      response_schema_digest: digestBytes(schema),
+      document_digest: digestBytes(input.review_document),
+    };
+    this.preparedLimits(prepared, limits);
+    // Untrusted schema compilation and all large JSON canonicalisation happen without a tenant lock.
+    validateResponseSchema(input.response_schema);
+    return prepared;
+  }
+  private preparedLimits(prepared: PreparedRequest, limits: Limits) {
+    requireThat(prepared.payload_bytes <= limits.payload_bytes, 413, 'payload_too_large');
+    requireThat(prepared.document_bytes <= limits.payload_bytes, 413, 'document_too_large');
+    requireThat(prepared.schema_bytes <= limits.response_bytes, 413, 'schema_too_large');
+    requireThat(prepared.metadata_bytes <= limits.response_bytes, 413, 'metadata_too_large');
+    requireThat(prepared.provenance_bytes <= limits.response_bytes, 413, 'provenance_too_large');
+  }
+  private async prepareCreation(
+    p: Principal,
+    input: RequestInput,
+    key?: string,
+    supersedesId?: string,
+  ) {
+    requireThat(p.kind === 'producer', 403, 'producer_required');
+    let limits: Limits = DEFAULT_LIMITS;
+    const operation = supersedesId ? 'supersede:' + supersedesId : 'request.create';
+    const replay = await this.preflight(p, operation, key, async (tx, current, now) => {
+      requireThat(
+        input && typeof input.route === 'string' && input.route.length <= 160,
+        400,
+        'invalid_RequestInput',
+      );
+      if (supersedesId) await this.owned(tx, current, supersedesId);
+      const route = await this.route(tx, current, input.route);
+      requireThat(
+        current.config.routes?.includes(input.route) &&
+          route.config.allowed_producers.includes(current.id),
+        403,
+        'route_not_authorised',
+      );
+      limits = route.config.limits;
+      await this.creationQuota(tx, current, input.route, 0, limits, now, false);
+    });
+    const canonical = canonicalise(input),
+      inputDigest = digestBytes(canonical);
+    const snapshot: RequestInput = JSON.parse(canonical);
+    return {
+      input: snapshot,
+      inputDigest,
+      prepared: replay ? undefined : this.prepareRequest(snapshot, limits),
+    };
+  }
+  private async createIn(
+    tx: Tx,
+    p: Principal,
+    now: Date,
+    input: RequestInput,
+    prepared: PreparedRequest,
+    supersedes?: RequestRow,
+  ) {
+    requireThat(p.kind === 'producer', 403, 'producer_required');
     requireThat(input.protocol_revision === PROTOCOL_REVISION, 422, 'unsupported_revision');
     const supported = this.discovery().profiles as Record<string, string>;
     for (const [name, v] of Object.entries(input.profiles))
@@ -641,6 +858,19 @@ export class ReviewService {
       'requester_identity_unavailable',
     );
     const limits = { ...route.config.limits };
+    this.preparedLimits(prepared, limits);
+    await this.creationQuota(
+      tx,
+      p,
+      input.route,
+      prepared.material_bytes + 6 * limits.response_bytes + 8192,
+      limits,
+      now,
+    );
+    const namespace = this.recovery
+      ? (await this.recovery.check(tx, p.tenant)).generation
+      : (await tx.query('SELECT generation FROM haip_tenants WHERE id=$1', [p.tenant])).rows[0]
+          .generation;
     const reviewSeconds = Math.min(
       input.review_seconds ?? limits.review_seconds,
       limits.review_seconds,
@@ -682,14 +912,6 @@ export class ReviewService {
           'occurrence_changed',
         );
     }
-    validateResponseSchema(input.response_schema);
-    requireThat(bytes(input.payload) <= limits.payload_bytes, 413, 'payload_too_large');
-    requireThat(
-      Buffer.byteLength(input.review_document) <= limits.payload_bytes,
-      413,
-      'document_too_large',
-    );
-    requireThat(bytes(input.response_schema) <= limits.response_bytes, 413, 'schema_too_large');
     let bundle;
     if (input.bundle_id) {
       requireThat(input.profiles['haip.mcp-app'] === '1-draft.1', 422, 'app_profile_required');
@@ -724,9 +946,9 @@ export class ReviewService {
         artefact_digest: input.artefact.digest,
         representation: input.artefact.representation,
         digest_rules: input.artefact.digest_rules,
-        payload_digest: digest(input.payload),
-        response_schema_digest: digest(input.response_schema),
-        document_digest: digestBytes(input.review_document),
+        payload_digest: prepared.payload_digest,
+        response_schema_digest: prepared.response_schema_digest,
+        document_digest: prepared.document_digest,
         ...(bundle ? { bundle } : {}),
       },
       ...(input.execution ? { execution: input.execution } : {}),
@@ -749,14 +971,10 @@ export class ReviewService {
       ...(supersedes ? { supersedes: supersedes.id } : {}),
     };
     validate('DecisionRequest', request);
-    const material = {
-      payload: input.payload,
-      response_schema: input.response_schema,
-      review_document: input.review_document,
-    };
+    const material = prepared.material;
     // Reserve one maximum-size candidate and its idempotent response so creation cannot starve confirmation.
-    const size = bytes(material) + bytes(request) + 6 * limits.response_bytes + 8192;
-    await this.creationQuota(tx, p, input.route, size, limits, now);
+    const size = prepared.material_bytes + bytes(request) + 6 * limits.response_bytes + 8192;
+    await this.retainedQuota(tx, p, size, limits);
     if (input.execution && this.recovery) {
       await this.recovery.assertUnconsumed(p.tenant, p.id, input.execution.action_occurrence_id);
       await this.recovery.reserve(p.tenant, p.id, input.execution.action_occurrence_id, namespace);
@@ -780,7 +998,7 @@ export class ReviewService {
         p.id,
         input.route,
         JSON.stringify(data),
-        JSON.stringify(material),
+        prepared.material_json,
         size,
         now,
       ],
@@ -805,18 +1023,28 @@ export class ReviewService {
     return this.statusIn(tx, p, row, now);
   }
   async create(p: Principal, input: RequestInput, key?: string) {
+    const creation = await this.prepareCreation(p, input, key);
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
-      return this.idempotent(tx, p, 'request.create', key, input, () =>
-        this.createIn(tx, p, now, input),
+      return this.idempotent(
+        tx,
+        p,
+        'request.create',
+        key,
+        creation.input,
+        () => {
+          requireThat(creation.prepared, 409, 'idempotency_changed');
+          return this.createIn(tx, p, now, creation.input, creation.prepared);
+        },
+        creation.inputDigest,
       );
     });
   }
   async material(p: Principal, id: string) {
-    return this.store.transaction(p.tenant, async (tx, now) => {
+    return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
-      await this.refresh(tx, p, row, now);
+      this.project(row, now);
       requireThat(row.material, 410, 'material_deleted');
       return {
         request: row.data.request,
@@ -929,23 +1157,27 @@ export class ReviewService {
           before + 2 * bytes(candidate) - (row.data.candidate ? bytes(row.data.candidate) : 0);
         const reserve = 6 * r.limits.response_bytes + 8192;
         const extra = Math.max(reserve, after) - Math.max(reserve, before);
-        const usage = (
-          await tx.query(
-            'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_requests WHERE tenant=$1 AND producer=$2',
-            [p.tenant, row.producer],
-          )
-        ).rows[0];
-        const bundles = (
-          await tx.query(
-            "SELECT COALESCE(sum(b.retained_bytes),0) AS total FROM haip_bundles b JOIN haip_principals p ON p.tenant=b.tenant AND p.config->>'publisher'=b.publisher WHERE p.tenant=$1 AND p.id=$2",
-            [p.tenant, row.producer],
-          )
-        ).rows[0];
-        requireThat(
-          Number(usage.total) + Number(bundles.total) + extra <= r.limits.retained_bytes,
-          429,
-          'retained_quota',
-        );
+        // Previously reserved space remains usable even if a later registration or route
+        // has a larger retained-data allowance. Only new storage needs another quota check.
+        if (extra > 0) {
+          const usage = (
+            await tx.query(
+              'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_requests WHERE tenant=$1 AND producer=$2',
+              [p.tenant, row.producer],
+            )
+          ).rows[0];
+          const bundles = (
+            await tx.query(
+              "SELECT COALESCE(sum(b.retained_bytes),0) AS total FROM haip_bundles b JOIN haip_principals p ON p.tenant=b.tenant AND p.config->>'publisher'=b.publisher WHERE p.tenant=$1 AND p.id=$2",
+              [p.tenant, row.producer],
+            )
+          ).rows[0];
+          requireThat(
+            Number(usage.total) + Number(bundles.total) + extra <= r.limits.retained_bytes,
+            429,
+            'retained_quota',
+          );
+        }
         row.retained_bytes = Number(row.retained_bytes) + extra;
         row.data.response_storage_bytes = after;
         await tx.query('UPDATE haip_requests SET retained_bytes=$3 WHERE tenant=$1 AND id=$2', [
@@ -1010,6 +1242,7 @@ export class ReviewService {
             {
               request_id: id,
               request_digest: d.request_digest,
+              purpose: d.request.purpose,
               candidate_id: c.id,
               candidate_digest: digest(c),
               reviewer: p.id,
@@ -1066,23 +1299,34 @@ export class ReviewService {
     });
   }
   async supersede(p: Principal, id: string, input: RequestInput, key?: string) {
+    const creation = await this.prepareCreation(p, input, key, id);
+    input = creation.input;
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const old = await this.owned(tx, p, id);
-      return this.idempotent(tx, p, 'supersede:' + id, key, input, async () => {
-        requireThat(old.data.request.purpose === input.purpose, 409, 'purpose_immutable');
-        requireThat(!old.data.claim, 409, 'occurrence_consumed');
-        const created = await this.createIn(tx, p, now, input, old);
-        old.data.invalidated = 'superseded';
-        if (old.data.decision_state === 'pending') old.data.decision_state = 'superseded';
-        if (!old.data.receipt) delete old.data.candidate;
-        if (['available', 'pending_anchor'].includes(old.data.grant_state))
-          old.data.grant_state = 'revoked';
-        await this.event(tx, p, old, now, 'supersession');
-        await this.save(tx, old);
-        return created;
-      });
+      return this.idempotent(
+        tx,
+        p,
+        'supersede:' + id,
+        key,
+        input,
+        async () => {
+          requireThat(old.data.request.purpose === input.purpose, 409, 'purpose_immutable');
+          requireThat(!old.data.claim, 409, 'occurrence_consumed');
+          requireThat(creation.prepared, 409, 'idempotency_changed');
+          const created = await this.createIn(tx, p, now, input, creation.prepared, old);
+          old.data.invalidated = 'superseded';
+          if (old.data.decision_state === 'pending') old.data.decision_state = 'superseded';
+          if (!old.data.receipt) delete old.data.candidate;
+          if (['available', 'pending_anchor'].includes(old.data.grant_state))
+            old.data.grant_state = 'revoked';
+          await this.event(tx, p, old, now, 'supersession');
+          await this.save(tx, old);
+          return created;
+        },
+        creation.inputDigest,
+      );
     });
   }
   async authority(tx: Tx, p: Principal, row: RequestRow, now: Date, existingClaim = false) {
@@ -1344,7 +1588,7 @@ export class ReviewService {
   }
   async events(p: Principal, after = 0) {
     requireThat(p.kind === 'producer', 403, 'producer_required');
-    return this.store.transaction(p.tenant, async (tx) => {
+    return this.store.read(async (tx) => {
       await this.principal(tx, p);
       const rows = (
         await tx.query(
@@ -1359,10 +1603,10 @@ export class ReviewService {
     });
   }
   async export(p: Principal, id: string) {
-    return this.store.transaction(p.tenant, async (tx, now) => {
+    return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
-      await this.refresh(tx, p, row, now);
+      this.project(row, now);
       const audit = (
         await tx.query(
           'SELECT sequence,previous_head,head,record_digest,record FROM haip_audit WHERE tenant=$1 AND request_id=$2 ORDER BY sequence',

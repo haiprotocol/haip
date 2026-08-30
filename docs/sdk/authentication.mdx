@@ -1,13 +1,24 @@
 ---
-title: "SDK \u2014 authentication"
+title: 'SDK credentials and origins'
+description: 'Keep machine credentials separate from the human review session.'
 ---
 
-Machine bearer credentials identify producers, publishers or operators. Publishers register their own immutable bundles; producers can reference only their mapped publisher. Operators configure routes and verified workload owners. A producer-provided name never establishes human identity.
+Create a client with an exact HTTPS origin: no path, query, fragment or embedded user information. The bearer credential identifies one provisioned principal and its tenant. Do not give a producer an operator or publisher credential as a shortcut.
 
-Humans sign in through OIDC authorization code flow with PKCE, state and nonce. The issuer/subject pair must map to exactly one enabled operator-directory entry. Sessions are held on the server and use Secure, HttpOnly, host-only SameSite cookies. Human writes also require the session CSRF token and the exact trusted Origin.
+```ts
+import { HAIPClient } from '@haip/sdk';
 
-A human proposes a schema-valid candidate and separately confirms its exact ID and digest. Apps can call only `haip_propose_decision`; they cannot read cookies, obtain bearer credentials or confirm. Production routes require separation between requester and reviewer. Uncertain identity temporarily prevents authority; it does not silently waive the check.
+const client = new HAIPClient(origin, producerToken);
+```
 
-Disabling a reviewer or removing them from a route invalidates their affected grants. Re-adding them does not restore those grants. Unrelated membership changes preserve other reviewers’ grants. Authorising rule changes advance the route revision.
+For the [disposable local walkthrough](/quickstart) only, the third constructor argument permits HTTP on `localhost` or `127.0.0.1`:
 
-Rotate machine tokens on the same stable principal ID to preserve quotas. Never recycle a human ID for another OIDC subject. Recovery disables all old credentials and requires explicit reprovisioning.
+```ts
+const localClient = new HAIPClient(localOrigin, temporaryProducerToken, true);
+```
+
+This exception does not allow public plain-HTTP hosts. Keep credentials out of URLs, browser bundles, committed configuration and ordinary logs. Credential rotation changes the token, not the stable producer identity or its quotas.
+
+The SDK does not exchange a bearer credential for a human session. Review links are locators; the person must sign in through the trusted host and confirm there. [Server authentication](/server/authentication) describes those checks.
+
+A service's trust-discovery endpoint is descriptive. Configure accepted signing issuers and keys through an independent trusted channel before verifying receipts, events or execution authority.

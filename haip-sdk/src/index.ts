@@ -186,6 +186,7 @@ export async function verifyExecutionAuthority(input: AuthorityInput) {
   refuse(
     receipt.payload.request_id === r.id &&
       receipt.payload.request_digest === digest(r) &&
+      receipt.payload.purpose === r.purpose &&
       receipt.payload.decision === 'authorise',
     'Decision does not authorise this request',
   );

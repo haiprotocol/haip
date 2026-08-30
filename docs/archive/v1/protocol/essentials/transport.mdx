@@ -1,7 +1,11 @@
 ---
-title: "Transport Mechanisms"
-description: "Choose the right transport for your HAIP implementation"
+title: "HAIP 1 archive — Transport Mechanisms"
+description: "Historical HAIP 1 documentation. Unsupported and incompatible with HAIP 2."
 ---
+
+<Warning>
+**Unsupported HAIP 1 archive.** This is historical chat and streaming documentation, not the HAIP 2 review protocol. Its APIs, package examples and security advice must not be used for a HAIP 2 deployment. Start with the [current HAIP 2 guides](/index).
+</Warning>
 
 ## Overview
 
@@ -18,7 +22,7 @@ WebSockets provide bidirectional, real-time communication with low latency and f
 - **Full-Duplex**: Simultaneous sending and receiving
 - **Wide Support**: Available in all modern browsers and platforms
 
-See the [WebSocket Implementation](/essentials/websocket) guide for detailed implementation examples.
+See the [WebSocket Implementation](/archive/v1/protocol/essentials/websocket) guide for detailed implementation examples.
 
 ## Server-Sent Events (SSE)
 
@@ -31,7 +35,7 @@ SSE provides one-way streaming from server to client, ideal for scenarios where 
 - **HTTP Compatible**: Works through proxies and firewalls
 - **Event-Driven**: Native event handling
 
-See the [Server-Sent Events](/essentials/sse) guide for detailed implementation examples.
+See the [Server-Sent Events](/archive/v1/protocol/essentials/sse) guide for detailed implementation examples.
 
 ## HTTP Streaming
 
@@ -44,7 +48,7 @@ HTTP streaming provides a simple way to stream data over standard HTTP connectio
 - **Simple**: No special client libraries required
 - **Compatible**: Works with existing HTTP infrastructure
 
-See the [HTTP Streaming](/essentials/http-streaming) guide for detailed implementation examples.
+See the [HTTP Streaming](/archive/v1/protocol/essentials/http-streaming) guide for detailed implementation examples.
 
 ## Message Bus Integration
 

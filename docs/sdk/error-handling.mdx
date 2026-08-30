@@ -1,19 +1,27 @@
 ---
-title: "SDK \u2014 error handling"
+title: 'Handle SDK errors'
+description: 'Distinguish service refusals, uncertain requests and local verification failures.'
 ---
 
-Errors return JSON with a stable `error` code. The service does not disclose foreign resource existence: an inaccessible request or publisher-owned bundle returns not found.
+The SDK raises `HAIPError` for a non-success HTTP response, with `status` and the server's stable `code`. Network timeouts, invalid responses and local verification failures may instead be ordinary errors.
 
-| HTTP status | Meaning |
-|---|---|
-| 400 / 413 / 415 | Invalid, too large or unsupported request encoding |
-| 401 / 403 / 404 | Authentication, permission or inaccessible resource |
-| 409 | State, identity, candidate or idempotency conflict |
-| 410 | Retained material or idempotent result has expired |
-| 422 | Unsupported revision, profile, renderer or mode |
-| 429 | Captured quota or operational limit |
-| 503 | Required authority, storage or identity unavailable |
+```ts
+import { HAIPError } from '@haip/sdk';
 
-Retry transient transport failures with the same idempotency key. Do not treat 503 as permission to bypass review, anchoring or identity checks. Expired grants and consumed occurrences never become available because a retry waited longer.
+try {
+  await client.create(requestInput, stableIdempotencyKey);
+} catch (error) {
+  if (error instanceof HAIPError) {
+    console.error(error.status, error.code);
+  } else {
+    // The request outcome may be unknown. Do not invent a new creation key.
+    throw error;
+  }
+}
+```
 
-After a possible launch, preserve the launch fence and report uncertainty. Operators need reasons and evidence to reconcile. A new attempt requires a newly linked occurrence and fresh approval; it must not replay the original whole plan.
+The client does not automatically retry mutations. Retrying a logical creation with the same key and identical material lets the service return its recorded result. A conflict requires inspection of current status, not a new execution identity or a weaker request.
+
+Never log credentials or the full private request while reporting errors. For user-facing messages, distinguish denied access, expired authority, quota pressure and deleted material without exposing another tenant's resources.
+
+An execution verifier error means do not dispatch. After a durable fence or external effect exists, an error means retain evidence and reconcile; it is not permission to run the effect again. See [protocol refusals](/protocol/essentials/error-handling) and the [counter example](/examples/counter).

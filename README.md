@@ -12,7 +12,8 @@ live-window approval, durable continuations and approval-bound evidence are not
 implemented here. Safe namespace recovery, encrypted backups and independent storage
 checks are implemented and exercised locally; real deployment acceptance is still
 required. See [the implementation ledger](IMPLEMENTATION.md), [acceptance matrix](ACCEPTANCE.md)
-and [release gates](RELEASE.md).
+and [release gates](RELEASE.md). The [review follow-up](REVIEW-FIXES.md) records the
+subsequent fixes and expanded validation without overwriting historical evidence.
 
 HAIP retains its MIT licence, `@haip` package scope and
 [haiprotocol.com](https://haiprotocol.com) identity. It does not depend on Plasm,
@@ -68,6 +69,8 @@ For a free local demonstration, run `npm run demo` after building. It creates a
 temporary isolated database, local sign-in fixture and random test credentials;
 never expose it publicly. `npm run example:app` builds the independent choice App.
 See [the HTTP walkthrough](examples/http/README.md). No cloud account is required.
+The [development container guide](deployment/development.md) covers the current
+Docker/Compose files, explicit local settings and their deployment limitations.
 
 Build with `npm run build`, provide explicit database, signing, trust, OIDC and
 separate sandbox-origin configuration, then run `npm run start -w @haip/server`.
@@ -80,8 +83,9 @@ An app can propose a response but cannot confirm, execute, navigate externally, 
 storage or call arbitrary tools. The host view and response form remain available if
 the app fails. Review-only decisions never grant execution authority.
 
-Production requires independently administered anchoring and permanent recovery
-fences. The optional Azure Blob adapter checks locked retention and exact versions;
+Production startup requires separate HTTPS sites, verified database TLS, matching
+signing trust, independently administered anchoring and permanent recovery fences.
+The Azure Blob adapter checks locked retention and exact versions;
 real Azure permissions and external identity interoperability remain unverified.
 Development without an anchor permits review and polling; execution stays fenced.
 Filesystem anchoring exists only in the test fixtures.

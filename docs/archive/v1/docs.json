@@ -1,85 +1,85 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "HAIProtocol (HAIP)",
+  "name": "HAIP 1 — unsupported archive",
   "colors": {
     "primary": "#EAB308",
     "light": "#FCD34D",
     "dark": "#CA8A04"
   },
-  "favicon": "favicon.ico",
+  "favicon": "archive/v1/favicon.ico",
   "navigation": {
     "groups": [
       {
         "group": "Getting Started",
         "pages": [
-          "index",
-          "quickstart",
-          "technical_overview"        ]
+          "archive/v1/index",
+          "archive/v1/quickstart",
+          "archive/v1/technical_overview"
+        ]
       },
       {
         "group": "Protocol",
         "pages": [
-          "protocol/overview",
-          "protocol/openapi"
-
+          "archive/v1/protocol/overview",
+          "archive/v1/protocol/openapi"
         ]
       },
       {
         "group": "Examples",
         "pages": [
-          "examples/basic-chat",
-          "examples/using-cli",
-          "examples/audio-streaming",
-          "examples/flow-control"
+          "archive/v1/examples/basic-chat",
+          "archive/v1/examples/using-cli",
+          "archive/v1/examples/audio-streaming",
+          "archive/v1/examples/flow-control"
         ]
       },
       {
         "group": "TypeScript SDK",
         "pages": [
-          "sdk/overview",
-          "sdk/installation",
-          "sdk/quickstart",
-          "sdk/client",
-          "sdk/transports",
-          "sdk/authentication",
-          "sdk/messaging",
-          "sdk/tools",
-          "sdk/flow-control",
-          "sdk/error-handling",
-          "sdk/api-reference"
+          "archive/v1/sdk/overview",
+          "archive/v1/sdk/installation",
+          "archive/v1/sdk/quickstart",
+          "archive/v1/sdk/client",
+          "archive/v1/sdk/transports",
+          "archive/v1/sdk/authentication",
+          "archive/v1/sdk/messaging",
+          "archive/v1/sdk/tools",
+          "archive/v1/sdk/flow-control",
+          "archive/v1/sdk/error-handling",
+          "archive/v1/sdk/api-reference"
         ]
       },
       {
         "group": "HAIP Server",
         "pages": [
-          "server/overview",
-          "server/installation",
-          "server/quickstart",
-          "server/configuration",
-          "server/transports",
-          "server/tools",
-          "server/authentication",
-          "server/monitoring",
-          "server/deployment",
-          "server/api-reference"
+          "archive/v1/server/overview",
+          "archive/v1/server/installation",
+          "archive/v1/server/quickstart",
+          "archive/v1/server/configuration",
+          "archive/v1/server/transports",
+          "archive/v1/server/tools",
+          "archive/v1/server/authentication",
+          "archive/v1/server/monitoring",
+          "archive/v1/server/deployment",
+          "archive/v1/server/api-reference"
         ]
       },
       {
         "group": "HAIP CLI",
         "pages": [
-          "cli/overview",
-          "cli/installation",
-          "cli/quickstart",
-          "cli/commands",
-          "cli/configuration",
-          "cli/api-reference"
+          "archive/v1/cli/overview",
+          "archive/v1/cli/installation",
+          "archive/v1/cli/quickstart",
+          "archive/v1/cli/commands",
+          "archive/v1/cli/configuration",
+          "archive/v1/cli/api-reference"
         ]
       }
     ]
   },
   "logo": {
-    "light": "light.svg",
-    "dark": "dark.svg"
+    "light": "archive/v1/light.svg",
+    "dark": "archive/v1/dark.svg"
   }
-} 
+}

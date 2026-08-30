@@ -4,8 +4,8 @@ import { createHash } from 'node:crypto';
 export type Tx = PoolClient;
 export class Store {
   readonly pool: pg.Pool;
-  constructor(url: string) {
-    this.pool = new pg.Pool({ connectionString: url, max: 12 });
+  constructor(url: string, options: pg.PoolConfig = {}) {
+    this.pool = new pg.Pool({ ...options, connectionString: url, max: 12 });
   }
   async migrate(): Promise<void> {
     const tx = await this.pool.connect();
@@ -46,6 +46,23 @@ export class Store {
       await tx.query("SET LOCAL lock_timeout = '10s'");
       await tx.query("SET LOCAL statement_timeout = '30s'");
       await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [tenant]);
+      const { rows } = await tx.query('SELECT clock_timestamp() AS now');
+      const result = await fn(tx, rows[0].now);
+      await tx.query('COMMIT');
+      return result;
+    } catch (error) {
+      await tx.query('ROLLBACK');
+      throw error;
+    } finally {
+      tx.release();
+    }
+  }
+  /** Admission preflights and paginated reads never wait for the tenant's write lock. */
+  async read<T>(fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {
+    const tx = await this.pool.connect();
+    try {
+      await tx.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await tx.query("SET LOCAL statement_timeout = '5s'");
       const { rows } = await tx.query('SELECT clock_timestamp() AS now');
       const result = await fn(tx, rows[0].now);
       await tx.query('COMMIT');

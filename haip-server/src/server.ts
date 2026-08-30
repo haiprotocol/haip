@@ -1,6 +1,11 @@
-import express, { type Request, type Response, type NextFunction } from 'express';
+import express, {
+  type Request,
+  type Response,
+  type NextFunction,
+  type RequestHandler,
+} from 'express';
 import { readFileSync } from 'node:fs';
-import { digest, parseJson } from '@haip/protocol/crypto';
+import { digest, digestBytes, parseJson } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
 import { hitlStatus, hitlPoll } from './hitl.js';
 import { installAuth } from './auth.js';
@@ -11,6 +16,35 @@ import { validate } from './validation.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = (name: string) =>
   readFileSync(new URL('../public/' + name, import.meta.url), 'utf8');
+const hostPolicy = (frameOrigin = "'none'") =>
+  `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-src ${frameOrigin}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`;
+const bundleScope = (tenant: string, bundle: { publisher: string; digest: string }) =>
+  digest({ tenant, publisher: bundle.publisher, digest: bundle.digest }).slice(7);
+function jsonBody(limit: number): RequestHandler[] {
+  return [
+    (req, _res, next) => {
+      requireThat(req.is('application/json'), 415, 'json_required');
+      requireThat(
+        !req.get('Content-Encoding') || req.get('Content-Encoding') === 'identity',
+        415,
+        'unsupported_encoding',
+      );
+      const charset = req.get('Content-Type')?.match(/;\s*charset\s*=\s*"?([^;"\s]+)/i)?.[1];
+      requireThat(!charset || charset.toLowerCase() === 'utf-8', 415, 'utf8_required');
+      next();
+    },
+    express.raw({ type: 'application/json', limit, inflate: false }),
+    (req, _res, next) => {
+      requireThat(Buffer.isBuffer(req.body), 400, 'invalid_json');
+      try {
+        req.body = parseJson(new TextDecoder('utf-8', { fatal: true }).decode(req.body));
+      } catch {
+        throw new ProtocolError(400, 'invalid_json');
+      }
+      next();
+    },
+  ];
+}
 export function createApp(service: ReviewService) {
   const app = express();
   const metrics = new Metrics();
@@ -26,24 +60,10 @@ export function createApp(service: ReviewService) {
       'X-Frame-Options': 'DENY',
       'Permissions-Policy':
         'camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-read=(), clipboard-write=()',
-      'Content-Security-Policy':
-        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-src https: http://*.localhost:*; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': hostPolicy(),
     });
     if (service.config.mode === 'production')
       res.set('Strict-Transport-Security', 'max-age=31536000');
-    next();
-  });
-  app.use(express.raw({ type: 'application/json', limit: '22mb', inflate: false }));
-  app.use((req, _res, next) => {
-    if (Buffer.isBuffer(req.body)) {
-      try {
-        req.body = parseJson(new TextDecoder('utf-8', { fatal: true }).decode(req.body));
-      } catch {
-        throw new ProtocolError(400, 'invalid_json');
-      }
-    }
-    if (['POST', 'PUT', 'PATCH'].includes(req.method))
-      requireThat(req.is('application/json'), 415, 'json_required');
     next();
   });
   app.get('/.well-known/haip', (_req, res) => res.json(service.discovery()));
@@ -52,17 +72,94 @@ export function createApp(service: ReviewService) {
     await service.store.pool.query('SELECT 1');
     res.json({ status: 'ok', release: 'draft', notifications: service.discovery().notifications });
   });
-  app.get('/assets/host.js', (_req, res) => res.type('js').send(script('host.js')));
-  app.get('/assets/style.css', (_req, res) => res.type('css').send(script('style.css')));
+  app.get('/assets/host.js', (_req, res) =>
+    res
+      .set('Cache-Control', 'public, max-age=0, must-revalidate')
+      .type('js')
+      .send(script('host.js')),
+  );
+  app.get('/assets/style.css', (_req, res) =>
+    res
+      .set('Cache-Control', 'public, max-age=0, must-revalidate')
+      .type('css')
+      .send(script('style.css')),
+  );
   app.get('/', (_req, res) => res.redirect('/inbox'));
   installAuth(app, service);
-  app.get(['/inbox', '/review/:id'], (req, res) => {
+  app.get(['/inbox', '/review/:id'], async (req, res) => {
     requireThat(req.principal.kind === 'human', 403, 'human_required');
+    if (typeof req.params.id === 'string') {
+      const data = await service.status(req.principal, req.params.id);
+      const bundle = data.request.review.bundle;
+      if (bundle)
+        res.set(
+          'Content-Security-Policy',
+          hostPolicy(
+            new URL(service.config.sandboxOrigin(bundleScope(req.principal.tenant, bundle))).origin,
+          ),
+        );
+    }
     res.type('html').send(page);
   });
   const key = (req: Request) => req.header('Idempotency-Key');
   const human = (req: Request) =>
     requireThat(req.humanSession && req.principal.kind === 'human', 403, 'human_required');
+  const role =
+    (...kinds: string[]): RequestHandler =>
+    (req, _res, next) => {
+      requireThat(kinds.includes(req.principal.kind), 403, 'forbidden');
+      if (kinds.length === 1 && kinds[0] === 'human') human(req);
+      next();
+    };
+  // Only known routes parse bodies, after authentication, CSRF and cheap admission checks.
+  app.post(
+    '/v2/bundles',
+    async (req, _res, next) => {
+      await service.preflightBundle(req.principal, key(req));
+      next();
+    },
+    ...jsonBody(22 * 1024 ** 2),
+  );
+  app.post(
+    ['/v2/requests', '/v2/requests/:id/supersede'],
+    async (req, _res, next) => {
+      await service.preflightCreate(
+        req.principal,
+        key(req),
+        typeof req.params.id === 'string' ? req.params.id : undefined,
+      );
+      next();
+    },
+    ...jsonBody(22 * 1024 ** 2),
+  );
+  app.post(
+    ['/v2/requests/:id/assignment', '/v2/requests/:id/confirm'],
+    role('human'),
+    ...jsonBody(64 * 1024),
+  );
+  app.post('/v2/requests/:id/candidates', role('human'), ...jsonBody(2 * 1024 ** 2));
+  app.post(
+    [
+      '/v2/requests/:id/cancel',
+      '/v2/requests/:id/revoke',
+      '/v2/requests/:id/remind',
+      '/v2/requests/:id/discard',
+    ],
+    role('producer', 'operator'),
+    ...jsonBody(64 * 1024),
+  );
+  app.post(
+    ['/v2/requests/:id/claims', '/v2/requests/:id/admission'],
+    role('producer'),
+    ...jsonBody(64 * 1024),
+  );
+  app.post('/v2/requests/:id/outcomes', role('producer'), ...jsonBody(1024 ** 2));
+  app.post('/v2/requests/:id/reconcile', role('operator'), ...jsonBody(1024 ** 2));
+  app.put(
+    ['/v2/admin/principals/:id', '/v2/admin/routes/:id'],
+    role('operator'),
+    ...jsonBody(64 * 1024),
+  );
   app.get('/v2/requests', async (req, res) =>
     res.json(
       await service.list(
@@ -96,11 +193,16 @@ export function createApp(service: ReviewService) {
       )
     ).rows[0];
     requireThat(found?.html, 410, 'bundle_deleted');
-    const scope = digest({
-      tenant: req.principal.tenant,
-      publisher: bundle.publisher,
-      digest: bundle.digest,
-    }).slice(7);
+    requireThat(
+      digestBytes(found.html) === bundle.digest &&
+        found.manifest?.digest === bundle.digest &&
+        found.manifest.id === bundle.id &&
+        found.manifest.tenant === req.principal.tenant &&
+        found.manifest.publisher === bundle.publisher,
+      409,
+      'bundle_integrity_mismatch',
+    );
+    const scope = bundleScope(req.principal.tenant, bundle);
     const inline =
       Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes;
     res.json({
@@ -233,14 +335,7 @@ function offset(v: unknown): number {
 export function createSandboxApp(service: ReviewService) {
   const app = express();
   app.disable('x-powered-by');
-  app.get('/sandbox/:scope', (req, res) => {
-    requireThat(/^[a-f0-9]{64}$/.test(req.params.scope!), 404, 'not_found');
-    const expected = new URL(service.config.sandboxOrigin(req.params.scope!));
-    requireThat(req.get('host') === expected.host, 404, 'not_found');
-    const source = script('sandbox.js').replaceAll(
-      '__HAIP_HOST_ORIGIN__',
-      JSON.stringify(service.config.origin).slice(1, -1),
-    );
+  app.use((_req, res, next) => {
     res.set({
       'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer',
@@ -249,11 +344,26 @@ export function createSandboxApp(service: ReviewService) {
         'camera=(), microphone=(), geolocation=(), payment=(), clipboard-read=(), clipboard-write=()',
       'Content-Security-Policy': `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors ${service.config.origin}`,
     });
+    if (service.config.mode === 'production')
+      res.set('Strict-Transport-Security', 'max-age=31536000');
+    next();
+  });
+  app.get('/sandbox/:scope', (req, res) => {
+    requireThat(/^[a-f0-9]{64}$/.test(req.params.scope!), 404, 'not_found');
+    const expected = new URL(service.config.sandboxOrigin(req.params.scope!));
+    requireThat(req.get('host') === expected.host, 404, 'not_found');
+    const source = script('sandbox.js').replaceAll(
+      '__HAIP_HOST_ORIGIN__',
+      JSON.stringify(service.config.origin).slice(1, -1),
+    );
     res
       .type('html')
       .send(
         `<!doctype html><meta charset="utf-8"><title>Isolated review app</title><style>html,body,iframe{height:100%;width:100%;border:0;margin:0}</style><script>${source.replaceAll('</script', '<\\/script')}</script>`,
       );
+  });
+  app.use((_req, res) => {
+    res.status(404).json({ error: 'not_found' });
   });
   app.use((_error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     res.status(404).json({ error: 'not_found' });

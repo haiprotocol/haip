@@ -1,6 +1,8 @@
-   Compiling plasm-agent-core v0.4.45 (/Users/leecrossley/pro/haip2-plasm/plasm-oss/crates/plasm-agent-core)
+# Publication copy: machine-specific checkout roots are redacted.
+# Original and retained byte hashes are recorded in ../publication-edits.json.
+   Compiling plasm-agent-core v0.4.45 ([PLASM_WORKTREE]/plasm-oss/crates/plasm-agent-core)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 9.22s
-     Running unittests src/lib.rs (/Users/leecrossley/plasm/target/debug/deps/plasm_agent_core-fc953de0332d973f)
+     Running unittests src/lib.rs ([PLASM_CHECKOUT]/target/debug/deps/plasm_agent_core-fc953de0332d973f)
 
 running 5 tests
 test plasm_plan_run::tests::approval_policy::haip_required_approval_has_no_automatic_receipt ... ok

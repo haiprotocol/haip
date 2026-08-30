@@ -1,0 +1,147 @@
+{
+  "record": "HAIP 2 research publication edits",
+  "publication_date": "2026-08-30",
+  "baseline_commit": "7e58dece5fe4c93afa33fe42cbc062e8be102141",
+  "scope": "Publication hygiene and fresh-run output routing, not a new test run or a rewrite of historical results.",
+  "path_base": "research/haip2-2026-08-30",
+  "raw_originals": {
+    "location": ".local/research-originals",
+    "relative_to": "repository root",
+    "git_status": "ignored, not retained in this publication",
+    "content": "The 12 original files exactly match baseline_commit at the corresponding path_base paths."
+  },
+  "placeholders": [
+    "[HAIP_CHECKOUT]",
+    "[PLASM_CHECKOUT]",
+    "[PLASM_WORKTREE]",
+    "[HISTORICAL_PROTOCOL_WORKDIR]"
+  ],
+  "historical_integrity": "Original experiment hashes continue to identify the bytes tested at the time. Retained hashes below identify the publication copies after the declared changes. Existing validation manifests and their source hashes are historical snapshot records, not assertions about the current source tree. No original test assertion, pass/fail outcome or experiment timestamp was changed.",
+  "source_provenance": {
+    "repository": "https://github.com/modelcontextprotocol/ext-apps",
+    "tag": "v1.7.4",
+    "commit": "ca1d29894fabbd1558885a9ec8620dcb01d7457e",
+    "path": "examples/basic-host/src/sandbox.ts",
+    "blob": "6f1dd93d7a948d1e9b5a8216f13c4ad7e5a4e283",
+    "original_sha256": "41badf3e939ff62e952d30ebe3a5731d7f8c54f2f6021f47ef759ea857d0d88a",
+    "verification": "The original upstream-sandbox.ts bytes match the upstream file at this pinned commit. Removing the added header from each retained sandbox source reproduces that file's original recorded hash.",
+    "licence_identifier": "LicenseRef-MCP-1.7.4-Transition",
+    "licence_text_from_repository_root": "third-party/ext-apps-1.7.4-LICENSE",
+    "licence_blob": "4a93985763241755401a10678395303de4e720ba",
+    "licence_sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
+    "licence_scope": "The exact upstream transitional licence assigns Apache-2.0 or MIT by contribution and CC BY 4.0 to documentation. The licence reference points to that retained text; it does not offer an invented alternative licence or relicense the copied source."
+  },
+  "files": [
+    {
+      "path": "INDEX.md",
+      "original_sha256": "b83aa79aa8f6c6e19efd58303a6c3fc911ff21a37cb80ef3558e7e7a2e7311db",
+      "retained_sha256": "930806327eb2652d10a6f1bdf2d2d499b55534096abadaa16faeeb33c103b6de",
+      "changes": [
+        "Replace personal checkout roots with labelled placeholders.",
+        "Explain publication edits and distinguish historical evidence from fresh validation output.",
+        "Describe the new ignored output location without changing retained test results."
+      ]
+    },
+    {
+      "path": "historical/INDEX.md",
+      "original_sha256": "4f81107c8d2363fb04189aad9cad714a5c9ade885c320b5bab4d00823fb747b9",
+      "retained_sha256": "eee8c7c3e16491abdf3e3af5db14aed8ec4974bb198518049bc02ecf274c0362",
+      "changes": [
+        "Replace personal temporary-directory references with a description and labelled placeholder.",
+        "Disclose the redaction and added source provenance headers; retain the original feasibility scope."
+      ]
+    },
+    {
+      "path": "historical/browser-replay/README.txt",
+      "original_sha256": "3c1ccb38bdb8f16b807198add653cda747d49492b050e83265401ab1fe893b51",
+      "retained_sha256": "c1194e8c01c1b2f24f777d8afa2f6317d309b71a9e0e1582a200f3941e8735e8",
+      "changes": [
+        "Replace a personal checkout root with a labelled placeholder.",
+        "Document the verified upstream source revision, transitional licence text and original-versus-retained source hashes."
+      ]
+    },
+    {
+      "path": "historical/browser-replay/adapted-sandbox.ts",
+      "original_sha256": "acabbd1d2d901a2454dad58621f0a1c3b05d4af11c045b71cf2718bd0490b062",
+      "retained_sha256": "074974eade07995df4429181559e435ae1e7ddbc5e9ce8ab1f476ee0e41ef381",
+      "changes": [
+        "Prepend the same provenance and SPDX licence-reference header; preserve the originally retained adapted source body byte for byte."
+      ]
+    },
+    {
+      "path": "historical/browser-replay/manifest.json",
+      "original_sha256": "bbf21d70383ed24bcaace031051febc34f7bf5586e164e4be6bcb5d5515c3b21",
+      "retained_sha256": "0c030dfda0188029f55c93bda47fb1630810ab508773a918ee163e98561c4ff5",
+      "changes": [
+        "Add a publication object recording verified upstream provenance, the exact licence text and retained source hashes.",
+        "Preserve original experiment fields, original source hashes, timestamp and test scope."
+      ]
+    },
+    {
+      "path": "historical/browser-replay/upstream-sandbox.ts",
+      "original_sha256": "41badf3e939ff62e952d30ebe3a5731d7f8c54f2f6021f47ef759ea857d0d88a",
+      "retained_sha256": "cabe14827e4992f7a2175f0b2cd72d9e8049bac7f657aa64e07b5b274e47cd62",
+      "changes": [
+        "Prepend a provenance and SPDX licence-reference header; preserve the original upstream source body byte for byte."
+      ]
+    },
+    {
+      "path": "historical/protocol-checks/check-results.json",
+      "original_sha256": "f2a8fecea17d0480694542ec74f50b5280004d8da0569ab6b39aadf9cc5cefaf",
+      "retained_sha256": "65a50d49dafaf8f7008cf731b88dd94fc4a924dc098ea870b312bdb5124c2223",
+      "changes": [
+        "Replace the original temporary workspace path with [HISTORICAL_PROTOCOL_WORKDIR]; retain every other recorded field and outcome."
+      ]
+    },
+    {
+      "path": "runners/run.mjs",
+      "original_sha256": "81322377455de68448e94f28d694698616ab0bd0f36f3d62faa2eeb7b0175c78",
+      "retained_sha256": "0b869f2cbf9df4b1cdb9ffe96d95530ab8382ea3c4efc45668dff1bcb3e860a3",
+      "changes": [
+        "Write new cross-language results under HAIP_VALIDATION_DIR or the ignored .local/validation/current directory instead of overwriting historical runners/results.json.",
+        "Format the runner; preserve the primitive vectors and assertions."
+      ]
+    },
+    {
+      "path": "validation/plasm-approval-tests.txt",
+      "original_sha256": "fa0e02c7b2efccdaefe109de49663d2ecb391142c1fc963082413ba491fbe4cb",
+      "retained_sha256": "28a3e8841205381dbc4c8af5b87709ea66f8c4fd4cd8e5db8c9dc3ef9b791bd4",
+      "changes": [
+        "Prepend a publication-copy notice pointing to this ledger.",
+        "Replace machine-specific checkout roots with [PLASM_CHECKOUT] or [PLASM_WORKTREE]; preserve test-result text and ordering."
+      ]
+    },
+    {
+      "path": "validation/plasm-policy-tests.txt",
+      "original_sha256": "2e9bfaa15039d2e2ef136c9f6644e9fd1898b674d2a6f83e6e3cc6aa5878aff2",
+      "retained_sha256": "be3c035228ea8bdcfcfb239d06eec2a4e058112b567223bc92a12bd107fb69b1",
+      "changes": [
+        "Prepend a publication-copy notice pointing to this ledger.",
+        "Replace machine-specific checkout roots with [PLASM_CHECKOUT] or [PLASM_WORKTREE]; preserve test-result text and ordering."
+      ]
+    },
+    {
+      "path": "validation/plasm-shuttle-tests.txt",
+      "original_sha256": "41debd297b9d0b38ec5458a7ef561cec5ced61adff90bd16c1edb4cc19c0fc1b",
+      "retained_sha256": "3ada88f5eabb8c2984ad3a298eb302bb6ee7b1a1a1b69e47d9eb932dbaa0368e",
+      "changes": [
+        "Prepend a publication-copy notice pointing to this ledger.",
+        "Replace machine-specific checkout roots with [PLASM_CHECKOUT] or [PLASM_WORKTREE]; preserve test-result text and ordering."
+      ]
+    },
+    {
+      "path": "validation/plasm-tests.txt",
+      "original_sha256": "d930401a95672ca5bf64550c4a46e55ee6b9cd209e15c88e514806e83980ca9e",
+      "retained_sha256": "b0410d6bb7e8f0c5254a805a91aeb272c0845151175f486cba5e934bb20bc806",
+      "changes": [
+        "Prepend a publication-copy notice pointing to this ledger.",
+        "Replace machine-specific checkout roots with [PLASM_CHECKOUT] or [PLASM_WORKTREE]; preserve test-result text and ordering."
+      ]
+    }
+  ],
+  "exclusions": [
+    "archive/v1 source files remain byte for byte unchanged.",
+    "The first hosted CI record in validation/remote-ci-33334308802 remains unchanged.",
+    "This record does not claim any new Plasm change, acceptance, hosted deployment, production WORM behaviour or live identity validation."
+  ]
+}

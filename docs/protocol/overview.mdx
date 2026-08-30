@@ -1,18 +1,21 @@
 ---
-title: "Protocol and authority"
+title: 'Protocol revisions and authority'
+description: 'The independent HAIP 2 draft and its selected profiles.'
 ---
 
-HAIP is an independent MIT protocol. JSON Schema, OpenAPI 3.1 and generated types define `2.0.0-draft.1`. Unsupported revisions or required profiles fail; they are never silently ignored. Unknown metadata remains signed and non-authorising.
+The current protocol revision is **2.0.0-draft.1**. Requests select that exact revision and the versions of every required profile. Unsupported selections are errors; implementations must not silently downgrade them.
 
-| Purpose | Result | Execution authority |
-|---|---|---|
-| `review` | Structured response and signed receipt | Never |
-| `authorise_execution` | Explicit human decision plus an execution binding | Requires anchored grant, exclusive claim and fresh admission |
+| Contract            | Version and scope                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Review contract     | `2.0.0-draft.1`: immutable review requests and authenticated structured responses.                                 |
+| Execution extension | `haip.execution=1-draft.1`: an explicit execution purpose, occurrence and commitments, claims and fresh admission. |
+| MCP App profile     | `haip.mcp-app=1-draft.1`: optional stored App presentation with separately trusted confirmation.                   |
+| Plasm profile       | Draft integration requirements owned by Plasm; not advertised as completed runtime support.                        |
 
-Requests capture tenant, producer, operator-mapped requester, route revision, artefact/payload/schema/document digests, optional bundle, purpose, profiles, limits and deadlines. Execution adds a stable occurrence, proposal/context/policy commitments, mode, provenance and a service authority namespace.
+A request binds the tenant, producer, operator-resolved requester, route revision, purpose, profiles, material digests, captured limits and absolute deadlines. Execution requests add the proposed action, context, policy and occurrence commitments. Producer metadata is retained in the commitment but does not acquire authorising meaning.
 
-A candidate freezes the exact response. Confirmation identifies both its ID and digest. Changing a candidate invalidates the earlier confirmation target. Producer credentials and App tools cannot confirm.
+Decision, audit, grant and execution states are separate. A signed answer can remain useful history after private content is deleted or authority expires. A signature alone proves neither human understanding nor successful execution.
 
-Decision, audit, grant and execution states are separate. A signature authenticates a record; it does not prove understanding, correctness, dispatch or completion. Human review is oversight, not an execution engine.
+Accepted requests keep their original revisions and signed records. Upgrades must support that meaning or cancel unused authority and require fresh review. Historical verification, retries and restored data cannot renew an expired or consumed grant.
 
-Only `haip.execution=1-draft.1` and the optional `haip.mcp-app=1-draft.1` are advertised. The Plasm profile remains a set of externally owned integration requirements. Full HAIP 2 release gates are tracked separately from the working HAIP-owned implementation.
+Continue with the [review lifecycle](/protocol/review), [execution extension](/protocol/execution), [HTTP transport](/protocol/essentials/transport) and [machine-readable contract](/protocol/openapi).

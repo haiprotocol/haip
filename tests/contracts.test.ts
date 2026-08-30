@@ -64,3 +64,81 @@ test('public discovery, directory, review, assignment, events and metrics match 
     await env.close();
   }
 });
+
+test('the public schema binds execution purpose to the execution profile and receipt semantics', async () => {
+  const env = await environment();
+  try {
+    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-1/schema.json', 'utf8'));
+    const ajv = new Ajv2020({ strict: true });
+    (addFormats as any)(ajv);
+    ajv.addSchema(schema);
+    const conforms = (name: string, value: unknown) =>
+      ajv.getSchema(schema.$id + '#/$defs/' + name)!(value);
+    const reviewer = await env.login();
+    const execution = env.request(true).execution;
+    for (const executable of [false, true]) {
+      const input = env.request(executable);
+      assert.equal(conforms('RequestInput', input), true);
+      const created = await env.api('/v2/requests', input);
+      assert.equal(created.status, 201, JSON.stringify(created.body));
+      const request = created.body.request;
+      assert.equal(conforms('DecisionRequest', request), true);
+      for (const [name, value] of [
+        ['RequestInput', input],
+        ['DecisionRequest', request],
+      ] as const) {
+        const invalid = structuredClone(value) as any;
+        if (executable) {
+          delete invalid.execution;
+          assert.equal(conforms(name, invalid), false, 'execution purpose requires a binding');
+          invalid.execution = execution;
+          invalid.profiles = {};
+          assert.equal(
+            conforms(name, invalid),
+            false,
+            'execution purpose requires the execution profile',
+          );
+          invalid.profiles = { 'haip.execution': 'future-version' };
+          assert.equal(
+            conforms(name, invalid),
+            false,
+            'unknown execution version is not this draft',
+          );
+        } else {
+          invalid.execution = execution;
+          assert.equal(conforms(name, invalid), false, 'review cannot carry execution authority');
+        }
+      }
+      const candidate = await reviewer.call(`/v2/requests/${request.id}/candidates`, {
+        decision: executable ? 'authorise' : 'answer',
+        response: { choice: 'accept' },
+      });
+      assert.equal(candidate.status, 201);
+      const confirmed = await reviewer.call(`/v2/requests/${request.id}/confirm`, {
+        candidate_id: candidate.body.id,
+        candidate_digest: digest(candidate.body),
+      });
+      assert.equal(confirmed.status, 200);
+      const receipt = confirmed.body.payload;
+      assert.equal(receipt.purpose, request.purpose);
+      assert.equal(conforms('DecisionReceipt', receipt), true);
+      const missing = structuredClone(receipt);
+      delete missing.purpose;
+      assert.equal(conforms('DecisionReceipt', missing), false, 'receipt purpose is mandatory');
+      assert.equal(
+        conforms('DecisionReceipt', {
+          ...receipt,
+          purpose: executable ? 'review' : 'authorise_execution',
+        }),
+        false,
+        'receipt purpose must match its decision and deadline',
+      );
+      const deadline = structuredClone(receipt);
+      if (executable) delete deadline.grant_deadline;
+      else deadline.grant_deadline = '2026-09-01T00:00:00Z';
+      assert.equal(conforms('DecisionReceipt', deadline), false);
+    }
+  } finally {
+    await env.close();
+  }
+});

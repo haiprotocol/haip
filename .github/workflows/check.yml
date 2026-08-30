@@ -15,10 +15,6 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Clear historical output before this run
-        run: |
-          rm -rf output/playwright
-          rm -f research/haip2-2026-08-30/runners/results.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
@@ -39,11 +35,21 @@ jobs:
       - run: python3 -m venv .local/primitive-python && .local/primitive-python/bin/pip install -r research/haip2-2026-08-30/runners/requirements.txt
       - run: npm run test:cross-language
       - run: npm audit --omit=dev && npm run pack:check
+      - name: Build the development container
+        run: docker build --pull --target development -t haip:development .
+      - name: Check the packaged development service
+        run: node --import tsx scripts/smoke-container.ts haip:development
+      - name: Verify checks preserve committed files
+        run: git diff --exit-code
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: draft-fixture-evidence
           retention-days: 7
+          include-hidden-files: true
           path: |
-            output/playwright
-            research/haip2-2026-08-30/runners/results.json
+            .local/validation/current/playwright
+            .local/validation/current/cross-language-results.json
+            .local/validation/current/container-smoke.json
+            .local/validation/current/container-server.log
+            .local/validation/current/container-postgres.log

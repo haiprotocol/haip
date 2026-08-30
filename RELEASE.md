@@ -11,6 +11,8 @@ Draft contracts, schemas, generated types, OpenAPI, reference service, native ho
 SDK/CLI, independent HTTP review/App and fixed-counter demonstrations, HITL mapping,
 delivery, quotas, retention, recovery, backups, migrations and operations are implemented.
 Exact results are in the research manifest; [ACCEPTANCE.md](ACCEPTANCE.md) maps coverage.
+The [review follow-up](REVIEW-FIXES.md) records the later fixes and expanded local
+coverage without treating historical run records as current-source evidence.
 
 [Hosted CI](https://github.com/haiprotocol/haip/actions/runs/33334308802) passed on
 `5f70557e7d8a0f29a1e0ea87170689d452375d31`: 46 tests, 25 cross-language comparisons,

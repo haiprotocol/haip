@@ -10,11 +10,17 @@ export class OutboxWorker {
   constructor(
     readonly service: ReviewService,
     readonly anchor?: AnchorStore,
+    private readonly delivery: { webhookTransport?: Parameters<typeof deliverWebhook>[3] } = {},
   ) {
     requireThat(
       service.config.mode !== 'production' || anchor?.production,
       503,
       'independent_anchor_required',
+    );
+    requireThat(
+      service.config.mode !== 'production' || !delivery.webhookTransport,
+      503,
+      'fixture_transport_forbidden',
     );
   }
   async reconcile(): Promise<void> {
@@ -54,33 +60,39 @@ export class OutboxWorker {
         });
     }
   }
-  private async operation<T>(name: string, run: () => Promise<T>): Promise<T> {
+  private async operation<T>(tenant: string, name: string, run: () => Promise<T>): Promise<T> {
     try {
       const result = await run();
       await this.service.store.pool.query(
-        'INSERT INTO haip_operations(name,succeeded_at) VALUES($1,clock_timestamp()) ON CONFLICT(name) DO UPDATE SET succeeded_at=EXCLUDED.succeeded_at',
-        [name],
+        'INSERT INTO haip_tenant_operations(tenant,name,succeeded_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET succeeded_at=EXCLUDED.succeeded_at',
+        [tenant, name],
       );
       return result;
     } catch (error) {
       // A database outage may also prevent this stamp; alerts additionally check last success.
       await this.service.store.pool
         .query(
-          'INSERT INTO haip_operations(name,failed_at) VALUES($1,clock_timestamp()) ON CONFLICT(name) DO UPDATE SET failed_at=EXCLUDED.failed_at',
-          [name],
+          'INSERT INTO haip_tenant_operations(tenant,name,failed_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET failed_at=EXCLUDED.failed_at',
+          [tenant, name],
         )
         .catch(() => {});
       throw error;
     }
   }
   async tick(): Promise<number> {
-    return this.operation('outbox', () => this.drain());
+    let completed = 0;
+    for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
+      .rows)
+      completed += await this.operation(t.id, 'outbox', () => this.drain(t.id));
+    return completed;
   }
-  private async drain(): Promise<number> {
+  private async drain(tenant: string): Promise<number> {
     const s = this.service;
     const jobs = (
       await s.store.pool.query(
-        "SELECT id,tenant FROM haip_outbox WHERE state='pending' AND next_at<=clock_timestamp() ORDER BY created_at,id LIMIT 50",
+        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending' AND next_at<=clock_timestamp()
+         ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"} ORDER BY created_at,id LIMIT 50`,
+        [tenant],
       )
     ).rows;
     let completed = 0;
@@ -103,42 +115,58 @@ export class OutboxWorker {
         try {
           let acceptance: unknown = null;
           if (item.kind === 'checkpoint') {
-            if (!this.anchor) return;
+            // Unconfigured checkpoints remain visible and resumable but cannot occupy delivery slots.
+            requireThat(this.anchor, 503, 'independent_anchor_required');
             acceptance = await this.anchor.accept(item.body);
             now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
             const seq = item.body.payload.sequence;
             const rows = (
-              await tx.query('SELECT * FROM haip_requests WHERE tenant=$1', [job.tenant])
+              await tx.query(
+                `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
+                 WHERE tenant=$1 AND data->>'audit_state'='pending'
+                 AND (data->>'decision_sequence')::bigint <= $2
+                 ORDER BY (data->>'decision_sequence')::bigint,id LIMIT 50`,
+                [job.tenant, seq],
+              )
             ).rows as RequestRow[];
-            for (const row of rows)
-              if (row.data.audit_state === 'pending' && row.data.decision_sequence! <= seq) {
-                const p = (
-                  await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
-                    job.tenant,
-                    row.producer,
-                  ])
-                ).rows[0] as Principal;
-                row.data.audit_state = 'anchored';
-                row.data.anchor = {
-                  checkpoint: item.body,
-                  acceptance,
-                  proof: (
-                    await tx.query(
-                      'SELECT sequence,previous_head,record_digest,head FROM haip_audit WHERE tenant=$1 AND sequence BETWEEN $2 AND $3 ORDER BY sequence',
-                      [job.tenant, row.data.decision_sequence, seq],
-                    )
-                  ).rows.map((r) => ({ ...r, sequence: Number(r.sequence) })),
-                };
-                if (row.data.grant_state === 'pending_anchor')
-                  row.data.grant_state =
-                    !row.data.invalidated && now.getTime() < Date.parse(row.data.grant_deadline!)
-                      ? 'available'
-                      : 'expired';
-                await s.event(tx, p, row, now, 'anchor_accepted');
-                if (row.data.grant_state === 'available')
-                  await s.notifications(tx, p, row, now, [row.data.request.requester.subject]);
-                await s.save(tx, row);
-              }
+            for (const row of rows) {
+              const p = (
+                await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
+                  job.tenant,
+                  row.producer,
+                ])
+              ).rows[0] as Principal;
+              row.data.audit_state = 'anchored';
+              row.data.anchor = {
+                checkpoint: item.body,
+                acceptance,
+                proof: (
+                  await tx.query(
+                    'SELECT sequence,previous_head,record_digest,head FROM haip_audit WHERE tenant=$1 AND sequence BETWEEN $2 AND $3 ORDER BY sequence',
+                    [job.tenant, row.data.decision_sequence, seq],
+                  )
+                ).rows.map((r) => ({ ...r, sequence: Number(r.sequence) })),
+              };
+              if (row.data.grant_state === 'pending_anchor')
+                row.data.grant_state =
+                  !row.data.invalidated && now.getTime() < Date.parse(row.data.grant_deadline!)
+                    ? 'available'
+                    : 'expired';
+              await s.event(tx, p, row, now, 'anchor_accepted');
+              if (row.data.grant_state === 'available')
+                await s.notifications(tx, p, row, now, [row.data.request.requester.subject]);
+              await s.save(tx, row);
+            }
+            const remaining = await tx.query(
+              `SELECT 1 FROM haip_requests WHERE tenant=$1 AND data->>'audit_state'='pending'
+               AND (data->>'decision_sequence')::bigint <= $2 LIMIT 1`,
+              [job.tenant, seq],
+            );
+            if (remaining.rowCount) {
+              // A newer checkpoint may cover a backlog; finish it in bounded transactions.
+              completed += rows.length;
+              return;
+            }
           } else if (item.kind === 'webhook') {
             const p = (
               await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
@@ -162,7 +190,12 @@ export class OutboxWorker {
               p,
               now,
             );
-            await deliverWebhook(item.destination, delivery, s.config.webhookHosts);
+            await deliverWebhook(
+              item.destination,
+              delivery,
+              s.config.webhookHosts,
+              this.delivery.webhookTransport,
+            );
           } else {
             requireThat(s.config.smtp, 503, 'smtp_unconfigured');
             const directory = (
@@ -246,67 +279,81 @@ export class OutboxWorker {
     return completed;
   }
   async cleanup(): Promise<void> {
-    return this.operation('retention', () => this.sweep());
-  }
-  private async sweep(): Promise<void> {
-    const s = this.service;
-    for (const t of (await s.store.pool.query('SELECT id FROM haip_tenants')).rows)
-      await s.store.transaction(t.id, async (tx, now) => {
-        for (const row of (await tx.query('SELECT * FROM haip_requests WHERE tenant=$1', [t.id]))
-          .rows as RequestRow[]) {
-          const p = (
-            await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
-              t.id,
-              row.producer,
-            ])
-          ).rows[0] as Principal;
-          await s.refresh(tx, p, row, now);
-          if (now.getTime() >= Date.parse(row.data.request.audit_delete_at)) {
-            // Keep chain commitments and permanent occurrence fences, never the expired signed content.
-            await tx.query('UPDATE haip_audit SET record=NULL WHERE tenant=$1 AND request_id=$2', [
-              t.id,
-              row.id,
-            ]);
-            await tx.query('DELETE FROM haip_events WHERE tenant=$1 AND request_id=$2', [
-              t.id,
-              row.id,
-            ]);
-            await tx.query('DELETE FROM haip_outbox WHERE tenant=$1 AND request_id=$2', [
-              t.id,
-              row.id,
-            ]);
-            await tx.query(
-              "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND (operation LIKE '%'||$2 OR result->'request'->>'id'=$2)",
-              [t.id, row.id],
-            );
-            await tx.query('DELETE FROM haip_requests WHERE tenant=$1 AND id=$2', [t.id, row.id]);
-          }
-        }
-        await tx.query(
-          "UPDATE haip_bundles b SET html=NULL,retained_bytes=0 WHERE b.tenant=$1 AND b.html IS NOT NULL AND b.created_at<clock_timestamp()-interval '15 minutes' AND NOT EXISTS (SELECT 1 FROM haip_requests r WHERE r.tenant=b.tenant AND r.material IS NOT NULL AND r.data->'request'->'review'->'bundle'->>'id'=b.id::text)",
-          [t.id],
-        );
-        await tx.query(
-          "UPDATE haip_audit SET record=NULL WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
-          [t.id],
-        );
-        await tx.query(
-          "DELETE FROM haip_outbox WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
-          [t.id],
-        );
-        await tx.query(
-          "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
-          [t.id],
-        );
-        await tx.query(
-          "DELETE FROM haip_notification_windows WHERE tenant=$1 AND hour<clock_timestamp()-interval '1 day'",
-          [t.id],
-        );
-        await tx.query('DELETE FROM haip_creation_windows WHERE tenant=$1 AND day<$2', [
-          t.id,
-          now.toISOString().slice(0, 10),
-        ]);
-        await tx.query('DELETE FROM haip_sessions WHERE expires_at<=clock_timestamp()');
+    for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
+      .rows)
+      await this.operation(t.id, 'retention', async () => {
+        // Release the tenant lock between pages so review and confirmation keep making progress.
+        while (await this.sweep(t.id)) {}
       });
+  }
+  private async sweep(tenant: string): Promise<boolean> {
+    const s = this.service,
+      t = { id: tenant };
+    return s.store.transaction(t.id, async (tx, now) => {
+      const due = await tx.query(
+        `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
+           WHERE tenant=$1 AND maintenance_at <= $2 ORDER BY maintenance_at,id LIMIT 50`,
+        [t.id, now.toISOString()],
+      );
+      for (const row of due.rows as RequestRow[]) {
+        const p = (
+          await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
+            t.id,
+            row.producer,
+          ])
+        ).rows[0] as Principal;
+        await s.refresh(tx, p, row, now);
+        if (now.getTime() >= Date.parse(row.data.request.audit_delete_at)) {
+          // Keep chain commitments and permanent occurrence fences, never the expired signed content.
+          await tx.query('UPDATE haip_audit SET record=NULL WHERE tenant=$1 AND request_id=$2', [
+            t.id,
+            row.id,
+          ]);
+          await tx.query('DELETE FROM haip_events WHERE tenant=$1 AND request_id=$2', [
+            t.id,
+            row.id,
+          ]);
+          await tx.query('DELETE FROM haip_outbox WHERE tenant=$1 AND request_id=$2', [
+            t.id,
+            row.id,
+          ]);
+          await tx.query(
+            "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND (operation LIKE '%'||$2 OR result->'request'->>'id'=$2)",
+            [t.id, row.id],
+          );
+          await tx.query('DELETE FROM haip_requests WHERE tenant=$1 AND id=$2', [t.id, row.id]);
+        }
+      }
+      await tx.query(
+        "UPDATE haip_bundles b SET html=NULL,retained_bytes=0 WHERE b.tenant=$1 AND b.html IS NOT NULL AND b.created_at<clock_timestamp()-interval '15 minutes' AND NOT EXISTS (SELECT 1 FROM haip_requests r WHERE r.tenant=b.tenant AND r.material IS NOT NULL AND r.data->'request'->'review'->'bundle'->>'id'=b.id::text)",
+        [t.id],
+      );
+      await tx.query(
+        "UPDATE haip_audit SET record=NULL WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
+        [t.id],
+      );
+      await tx.query(
+        "DELETE FROM haip_outbox WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
+        [t.id],
+      );
+      await tx.query(
+        "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
+        [t.id],
+      );
+      await tx.query(
+        "DELETE FROM haip_notification_windows WHERE tenant=$1 AND hour<clock_timestamp()-interval '1 day'",
+        [t.id],
+      );
+      await tx.query('DELETE FROM haip_creation_windows WHERE tenant=$1 AND day<$2', [
+        t.id,
+        now.toISOString().slice(0, 10),
+      ]);
+      await tx.query('DELETE FROM haip_bundle_windows WHERE tenant=$1 AND day<$2', [
+        t.id,
+        now.toISOString().slice(0, 10),
+      ]);
+      await tx.query('DELETE FROM haip_sessions WHERE expires_at<=clock_timestamp()');
+      return due.rows.length === 50;
+    });
   }
 }

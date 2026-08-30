@@ -22,25 +22,41 @@ initial unversioned draft schema is adopted by the idempotent first migration. T
 upgrades against an encrypted backup in an empty isolated database before rollout.
 Do not edit applied migrations. A binary downgrade must refuse a newer schema.
 
-| Variable                                                               | Meaning                                                                           |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `HAIP_DATABASE_URL`                                                    | PostgreSQL connection with isolated credentials                                   |
-| `HAIP_MODE`                                                            | `development` or `production`; requires independent safety and checkpoint storage |
-| `HAIP_ORIGIN`                                                          | Exact trusted host origin, including port if used                                 |
-| `HAIP_SANDBOX_ORIGIN`                                                  | Separate origin pattern, e.g. `https://{scope}.review-apps.example`               |
-| `HAIP_SIGNING_KEY_FILE`                                                | Readable Ed25519 private PEM, never a database field                              |
-| `HAIP_SIGNING_KEY_ID`                                                  | Key identifier in the independently configured trust manifest                     |
-| `HAIP_TRUST_MANIFEST_FILE`                                             | JSON trust manifest; see the draft schema                                         |
-| `HAIP_OIDC_ISSUER`                                                     | Exact trusted issuer URL                                                          |
-| `HAIP_OIDC_CLIENT_ID`, `HAIP_OIDC_CLIENT_SECRET`                       | Confidential client registered with that issuer                                   |
-| `HAIP_OIDC_LOCAL_HTTP`                                                 | `true` only for a local development identity fixture                              |
-| `PORT`, `HAIP_SANDBOX_PORT`                                            | Loopback listeners; default 8080 and 8081                                         |
-| `HAIP_SMTP_HOST`, `HAIP_SMTP_PORT`, `HAIP_SMTP_FROM`                   | Optional delivery configuration                                                   |
-| `HAIP_SMTP_USER`, `HAIP_SMTP_PASSWORD`                                 | Optional SMTP authentication                                                      |
-| `HAIP_SMTP_TLS`                                                        | Implicit TLS by default; `false` is intended for a local test sink                |
-| `HAIP_WEBHOOK_HOSTS`                                                   | Comma-separated exact HTTPS destination host allowlist                            |
-| `HAIP_AZURE_ACCOUNT_URL`, `HAIP_AZURE_CONTAINER`, `HAIP_ANCHOR_PREFIX` | Optional Azure Blob locked WORM storage                                           |
-| `HAIP_ANCHOR_INDEPENDENT_ADMIN`                                        | Must be `true` in production; an assertion, not proof of independence             |
+| Variable                                                               | Meaning                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `HAIP_DATABASE_URL`                                                    | PostgreSQL connection with isolated credentials; production forces verified TLS             |
+| `HAIP_DATABASE_CA_FILE`                                                | Optional private CA PEM for database certificate verification                               |
+| `HAIP_MODE`                                                            | `development` or `production`; requires independent safety and checkpoint storage           |
+| `HAIP_ORIGIN`                                                          | Exact trusted host origin, including port if used                                           |
+| `HAIP_SANDBOX_ORIGIN`                                                  | Exact pattern; `{scope}` occupies a whole subdomain of a fixed, separate production site    |
+| `HAIP_SIGNING_KEY_FILE`                                                | Readable Ed25519 private PEM, never a database field                                        |
+| `HAIP_SIGNING_KEY_ID`                                                  | Key identifier in the independently configured trust manifest                               |
+| `HAIP_TRUST_MANIFEST_FILE`                                             | JSON trust manifest; see the draft schema                                                   |
+| `HAIP_OIDC_ISSUER`                                                     | Exact trusted issuer URL                                                                    |
+| `HAIP_OIDC_CLIENT_ID`, `HAIP_OIDC_CLIENT_SECRET`                       | Confidential client registered with that issuer                                             |
+| `HAIP_OIDC_LOCAL_HTTP`                                                 | `true` only for a local development identity fixture                                        |
+| `PORT`, `HAIP_SANDBOX_PORT`                                            | Listener ports; default 8080 and 8081                                                       |
+| `HAIP_LISTEN_HOST`                                                     | Defaults to `127.0.0.1`; explicit wildcard binding is available for isolated containers     |
+| `HAIP_SMTP_HOST`, `HAIP_SMTP_PORT`, `HAIP_SMTP_FROM`                   | Optional delivery configuration                                                             |
+| `HAIP_SMTP_USER`, `HAIP_SMTP_PASSWORD`                                 | Optional SMTP authentication                                                                |
+| `HAIP_SMTP_TLS`                                                        | Implicit TLS by default; `false` is intended for a local test sink                          |
+| `HAIP_WEBHOOK_HOSTS`                                                   | Comma-separated exact HTTPS destination host allowlist                                      |
+| `HAIP_AZURE_ACCOUNT_URL`, `HAIP_AZURE_CONTAINER`, `HAIP_ANCHOR_PREFIX` | Azure Blob locked WORM; account/container required in production, prefix defaults to `haip` |
+| `HAIP_ANCHOR_INDEPENDENT_ADMIN`                                        | Must be `true` in production; an assertion, not proof of independence                       |
+
+Production checks origin separation, explicit anchoring configuration and trust before
+database migrations or listeners, including during bootstrap. Trusted and sandbox
+origins require different registrable sites, including private public-suffix entries;
+sibling subdomains do not suffice. The scope placeholder cannot change the registrable
+site. The trust manifest must match the issuer and protocol revision, contain unique
+public key IDs and match the active Ed25519 private key within its validity window.
+Historical public keys can remain for verification after their signing windows close.
+
+Database TLS verifies the certificate chain and configured hostname. An omitted SSL
+flag still requires verified TLS in production; explicit `sslmode` must be `verify-full`.
+Insecure or ambiguous URL flags are rejected. Put private CA material in
+`HAIP_DATABASE_CA_FILE`, not SSL file parameters in the URL. Keep raw listeners behind
+the deployment's TLS proxy and network boundary when opting into wildcard binding.
 
 Generate signing keys through the deployment's key-management procedure. Do not use
 the public RFC test seed. Protect configuration files and process environment against
@@ -96,6 +112,20 @@ also bounds proposals to 32 revisions and admission checks to 64 per claim. Thes
 operational ceilings, not renewable authority. Existing confirmation, cancellation and
 outcome reporting do not consume creation quotas.
 
+Read-only admission checks run before large HTTP body parsing; schema compilation and
+canonicalisation run outside the tenant lock. Final quota reservations remain atomic.
+Request metadata and execution provenance references each fit the captured response
+byte limit, 256 KiB by default. Bundle registration uses separate publisher limits of
+2/minute (burst 5) and 20/day, and tenant limits of 10/minute (burst 20) and 100/day.
+Retained bundles are bounded to 1 GiB per publisher and tenant and count towards their
+associated producers' retained storage. Retries cannot reset these limits.
+
+Inbox pages return at most 50 entries with an offset ceiling of 100,000. Visibility and
+state filters run in SQL. Status, material, export, event and metrics reads do not take
+the tenant write lock; expiry is effective at read time without attributing maintenance
+to a reader. The worker persists maintenance in indexed batches of at most 50 requests,
+releasing the tenant lock between batches. Operational timestamps are tenant-scoped.
+
 Daily counters use UTC dates and survive request/audit cleanup and credential rotation.
 Only prior-day counters are pruned. Migration 003 from earlier drafts conservatively
 blocks new requests for existing tenants until the next UTC day, because their deleted
@@ -107,6 +137,10 @@ per recipient per hour are allowed; excess stays queued. A reminder is limited t
 per day and its time carries across supersession. Idempotent retries do not enqueue
 another notification. Confirmation and anchoring notify the configured owner without
 requiring their original session. SMTP acceptance is not proof of delivery or reading.
+
+In development without an anchor, checkpoint jobs stay pending and execution stays
+fenced, but they cannot occupy SMTP/webhook delivery slots. Missing independent storage
+is therefore visible without silently stopping ordinary review notifications.
 
 Producer-owned signed events and delivery status are available through polling.
 Webhooks use registered HTTPS hosts, public DNS results pinned for the connection,

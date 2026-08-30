@@ -425,7 +425,37 @@
         "payload",
         "response_schema",
         "review_document"
-      ]
+      ],
+      "if": {
+        "properties": {
+          "purpose": {
+            "const": "authorise_execution"
+          }
+        },
+        "required": ["purpose"]
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "$ref": "#/$defs/ExecutionBinding"
+          },
+          "profiles": {
+            "type": "object",
+            "properties": {
+              "haip.execution": {
+                "const": "1-draft.1"
+              }
+            },
+            "required": ["haip.execution"]
+          }
+        },
+        "required": ["execution", "profiles"]
+      },
+      "else": {
+        "properties": {
+          "execution": false
+        }
+      }
     },
     "DecisionRequest": {
       "type": "object",
@@ -551,7 +581,37 @@
         "private_delete_at",
         "audit_delete_at",
         "metadata"
-      ]
+      ],
+      "if": {
+        "properties": {
+          "purpose": {
+            "const": "authorise_execution"
+          }
+        },
+        "required": ["purpose"]
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "$ref": "#/$defs/ExecutionBinding"
+          },
+          "profiles": {
+            "type": "object",
+            "properties": {
+              "haip.execution": {
+                "const": "1-draft.1"
+              }
+            },
+            "required": ["haip.execution"]
+          }
+        },
+        "required": ["execution", "profiles"]
+      },
+      "else": {
+        "properties": {
+          "execution": false
+        }
+      }
     },
     "DecisionProposal": {
       "type": "object",
@@ -630,6 +690,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "purpose": {
+          "type": "string",
+          "enum": ["review", "authorise_execution"]
+        },
         "request_id": {
           "type": "string",
           "minLength": 1,
@@ -680,6 +744,7 @@
         }
       },
       "required": [
+        "purpose",
         "request_id",
         "request_digest",
         "candidate_id",
@@ -689,7 +754,35 @@
         "response_digest",
         "decision",
         "confirmed_at"
-      ]
+      ],
+      "if": {
+        "properties": {
+          "purpose": {
+            "const": "authorise_execution"
+          }
+        },
+        "required": ["purpose"]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "enum": ["authorise", "refuse"]
+          },
+          "grant_deadline": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["grant_deadline"]
+      },
+      "else": {
+        "properties": {
+          "decision": {
+            "enum": ["answer", "approve", "reject"]
+          },
+          "grant_deadline": false
+        }
+      }
     },
     "ReviewClaim": {
       "type": "object",
@@ -1078,7 +1171,8 @@
           "type": "string"
         },
         "protocol_revision": {
-          "type": "string"
+          "type": "string",
+          "const": "2.0.0-draft.1"
         },
         "keys": {
           "type": "array",
@@ -1097,7 +1191,8 @@
                 "type": "string"
               },
               "public_key": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 4096
               },
               "not_before": {
                 "type": "string",
@@ -1113,7 +1208,9 @@
               }
             },
             "required": ["key_id", "algorithm", "public_key", "not_before", "not_after"]
-          }
+          },
+          "minItems": 1,
+          "maxItems": 128
         }
       },
       "required": ["issuer", "protocol_revision", "keys"]

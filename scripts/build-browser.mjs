@@ -17,6 +17,6 @@ await build({
   target: 'es2024',
   legalComments: 'linked',
   banner: { js: '/*!\n' + notices.join('\n\n') + '\n*/' },
-  minify: false,
+  minify: true,
 });
 await cp('third-party', 'haip-server/third-party', { recursive: true });

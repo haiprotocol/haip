@@ -1,13 +1,18 @@
 ---
-title: "Reference service"
+title: 'Reference review service'
+description: 'What the Node.js service owns, and what remains outside its boundary.'
 ---
 
-The reference service uses Node 24, Express 5 and PostgreSQL. Tenant transactions serialize authority changes and read PostgreSQL UTC after acquiring the lock. Decisions, signed events and outbox jobs commit together.
+The draft reference service uses Node.js 24, Express 5 and PostgreSQL. It owns authenticated review, immutable bindings, trusted confirmation, claims and fresh admission, audit records, retention and advisory notifications. It is not a general executor.
 
-The native inbox provides pending/history filters, assignment, full retained documents, searchable payload fields, deadlines, separate authority states and delivery failures. A host response form always remains available when an optional App fails.
+Operator-managed directory entries distinguish producers, publishers and humans. A producer has verified ownership, permitted routes and an optional registered webhook destination. A publisher registers its own immutable App bundles and has no review-payload access.
 
-Operator-managed directory entries separate producers, publishers and OIDC humans. Each producer has an owner, allowed routes and one optional webhook destination. Verified owners receive notifications after the original agent session ends. Without SMTP the service explicitly reports polling-only operation.
+The native inbox presents full retained documents, searchable payloads, response schemas, assignments and separate decision/audit/grant/execution states. The trusted response form remains available if an optional App fails. Request listing returns bounded pages; it does not load the entire tenant history into the browser.
 
-Independent Azure Blob checkpoints hold execution grants pending until accepted. Permanent safety records prevent namespace and occurrence reuse after restart or restoration. Production has no transparent failover: one process owns a generation, and a restart requires recovery and fresh provisioning.
+Reads project expiry and withhold private material as soon as its captured retention deadline is reached, even if a cleanup job has not yet persisted that transition. Reads do not create audit events. The retention worker persists lifecycle changes separately with service attribution.
 
-The runtime does not contain Plasm code, continuation reconstruction, live credentials or a general executor. See [deployment](/server/deployment), [monitoring](/server/monitoring) and [authentication](/server/authentication).
+Authority-changing transactions serialise per tenant and sample PostgreSQL time after acquiring the lock. State, audit records, events and outbox jobs commit together. Notification delivery may retry, but it cannot confirm a response, authorise an action or move a deadline.
+
+Execution grants require independent checkpoint acceptance. Permanent safety records fence generations, occurrences and identities across restore. The current production design has one active process per generation; restart requires offline recovery and fresh provisioning.
+
+Use [configuration](/server/configuration), [authentication](/server/authentication), [deployment](/server/deployment) and [monitoring](/server/monitoring) before operating the service. Local fixtures and successful CI do not validate a production provider account or Plasm integration.

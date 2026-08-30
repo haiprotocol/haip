@@ -24,10 +24,11 @@ CHAP's workspace JSON-RPC and decide.override are not adopted; its historical in
 canonicalisation restriction is not used for HAIP decimal responses.
 
 Historical evidence was found under
-`/Users/leecrossley/plasm/research/haip2-experiments-2026-08-30` and copied to `historical/`.
+`[PLASM_CHECKOUT]/research/haip2-experiments-2026-08-30` and copied to `historical/`.
 The original aggregate runner was not retained. Compiled probe binaries and generated
 Plasm renderer bundles were excluded; original screenshots, DOM, vectors, source probes,
-inputs and results were retained. Their own index records original paths/versions.
+inputs and results were retained. Their own index records source versions; machine
+paths in publication copies are redacted as described in `publication-edits.json`.
 Historical browser results establish feasibility at those inputs, not today's conformance.
 
 ## Reproducible current checks
@@ -40,12 +41,16 @@ Historical browser results establish feasibility at those inputs, not today's co
 - `npm run test:cross-language`: `runners/run.mjs` compares Node, Python and Rust JCS
   responses including 0.1, Unicode ordering, arrays and the safe-integer boundary, then
   checks RFC 8032 test vector 1 in all three languages. Its 25 checks preserve exact
-  input, expectation and actual output in `runners/results.json`.
+  input, expectation and actual output. Fresh runs write
+  `.local/validation/current/cross-language-results.json` at the repository root, or
+  `cross-language-results.json` inside `HAIP_VALIDATION_DIR` when set. The committed
+  `runners/results.json` is historical evidence and is never overwritten by the runner.
 - Browser tests use ext-apps **1.7.4** and MCP SDK **1.29.0** from the root lockfile.
   They prove one stored input/result delivery for the fixture, proposal without automatic
   confirmation, escaped text, blocked tools/storage/network/popups/navigation and full
   review of a near-10-MiB payload containing 1,000 steps. They do not prove every possible
-  handshake/source-window attack. A screenshot is retained under `../../output/playwright`.
+  handshake/source-window attack. Fresh screenshots use the `playwright` directory
+  beneath the same current-validation directory. Committed screenshots remain historical.
 - SMTP uses a local sink with verified test.invalid recipients, notification after
   sign-out, quotas and expired-window refusal. A real isolated TLS receiver exercises
   persistence before acknowledgement, restart deduplication, reordered events and
@@ -66,8 +71,8 @@ primitive checks are separate from signed protocol object validation and runtime
 
 ## Ownership and licences
 
-HAIP code is in `/Users/leecrossley/pro/haip`. The original Plasm checkout was preserved.
-Local proposals are in `/Users/leecrossley/pro/haip2-plasm/upstream-proposal`, with separate
+HAIP code is in `[HAIP_CHECKOUT]`. The original Plasm checkout was preserved.
+Local proposals are in `[PLASM_WORKTREE]/upstream-proposal`, with separate
 `core-safety.patch` and `mcp-pins.patch` files and exact test results. No Plasm PR, commit
 or push has been made for these proposals. Maintainer acceptance and full integration
 tests remain external work. HAIP's own changes are in
@@ -81,8 +86,8 @@ cannot change authorship or licence. The new review app fixture is independently
 
 Actual logs and the validation manifest are in `validation/`. Unrun work is recorded in
 `../../IMPLEMENTATION.md` and `../../RELEASE.md`, not represented by fabricated results.
-The latest local run passes 46 tests; the earlier 25- and 40-test records are retained
-separately. New regressions cover OIDC callback/identity aliases, exact expiry and lock
+The retained pre-review local run passed 46 tests; the earlier 25- and 40-test records
+are retained separately. Those regressions cover OIDC callback/identity aliases, exact expiry and lock
 waits, counter reads exhausting validity, and daily quotas surviving audit deletion and
 credential rotation. These checks do not validate a deployed identity or storage account.
 
@@ -91,3 +96,17 @@ also passed all 46 tests, 25 comparisons, the production dependency audit and fo
 package dry runs. Its [separate remote record](validation/remote-ci-33334308802/manifest.json)
 retains the tested commit, merge checkout, runtime versions and artefacts. Historical
 local manifests remain unchanged; later results are available in the draft PR's checks.
+
+## Published evidence and later runs
+
+[Publication edits](publication-edits.json) distinguish machine-path redactions and
+added upstream provenance headers from raw historical records. No test result was
+changed by those transformations. Raw original copies remain in the ignored local
+research-originals directory; they are not required to use HAIP or reproduce current
+checks. Historical validation manifests identify their recorded source snapshot, not
+the current worktree after later changes.
+
+New runs write to the ignored `.local/validation/current` directory, or the explicit
+`HAIP_VALIDATION_DIR`. Promoting evidence into this collection is a separate reviewed
+step with its own date, source identity and checksums. Running validation does not
+rewrite the committed history.

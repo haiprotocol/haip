@@ -187,7 +187,7 @@ for (const [method, path, sourceInput, sourceOutput, summary] of operations) {
     parameters.push({
       in: 'query',
       name: path === '/v2/requests' ? 'offset' : 'after',
-      schema: { type: 'integer', minimum: 0, maximum: 99999999 },
+      schema: { type: 'integer', minimum: 0, maximum: path === '/v2/requests' ? 100000 : 99999999 },
     });
   if (method === 'get' && path === '/v2/requests')
     parameters.push({

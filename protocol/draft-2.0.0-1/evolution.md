@@ -1,4 +1,8 @@
-# Evolution and trust — draft
+# Evolution and trust — 2.0.0-draft.1
+
+Status: draft. Protocol and document revision: `2.0.0-draft.1`. This document
+belongs to the same labelled revision as `review.md`, `schema.json` and `openapi.json`.
+Published draft revisions are immutable; later changes require a newly labelled revision.
 
 Before full milestone 5 validation, publish only immutable labelled draft revisions
 and prerelease packages. Do not relabel these documents stable because a scaffold,
@@ -21,4 +25,6 @@ Trust manifests advertise Ed25519 key identifiers, issuer, validity and revocati
 for discovery/historical verification. Inclusion does not confer trust. Configure
 trusted issuers/keys through an independent operator channel. Retain original keys
 and revocation history for audit; rotate signing keys without changing old objects.
+Public verification keys and their validity/revocation history must remain available
+indefinitely when permanent recovery records still depend on them.
 When independent historical-time evidence is absent, report validity as indeterminate.

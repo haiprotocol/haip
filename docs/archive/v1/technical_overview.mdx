@@ -1,7 +1,11 @@
 ---
-title: "Technical Overview"
-description: "Why would I want to use HAIP"
+title: "HAIP 1 archive — Technical Overview"
+description: "Historical HAIP 1 documentation. Unsupported and incompatible with HAIP 2."
 ---
+
+<Warning>
+**Unsupported HAIP 1 archive.** This is historical chat and streaming documentation, not the HAIP 2 review protocol. Its APIs, package examples and security advice must not be used for a HAIP 2 deployment. Start with the [current HAIP 2 guides](/index).
+</Warning>
 
 HAIP serves as a layer that wraps all communication between your Agents and the User client. It manages connections automatically, letting you focus on development while ensuring speed and reliability.
 
@@ -49,7 +53,7 @@ This would be an example of the React Library
 <Card
   title="Read the protocol overview"
   icon="book-open"
-  href="/protocol/overview"
+  href="/archive/v1/protocol/overview"
   horizontal
 >
   Explore the complete HAIP API protocol specification.
@@ -62,21 +66,21 @@ This would be an example of the React Library
 <Card
   title="Error Handling"
   icon="exclamation"
-  href="/essentials/error-handling"
+  href="/archive/v1/protocol/essentials/error-handling"
 >
   Implement comprehensive error handling for network issues and protocol
   violations.
 </Card>
 
-<Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
+<Card title="Flow Control" icon="sliders" href="/archive/v1/protocol/essentials/flow-control">
   Use flow control to prevent overwhelming your system with messages.
 </Card>
 
-<Card title="Authentication" icon="shield" href="/essentials/authentication">
+<Card title="Authentication" icon="shield" href="/archive/v1/protocol/essentials/authentication">
   Always validate JWT tokens and implement proper session management.
 </Card>
 
-<Card title="Monitoring" icon="chart-line" href="/essentials/monitoring">
+<Card title="Monitoring" icon="chart-line" href="/archive/v1/server/monitoring">
   Monitor connection health and message throughput in production.
 </Card>
 
@@ -100,6 +104,6 @@ This would be an example of the React Library
   --message-count 100 ```
   <Note>
     The HAIP CLI is now fully implemented and ready for use. See the [CLI
-    documentation](/cli/overview) for complete usage guide.
+    documentation](/archive/v1/cli/overview) for complete usage guide.
   </Note>
 </Accordion>

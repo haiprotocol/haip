@@ -29,6 +29,7 @@ export function verifyRecord(
   if (
     h.issuer !== expected.issuer ||
     trust.issuer !== expected.issuer ||
+    trust.protocol_revision !== PROTOCOL_REVISION ||
     h.audience !== expected.audience ||
     h.type !== expected.type ||
     h.protocol_revision !== PROTOCOL_REVISION ||

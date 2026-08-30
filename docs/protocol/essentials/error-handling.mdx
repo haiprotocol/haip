@@ -1,19 +1,21 @@
 ---
-title: "Errors and retries"
+title: 'Protocol errors and safe retries'
+description: 'Interpret refusals without weakening the original request or replaying an effect.'
 ---
 
-Errors return JSON with a stable `error` code. The service does not disclose foreign resource existence: an inaccessible request or publisher-owned bundle returns not found.
+Error responses contain an `error` code. The HTTP status identifies the broad failure class; the code explains the specific refusal. Foreign resources are treated as unavailable without disclosing whether they exist.
 
-| HTTP status | Meaning |
-|---|---|
-| 400 / 413 / 415 | Invalid, too large or unsupported request encoding |
-| 401 / 403 / 404 | Authentication, permission or inaccessible resource |
-| 409 | State, identity, candidate or idempotency conflict |
-| 410 | Retained material or idempotent result has expired |
-| 422 | Unsupported revision, profile, renderer or mode |
-| 429 | Captured quota or operational limit |
-| 503 | Required authority, storage or identity unavailable |
+| Status                   | Typical action                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `400`, `413`, `415`      | Correct invalid JSON, unsupported media or oversized material before submitting a new logical operation.             |
+| `401`, `403`             | Check the credential, role or human-session requirements. Never fall back to a broader principal.                    |
+| `404`, `410`             | The resource is inaccessible or private material has been deleted. A public digest is not permission to retrieve it. |
+| `409`                    | Re-fetch status. The candidate, grant, identity, route or idempotency binding may no longer be usable.               |
+| `429`                    | Respect quota pressure. New credentials do not reset stable principal or tenant quotas.                              |
+| `5xx` or a lost response | The result may be unknown. Retry an idempotent operation with the original key, or reconcile its recorded state.     |
 
-Retry transient transport failures with the same idempotency key. Do not treat 503 as permission to bypass review, anchoring or identity checks. Expired grants and consumed occurrences never become available because a retry waited longer.
+A request timeout does not prove that the server rejected the operation. A dispatch timeout does not prove that the effect did not happen. Keep those uncertainties separate: server retries use the same operation identity; an executor retains its durable launch fence and never repeats an uncertain effect.
 
-After a possible launch, preserve the launch fence and report uncertainty. Operators need reasons and evidence to reconcile. A new attempt requires a newly linked occurrence and fresh approval; it must not replay the original whole plan.
+Unsupported protocol or profile versions require an explicit compatibility decision. Do not remove required profiles or change purpose to make a refused request pass. Any material change needs a new request and, where required, fresh human review.
+
+The [SDK error guide](/sdk/error-handling) shows how to handle these responses without automatic unsafe retries.

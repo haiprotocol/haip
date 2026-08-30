@@ -1,3 +1,11 @@
+// SPDX-FileCopyrightText: 2024-2025 Model Context Protocol a Series of LF Projects, LLC.
+// SPDX-License-Identifier: LicenseRef-MCP-1.7.4-Transition
+// Source: https://github.com/modelcontextprotocol/ext-apps/blob/ca1d29894fabbd1558885a9ec8620dcb01d7457e/examples/basic-host/src/sandbox.ts
+// LicenceRef text: ../../../../third-party/ext-apps-1.7.4-LICENSE
+// The upstream licence assigns Apache-2.0 or MIT by contribution; no relicensing is implied.
+// This provenance header was added for publication. See README.txt and manifest.json
+// for the unchanged upstream body, the adapted variant and original/retained hashes.
+
 import type { McpUiSandboxProxyReadyNotification, McpUiSandboxResourceReadyNotification } from "@modelcontextprotocol/ext-apps/app-bridge";
 import { buildAllowAttribute } from "@modelcontextprotocol/ext-apps/app-bridge";
 

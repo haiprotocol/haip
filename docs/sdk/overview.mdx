@@ -1,20 +1,27 @@
 ---
-title: "TypeScript SDK"
+title: 'TypeScript SDK'
+description: 'Use the HAIP 2 public HTTP API without an agent framework.'
 ---
 
-`@haip/sdk` provides ordinary HTTP creation, status, cancellation, event cursors, audit export, exclusive claims, admission and outcome reporting. It does not expose human confirmation as a machine convenience method.
+`@haip/sdk` is the TypeScript client for **2.0.0-draft.1**. It depends on the independent protocol package and does not need Plasm or an agent framework. The draft packages are built from this workspace; do not assume the public `latest` npm tag contains HAIP 2.
+
+```sh
+npm ci
+npm run build
+```
+
+A producer client uses an exact HTTPS origin and a separately provisioned bearer credential:
 
 ```ts
 import { HAIPClient } from '@haip/sdk';
+
 const client = new HAIPClient('https://review.example', producerToken);
-const request = await client.create(input, stableIdempotencyKey);
-const status = await client.status(request.request.id);
-const page = await client.events(savedCursor);
-// Process page.items durably, then save page.next.
+const accepted = await client.create(requestInput, stableIdempotencyKey);
+const current = await client.status(accepted.request.id);
 ```
 
-`verifyExecutionAuthority` checks trusted signatures, immutable request/response/material commitments, purpose/profile, receipt/claim/admission identity, fresh nonce, checkpoint proof and timing. Supply trust independently and implement the independent anchor-acceptance callback. Included manifests and supplied acceptance objects are not self-authenticating trust.
+The variables represent your configured credential, validated `RequestInput` and a key kept stable for that logical creation. The [HTTP example](/examples/review) supplies a concrete local request and fixture credentials.
 
-Record monotonic and wall-clock time around admission. Thirty seconds is clock-health tolerance, not extra validity. Keep the returned deadline check at the launch fence and first covered mutation. Fresh status never moves the original dispatch deadline.
+The SDK exposes creation, status, cancellation, events and audit export, plus execution claim/admission/outcome methods. It deliberately has no machine convenience method for human confirmation.
 
-`verifyWebhook` checks the envelope and nested signed event, exact identity and a five-minute replay window. `PostgresWebhookInbox` commits deduplication and a status-refresh queue before acknowledgement. Its queue contains advisory revisions; a consumer fetches current status. No callback launches work.
+Use the [method reference](/sdk/api-reference), [credential guide](/sdk/authentication) and [error handling](/sdk/error-handling) for ordinary review. Executors must additionally follow [authority verification](/sdk/execution). Webhook consumers use the separate [verification and persistence helpers](/sdk/webhooks).

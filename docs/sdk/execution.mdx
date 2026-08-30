@@ -1,0 +1,16 @@
+---
+title: 'Verify execution authority'
+description: 'Record checks are necessary, but the executor must also prevent replay.'
+---
+
+`verifyExecutionAuthority` validates an execution request together with its candidate, signed decision receipt, exclusive claim and fresh admission response. Supply the exact retained payload, response schema, static document and optional App bytes.
+
+The expected issuer, tenant, producer, execution identity and execution-binding digest come from the executor's captured context. Trust keys must come from an independent channel. Do not infer those expectations from the untrusted record being checked.
+
+The verifier checks purpose and required profiles, signatures, material commitments, occurrence and identity bindings, the admission nonce, the checkpoint chain and the original authority timeline. Its `verifyAnchor` callback must verify the actual independent acceptance. A callback that simply resolves defeats that requirement.
+
+The returned object contains `deadlineMono`, `executionSeconds` and `checkBeforeDispatch()`. Keep the recorded admission timing and call the deadline check at the durable launch fence and again immediately before the first covered mutation. The execution window is separate from the original admission deadline and must not be restarted by initial reads or retries.
+
+The helper does not persist a launch fence, dispatch an action or determine whether a failed external request caused an effect. Those remain executor responsibilities. Save the original signed records and outcome; retry outcome reporting without relaunching work.
+
+Use the [bounded counter implementation](/examples/counter) as an executable example of these responsibilities. The [execution contract](/protocol/execution) explains why neither a receipt alone nor a successful generic signature check is sufficient.

@@ -1,10 +1,9 @@
 ---
-title: "Try HAIP 2"
+title: 'Try HAIP 2 locally'
+description: 'Complete a structured review using disposable local fixtures.'
 ---
 
-HAIP accepts an immutable request, presents it to an authenticated person and returns a signed decision. A review response never grants execution authority.
-
-From a checkout with Node 24 and PostgreSQL 17 installed:
+This walkthrough uses **2.0.0-draft.1** from a checkout. It needs Node.js 24, npm and PostgreSQL command-line tools. The fixture suite has run with PostgreSQL 16 and 17. It requires no cloud account.
 
 ```sh
 npm ci
@@ -12,16 +11,27 @@ npm run build
 npm run demo
 ```
 
-The demo prints a loopback origin and random fixture credentials. It runs a temporary PostgreSQL database, local identity provider and explicitly non-production anchor. Keep it local. Its data is removed on normal shutdown.
+The demo creates a temporary PostgreSQL database, a local identity provider, random credentials and a test-only anchor. It prints the loopback origin and separate producer, publisher and operator credentials. Keep this terminal open. Normal shutdown removes the temporary database; do not use it to retain real reviews.
 
-In another terminal, set `HAIP_URL` to that origin, `HAIP_TOKEN` to its producer credential, `HAIP_LOCAL_HTTP=true` and a stable `HAIP_IDEMPOTENCY_KEY`. Run:
+In another terminal, set `HAIP_URL` and `HAIP_TOKEN` to the printed origin and **producer** credential. Set `HAIP_LOCAL_HTTP=true` for this fixture only. Choose one new `HAIP_IDEMPOTENCY_KEY` for the logical request and keep it unchanged if retrying.
 
 ```sh
 node examples/http/review.mjs
 ```
 
-Open the returned review link, sign in as `reviewer`, inspect the retained document and payload, propose a response, then press **Confirm this exact response** in the trusted host. Fetch status using the producer credential. The signed receipt commits to the exact response; use the export to obtain retained response bytes.
+Open the returned `review_link`. Sign in as `reviewer` at the local test provider, read the document and payload, propose an accept or decline response, then confirm it in the trusted host. Fetch the result with the producer credential:
 
-For an optional independent App, run `npm run example:app`, set the separate `HAIP_PUBLISHER_TOKEN`, and run `node examples/http/register-app.mjs`. Set its returned ID as `HAIP_BUNDLE_ID` for a new review request. The producer must be mapped to that publisher by the operator.
+```sh
+node haip-cli/dist/index.js status REQUEST_ID
+node haip-cli/dist/index.js export REQUEST_ID review-audit.json
+```
 
-For deployment, replace every fixture dependency with the explicitly configured services in [deployment](/server/deployment). No default or demo credentials are suitable for production.
+The export contains the retained response and signed receipt. `review` purpose never grants permission to execute, regardless of the response text.
+
+To try a separately registered App, continue with the [HTTP review example](/examples/review). To use the CLI throughout, follow the [CLI example](/examples/using-cli).
+
+<Warning>
+  Never expose the demo publicly or reuse its credentials, identity provider or filesystem anchor in
+  production. The [deployment guide](/server/deployment) describes the separate configuration and
+  validation required for a real service.
+</Warning>

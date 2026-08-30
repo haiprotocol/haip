@@ -18,6 +18,14 @@ test('operator metrics expose own pressure, failures, uncertainty and checkpoint
     );
     const foreign = await env.api('/v2/admin/metrics', undefined, env.credentials.foreignOperator);
     assert.equal(foreign.body.requests.retained, 0);
+    await env.store.pool.query(
+      "INSERT INTO haip_operations(name,failed_at) VALUES('legacy_foreign_recovery',clock_timestamp())",
+    );
+    await env.store.pool.query(
+      "INSERT INTO haip_tenant_operations(tenant,name,failed_at) VALUES('foreign-tenant','foreign_recovery',clock_timestamp())",
+    );
+    const scoped = await env.api('/v2/admin/metrics', undefined, env.credentials.operator);
+    assert(!scoped.body.operations.some((o: any) => o.name.includes('foreign')));
     assert.equal(JSON.stringify(metrics.body).includes('A stored support message'), false);
     const prometheus = await fetch(env.origin + '/v2/admin/metrics.prom', {
       headers: { Authorization: 'Bearer ' + env.credentials.operator },
@@ -27,13 +35,23 @@ test('operator metrics expose own pressure, failures, uncertainty and checkpoint
     assert.match(text, /haip_pending 1/);
     assert.match(text, /haip_operation_last_success_seconds\{operation="retention"\} [1-9]/);
     const transaction = env.store.transaction.bind(env.store);
-    env.store.transaction = async () => {
-      throw new Error('injected_worker_failure');
+    env.store.transaction = async (tenant, run) => {
+      if (tenant === 'test-tenant') throw new Error('injected_worker_failure');
+      return transaction(tenant, run);
     };
     await assert.rejects(env.worker.cleanup(), /injected_worker_failure/);
     env.store.transaction = transaction;
     const failed = await env.api('/v2/admin/metrics', undefined, env.credentials.operator);
     assert(failed.body.operations.some((o: any) => o.name === 'retention' && o.failed_at));
+    const unaffected = await env.api(
+      '/v2/admin/metrics',
+      undefined,
+      env.credentials.foreignOperator,
+    );
+    assert(!unaffected.body.operations.some((o: any) => o.name === 'retention' && o.failed_at));
+    assert(
+      unaffected.body.operations.some((o: any) => o.name === 'foreign_recovery' && o.failed_at),
+    );
   } finally {
     await env.close();
   }

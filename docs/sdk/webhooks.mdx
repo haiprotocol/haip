@@ -1,0 +1,25 @@
+---
+title: 'Verify and retain webhooks'
+description: 'Authenticate advisory events and persist them before acknowledging delivery.'
+---
+
+`verifyWebhook(record, trust, identity, now?)` checks the signed delivery envelope and nested event. `identity` contains independently expected `issuer`, `tenant` and `producer` values. The optional `now` is a millisecond timestamp for verification; production consumers need a healthy clock.
+
+The helper enforces a strict five-minute delivery window, matching event/delivery identities and the expected status URL. A valid event remains advisory: fetch the current request status before making a decision about it.
+
+```ts
+import { verifyWebhook, PostgresWebhookInbox } from '@haip/sdk';
+
+const inbox = new PostgresWebhookInbox(consumerDatabase);
+await inbox.migrate(); // Controlled setup of the consumer's dedicated database.
+
+const delivery = verifyWebhook(signedBody, trustedKeys, expectedIdentity);
+await inbox.persist(delivery);
+// Only now return HTTP 2xx from your receiver.
+```
+
+The database adapter supplies `connect()`, a connection's `query()` and `release()`. Persistence deduplicates by issuer, tenant, producer and event ID, rejects conflicting bodies for the same event, and retains the highest revision in a status-refresh queue. It tolerates retries and reordering across receiver restarts.
+
+A consumer must implement its own bounded request parsing, private database configuration and status-refresh worker. There is no execution callback. A webhook, email or App message cannot confirm a human response or launch a protected action.
+
+See [HTTP event polling](/protocol/essentials/transport) for the pull alternative and [monitoring](/server/monitoring) for delivery failures.

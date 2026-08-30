@@ -4,11 +4,13 @@ This maps the agreed plan to concrete evidence. **Local** means the HAIP-owned
 implementation is exercised by isolated fixtures, locally or in hosted CI, not
 certified for a deployed system.
 **External** identifies Plasm or real infrastructure that has not been validated here.
-Contracts remain draft. Exact results and source hashes are in
+Contracts remain draft. Original results and source hashes are in
 `research/haip2-2026-08-30/validation/manifest.json`.
 The first hosted run passed 46 tests and 25 cross-language comparisons; its versions,
 tested commit and retained artefacts are in the
 [remote CI record](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json).
+The [review follow-up](REVIEW-FIXES.md) records the subsequent safety fixes and
+expanded 68-test local suite. Historical records are not overwritten by later runs.
 
 | Plan area             | HAIP evidence                                                                                                                                                               | Remaining boundary                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |

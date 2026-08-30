@@ -59,18 +59,30 @@
         </details>
         <h2>Your response</h2>
         <pre id="schema"></pre>
+        <p id="proposal-state" role="status"></p>
+        <button id="allow-app-proposal" type="button" hidden disabled>
+          Allow one new app proposal
+        </button>
         <form id="proposal">
-          <label
-            >Decision
-            <select id="decision"></select></label
-          ><label>Response (JSON)<textarea id="response" rows="8" required>{}</textarea></label
-          ><button type="submit">Review this response</button>
+          <fieldset id="proposal-fields">
+            <label
+              >Decision
+              <select id="decision"></select></label
+            ><label>Response (JSON)<textarea id="response" rows="8" required>{}</textarea></label
+            ><button type="submit">Review this response</button>
+          </fieldset>
         </form>
         <section id="confirmation" hidden>
           <h2>Trusted confirmation</h2>
-          <p>Check the exact response below. Only this confirmation records your decision.</p>
+          <p>
+            Check the complete frozen candidate below. Every field in the candidate is covered by
+            the digest shown below. Only this confirmation records your decision.
+          </p>
+          <p id="proposal-source"></p>
           <pre id="exact"></pre>
+          <p>Candidate digest: <code id="candidate-digest"></code></p>
           <button id="confirm">Confirm this exact response</button>
+          <button id="dismiss-response" type="button">Dismiss this response</button>
         </section>
         <h2>Recorded decision</h2>
         <pre id="receipt"></pre>

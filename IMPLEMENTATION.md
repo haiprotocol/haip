@@ -58,12 +58,16 @@ while completing the HAIP-owned work. HAIP does not vendor its engine or rendere
 
 ## Validation and limits
 
-Exact latest commands, results and source hashes are in
+Original commands, results and source hashes are in
 [the validation manifest](research/haip2-2026-08-30/validation/manifest.json).
 [The acceptance matrix](ACCEPTANCE.md) maps each plan area to evidence and ownership.
-The final local suite passes **46 tests**, with **25 cross-language comparisons** and
+That original local suite passed **46 tests**, with **25 cross-language comparisons** and
 **zero known dependency vulnerabilities** at the recorded audit. Four draft package
 tarballs are prepared under `output/packages`; nothing is published.
+The [review follow-up](REVIEW-FIXES.md) adds the confirmation, request-admission,
+startup, quota, isolation, documentation and publication corrections. The expanded
+local suite passes **68 tests** with 25 comparisons and a clean production audit;
+new run evidence is kept separately from those historical snapshots.
 
 [The first hosted CI run](https://github.com/haiprotocol/haip/actions/runs/33334308802)
 also passed 46 tests, 25 comparisons, the production dependency audit and all four

@@ -223,6 +223,7 @@ export interface DecisionCandidate {
   created_at: string;
 }
 export interface DecisionReceipt {
+  purpose: 'review' | 'authorise_execution';
   request_id: string;
   request_digest: string;
   candidate_id: string;
@@ -357,15 +358,29 @@ export interface DeliveryStatus {
 }
 export interface TrustManifest {
   issuer: string;
-  protocol_revision: string;
-  keys: {
-    key_id: string;
-    algorithm: 'Ed25519';
-    public_key: string;
-    not_before: string;
-    not_after: string;
-    revoked_at?: string;
-  }[];
+  protocol_revision: '2.0.0-draft.1';
+  /**
+   * @minItems 1
+   * @maxItems 128
+   */
+  keys: [
+    {
+      key_id: string;
+      algorithm: 'Ed25519';
+      public_key: string;
+      not_before: string;
+      not_after: string;
+      revoked_at?: string;
+    },
+    ...{
+      key_id: string;
+      algorithm: 'Ed25519';
+      public_key: string;
+      not_before: string;
+      not_after: string;
+      revoked_at?: string;
+    }[]
+  ];
 }
 export interface AuditExport {
   request: DecisionRequest;

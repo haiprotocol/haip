@@ -57,8 +57,6 @@ export function installAuth(app: Express, service: ReviewService) {
       verifier = oidc.randomPKCECodeVerifier(),
       session = random();
     const old = cookie(req, '__Host-haip');
-    if (old)
-      await store.pool.query('DELETE FROM haip_sessions WHERE token_hash=$1', [digestBytes(old)]);
     const returnTo =
       typeof req.query.return_to === 'string' &&
       /^\/review\/[a-f0-9-]{36}$/.test(req.query.return_to)
@@ -66,7 +64,18 @@ export function installAuth(app: Express, service: ReviewService) {
         : '/inbox';
     await store.pool.query(
       "INSERT INTO haip_sessions(token_hash,data,expires_at) VALUES($1,$2,clock_timestamp()+interval '10 minutes')",
-      [digestBytes(session), JSON.stringify({ login: { state, nonce, verifier, returnTo } })],
+      [
+        digestBytes(session),
+        JSON.stringify({
+          login: {
+            state,
+            nonce,
+            verifier,
+            returnTo,
+            ...(old ? { previousSessionHash: digestBytes(old) } : {}),
+          },
+        }),
+      ],
     );
     res.cookie('__Host-haip-login', session, {
       secure: true,
@@ -124,9 +133,16 @@ export function installAuth(app: Express, service: ReviewService) {
         csrf: random(),
         authenticated_at: new Date().toISOString(),
       };
+    // One statement makes retirement and replacement atomic. Failed OIDC/directory checks
+    // and a failed session insert must leave the previously authenticated session intact.
     await store.pool.query(
-      "INSERT INTO haip_sessions(token_hash,data,expires_at) VALUES($1,$2,clock_timestamp()+interval '8 hours')",
-      [digestBytes(session), JSON.stringify(data)],
+      `WITH previous_session AS (
+        DELETE FROM haip_sessions
+        WHERE token_hash=$1 AND data ? 'id' AND data ? 'tenant'
+      )
+      INSERT INTO haip_sessions(token_hash,data,expires_at)
+      VALUES($2,$3,clock_timestamp()+interval '8 hours')`,
+      [login.previousSessionHash ?? null, digestBytes(session), JSON.stringify(data)],
     );
     res.clearCookie('__Host-haip-login', {
       secure: true,
@@ -181,12 +197,15 @@ export function installAuth(app: Express, service: ReviewService) {
       req.principal = user;
       req.humanSession = data;
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        const csrf = req.headers['x-csrf-token'];
+        const csrf = req.headers['x-csrf-token'],
+          supplied = typeof csrf === 'string' ? Buffer.from(csrf, 'utf8') : Buffer.alloc(0),
+          expected =
+            typeof data.csrf === 'string' ? Buffer.from(data.csrf, 'utf8') : Buffer.alloc(0);
         requireThat(
           req.headers.origin === config.origin &&
-            typeof csrf === 'string' &&
-            csrf.length === data.csrf.length &&
-            timingSafeEqual(Buffer.from(csrf), Buffer.from(data.csrf)),
+            supplied.length > 0 &&
+            supplied.length === expected.length &&
+            timingSafeEqual(supplied, expected),
           403,
           'csrf',
         );

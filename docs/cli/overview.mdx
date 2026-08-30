@@ -1,20 +1,23 @@
 ---
-title: "Command-line client"
+title: 'Command-line client'
+description: 'Create reviews and inspect their results through the public HTTP API.'
 ---
 
-The CLI uses the same public HTTP protocol and separate producer credentials. Set `HAIP_URL` and `HAIP_TOKEN`; explicitly set `HAIP_LOCAL_HTTP=true` only for a localhost fixture. Build before running `node haip-cli/dist/index.js`.
+The HAIP 2 CLI is built from this workspace and calls the same scoped HTTP API as other producers. The public npm `latest` tag is not assumed to contain this draft.
 
 ```sh
-haip create request.json stable-idempotency-key
-haip status REQUEST_ID
-haip events AFTER_CURSOR
-haip cancel REQUEST_ID stable-cancellation-key
-haip export REQUEST_ID audit.json
-haip verify record.json trusted-manifest.json ISSUER AUDIENCE RECORD_TYPE
+npm ci
+npm run build
+node haip-cli/dist/index.js help
 ```
 
-Creation requires an explicit stable idempotency key. Retrying the same key with changed input fails. `events` returns a `next` cursor; persist it after handling the page. Exports use exclusive file creation with private permissions and never overwrite an existing export.
+Set `HAIP_URL` to an exact HTTPS origin and `HAIP_TOKEN` to a producer credential, then submit a validated request file with a stable idempotency key:
 
-`verify` authenticates a signed record against independently supplied trust and expected signing identity. It does not prove complete audit history, completion or current execution authority. The CLI does not approve requests; open the review link and confirm through the authenticated browser.
+```sh
+node haip-cli/dist/index.js create examples/http/review.json review-demo-1
+node haip-cli/dist/index.js status REQUEST_ID
+```
 
-HAIP 1 streaming/chat commands are archived and are not compatibility aliases for HAIP 2.
+The person follows the returned review link and confirms through the authenticated browser. The CLI cannot approve a request. Its commands cover creation, status, cancellation, events, audit export and generic signature verification.
+
+Use the [command reference](/cli/commands), [configuration guide](/cli/configuration) and [complete local example](/examples/using-cli). HAIP 1 chat, send and streaming commands are unsupported; their old guidance is retained in the [archive](/archive/v1/index).

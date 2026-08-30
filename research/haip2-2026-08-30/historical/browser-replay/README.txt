@@ -17,3 +17,15 @@ reproduce.mjs expects plasm-plan.html, the generated Plasm renderer omitted from
 this collection. Obtain/build the pinned renderer in its owning repository under
 its original licence before attempting reproduction. HAIP does not vendor it.
 Use npm run test:browser for the current independent HAIP host checks.
+
+Publication provenance
+The original upstream sandbox body was compared byte-for-byte with MCP ext-apps
+v1.7.4, commit ca1d29894fabbd1558885a9ec8620dcb01d7457e, at
+examples/basic-host/src/sandbox.ts. The adapted copy retains the three changes listed
+in manifest.json. Both files now carry a provenance header; the original experiment
+hashes are preserved and the publication object records their new retained hashes.
+LicenseRef-MCP-1.7.4-Transition denotes the unmodified upstream licence text at
+../../../../third-party/ext-apps-1.7.4-LICENSE. Its Apache-2.0/MIT transition is
+contribution-specific, not a choice of licence or permission to relicense the code.
+The independent HAIP host and fixture code are not attributed to this upstream copy.
+See ../../publication-edits.json for the original and retained evidence hashes.

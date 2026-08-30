@@ -67,6 +67,16 @@ label {
   display: block;
   margin: 12px 0;
 }
+fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+#proposal-source,
+#candidate-digest {
+  overflow-wrap: anywhere;
+}
 textarea {
   display: block;
   width: 100%;
@@ -101,6 +111,9 @@ pre {
   border: 3px solid #b7882f;
   padding: 20px;
   background: #fffaf0;
+}
+#exact {
+  max-height: none;
 }
 iframe {
   width: 100%;

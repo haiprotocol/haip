@@ -26,5 +26,20 @@
     "The browser automation evaluation sandbox did not provide the URL global; origin comparison was corrected before recording successful checks."
   ],
   "checks_scope": "18 rendering and isolation checks per payload layout. These are not the separate 36 cryptographic primitive assertions, and are not production protocol conformance.",
-  "retention": "Temporary local experiment files, not repository artefacts. Review and import before implementation acceptance."
+  "retention": "Temporary local experiment files, not repository artefacts. Review and import before implementation acceptance.",
+  "publication": {
+    "scope": "Retained feasibility evidence, not a new experiment or production conformance result.",
+    "source_revision": "ca1d29894fabbd1558885a9ec8620dcb01d7457e",
+    "source_path": "examples/basic-host/src/sandbox.ts",
+    "source_url": "https://github.com/modelcontextprotocol/ext-apps/blob/ca1d29894fabbd1558885a9ec8620dcb01d7457e/examples/basic-host/src/sandbox.ts",
+    "licence_identifier": "LicenseRef-MCP-1.7.4-Transition",
+    "licence_text": "../../../../third-party/ext-apps-1.7.4-LICENSE",
+    "licence_sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
+    "original_proxy_hash_fields": "upstream_proxy_sha256 and adapted_proxy_sha256 continue to identify the experiment bytes before the added publication headers.",
+    "retained_source_sha256": {
+      "upstream-sandbox.ts": "cabe14827e4992f7a2175f0b2cd72d9e8049bac7f657aa64e07b5b274e47cd62",
+      "adapted-sandbox.ts": "074974eade07995df4429181559e435ae1e7ddbc5e9ce8ab1f476ee0e41ef381"
+    },
+    "edits_manifest": "../../publication-edits.json"
+  }
 }

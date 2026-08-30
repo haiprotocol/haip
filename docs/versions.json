@@ -3,13 +3,16 @@
     "protocol": "2.0.0-draft.1",
     "status": "draft",
     "release_ready": false,
-    "openapi": "/protocol/openapi.json"
+    "openapi": "/protocol/openapi.json",
+    "docs": "/index"
   },
   "archive": [
     {
       "major": 1,
       "path": "/archive/v1/index",
-      "supported": false
+      "supported": false,
+      "openapi": "/archive/v1/protocol/openapi.json",
+      "source": "archive/v1"
     }
   ]
 }

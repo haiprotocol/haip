@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { environment } from './environment.js';
 import { HAIPClient, verifyExecutionAuthority } from '@haip/sdk';
-import { digest, canonicalise } from '@haip/protocol/crypto';
+import { digest, canonicalise, signRecord } from '@haip/protocol/crypto';
 let env: Awaited<ReturnType<typeof environment>>;
 before(async () => {
   env = await environment();
@@ -137,6 +137,16 @@ test('offline authority rejects tampering, stale nonces, clock skew and missing 
     },
   };
   const verified = await verifyExecutionAuthority(input);
+  for (const purpose of ['review', undefined]) {
+    const payload = { ...input.receipt.payload, purpose };
+    if (purpose === undefined) delete payload.purpose;
+    const receipt = signRecord(payload, input.receipt.protected, env.service.config.signingKey);
+    await assert.rejects(
+      verifyExecutionAuthority({ ...input, receipt: receipt as any }),
+      /Decision does not authorise this request/,
+      'a valid signature cannot conceal a missing or contradictory receipt purpose',
+    );
+  }
   await assert.rejects(
     verifyExecutionAuthority({
       ...input,

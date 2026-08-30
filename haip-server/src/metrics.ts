@@ -16,7 +16,7 @@ export class Metrics {
   }
   async snapshot(service: ReviewService, principal: Principal) {
     requireThat(principal.kind === 'operator', 403, 'operator_required');
-    return service.store.transaction(principal.tenant, async (tx) => {
+    return service.store.read(async (tx) => {
       await service.principal(tx, principal);
       const t = principal.tenant;
       const requests = (
@@ -55,7 +55,10 @@ export class Metrics {
         )
       ).rows;
       const operations = (
-        await tx.query('SELECT name,succeeded_at,failed_at FROM haip_operations ORDER BY name')
+        await tx.query(
+          'SELECT name,succeeded_at,failed_at FROM haip_tenant_operations WHERE tenant=$1 ORDER BY name',
+          [t],
+        )
       ).rows;
       const counters = this.requests.get(t) ?? { total: 0, failures: 0, conflicts: 0 };
       return {

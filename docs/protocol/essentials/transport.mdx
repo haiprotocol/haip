@@ -1,11 +1,21 @@
 ---
-title: "HTTP transport and events"
+title: 'HTTP transport and event polling'
+description: 'Authenticated JSON, stable idempotency keys and advisory event cursors.'
 ---
 
-HAIP 2 uses authenticated JSON over HTTPS. Request bodies must be uncompressed JSON; duplicate keys, invalid UTF-8, non-finite numbers and unsafe precision are rejected. Valid decimal responses are supported through RFC 8785 canonicalisation. Use strings where a schema needs greater precision.
+HAIP 2 uses JSON over HTTPS. The reference server does not implement HAIP 1 WebSocket, SSE, binary-frame or streaming-chat transports. Their old URLs lead to the [v1 archive](/archive/v1/index).
 
-Mutation endpoints use explicit idempotency keys where documented. Keep keys stable across transport retries and change them only for a new operation. A changed input under an old key is a conflict. Never treat a timeout as proof that an effect did not happen.
+Machine requests carry `Authorization: Bearer` credentials scoped to a tenant and role. JSON mutations use `Content-Type: application/json`. Creation and other idempotent mutations require a stable `Idempotency-Key`: retry the same logical operation with identical input and the same key. Changed input under that key conflicts.
 
-Poll `GET /v2/requests/{id}` for authoritative state. Poll signed events using `GET /v2/events?after=<cursor>`, durably handle the page and retain `next`. Registered producer webhooks are an optional at-least-once notification channel. They may arrive late, twice or out of order, so always fetch current status.
+Bodies are uncompressed UTF-8 JSON. Duplicate keys, invalid Unicode, non-finite values and unsafe precision are refused. The reference implementation enforces separate limits for payloads, documents, responses, bundles and retained data; see [captured limits](/server/configuration).
 
-The initial review interface is a browser link. No WebSocket, SSE, binary-frame, inline foreign confirmation or JSON-RPC execution transport is required or advertised. Historic HAIP 1 transport instructions remain in the [archive](/archive/v1/index).
+| Endpoint                        | Meaning                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| `GET /.well-known/haip`         | Advertised revision, profiles, capabilities and notification mode.       |
+| `GET /.well-known/haip-trust`   | Signing-key metadata for discovery; not an independent trust root.       |
+| `GET /v2/requests/{id}`         | Current scoped request status. A link alone does not authorise the read. |
+| `GET /v2/events?after={cursor}` | A bounded page of signed producer events and the next cursor.            |
+
+Persist received events before saving the returned cursor. Events and webhooks can be duplicated or reordered; their revision is a prompt to fetch current status, not authority to confirm or execute. Notification retries stop after the delivery window and never renew review or admission deadlines.
+
+Requests outside a principal's scope are not existence probes. Errors use stable codes and ordinary HTTP statuses; see [errors and retries](/protocol/essentials/error-handling). The [OpenAPI contract](/protocol/openapi) defines the complete request and response shapes.

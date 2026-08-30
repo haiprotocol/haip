@@ -15,5 +15,5 @@
     "published_ed25519_signature_matches_RFC8032": false
   },
   "approval_fixture_sha256": "b37b72e35e65f96dde04468cc0ef852ab094463da196469fcc411d433285ad4e",
-  "decimal_response_fixture": "/var/folders/5p/_8hm41g55d9gcnq_1p3_2cfm0000gq/T/haip-protocol-check-5qcsd6cv/decimal-response-fixture.json"
+  "decimal_response_fixture": "[HISTORICAL_PROTOCOL_WORKDIR]/decimal-response-fixture.json"
 }

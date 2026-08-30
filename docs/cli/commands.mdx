@@ -1,20 +1,22 @@
 ---
-title: "CLI \u2014 commands"
+title: 'CLI commands'
+description: 'Arguments, output files and verification limits for the draft CLI.'
 ---
 
-The CLI uses the same public HTTP protocol and separate producer credentials. Set `HAIP_URL` and `HAIP_TOKEN`; explicitly set `HAIP_LOCAL_HTTP=true` only for a localhost fixture. Build before running `node haip-cli/dist/index.js`.
+Run these commands through `node haip-cli/dist/index.js` from a built checkout, or through the `haip` binary from an explicitly installed draft package.
 
-```sh
-haip create request.json stable-idempotency-key
-haip status REQUEST_ID
-haip events AFTER_CURSOR
-haip cancel REQUEST_ID stable-cancellation-key
-haip export REQUEST_ID audit.json
-haip verify record.json trusted-manifest.json ISSUER AUDIENCE RECORD_TYPE
-```
+| Command                                                        | Behaviour                                                                                            |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `help` or `--help`                                             | Print available commands; no credential is needed.                                                   |
+| `create <request.json> <idempotency-key>`                      | Submit one immutable request. The explicit key is required.                                          |
+| `status <request-id>`                                          | Read current scoped status.                                                                          |
+| `cancel <request-id> <idempotency-key>`                        | Request cancellation with a stable operation key.                                                    |
+| `events [after-cursor]`                                        | Read signed events; the omitted cursor defaults to zero.                                             |
+| `export <request-id> <output.json>`                            | Write retained audit evidence to a new private file. It never overwrites an existing file.           |
+| `verify <record.json> <trust.json> <issuer> <audience> <type>` | Verify an original signed record against independently supplied trust and expected signing identity. |
 
-Creation requires an explicit stable idempotency key. Retrying the same key with changed input fails. `events` returns a `next` cursor; persist it after handling the page. Exports use exclusive file creation with private permissions and never overwrite an existing export.
+Server failures print the HTTP status and error code to standard error and set a non-zero exit status. Successful read and mutation commands print JSON, except export and verification, which print a result message.
 
-`verify` authenticates a signed record against independently supplied trust and expected signing identity. It does not prove complete audit history, completion or current execution authority. The CLI does not approve requests; open the review link and confirm through the authenticated browser.
+Keep the same creation or cancellation key when retrying the same logical operation. Save an event cursor only after durable processing. Store exports as private material and respect retention policies.
 
-HAIP 1 streaming/chat commands are archived and are not compatibility aliases for HAIP 2.
+`verify` is an offline signature/identity check. It does not establish complete historical time, human understanding, current execution authority or an external effect's outcome. An executor needs the full [execution verification flow](/sdk/execution).

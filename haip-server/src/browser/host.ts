@@ -2,9 +2,25 @@ import { canonicalise, parseJson } from '@haip/protocol/json';
 import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-let csrf = '',
-  requestId = location.pathname.split('/')[2],
-  candidate: Record<string, unknown> | undefined;
+let csrf = '';
+const requestId = location.pathname.split('/')[2];
+type ProposalSource = Readonly<{
+  kind: 'native_form' | 'producer_app';
+  publisher?: string;
+  bundle_id?: string;
+  bundle_digest?: string;
+}>;
+type FrozenResponse = Readonly<{
+  candidate: Readonly<Record<string, unknown>>;
+  candidateId: string;
+  digest: string;
+  source: ProposalSource;
+}>;
+let frozenResponse: FrozenResponse | undefined,
+  phase: 'ready' | 'preparing' | 'reviewing' | 'confirming' | 'dismissed' | 'complete' = 'ready',
+  proposalAttempt = 0,
+  pending = true,
+  appAvailable = false;
 let allFields: string[] = [],
   filtered: string[] = [],
   page = 0,
@@ -42,6 +58,41 @@ const hash = async (v: unknown) =>
 const write = (id: string, v: unknown) => {
   el(id).textContent = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
 };
+function freeze<T>(value: T): Readonly<T> {
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+function trustedGesture(event: Event) {
+  if (event.isTrusted && navigator.userActivation.isActive) return true;
+  showError('Use the trusted host controls to start or confirm a response.');
+  return false;
+}
+function responseControls() {
+  const locked = ['preparing', 'reviewing', 'confirming'].includes(phase);
+  el<HTMLFieldSetElement>('proposal-fields').disabled = locked || !pending;
+  el('proposal').hidden = !pending;
+  el('assign').hidden = !pending;
+  el('confirmation').hidden = !['reviewing', 'confirming'].includes(phase);
+  el<HTMLButtonElement>('confirm').disabled = phase !== 'reviewing' || !pending;
+  el<HTMLButtonElement>('dismiss-response').disabled = phase !== 'reviewing' || !pending;
+  el('allow-app-proposal').hidden = !appAvailable || !pending;
+  el<HTMLButtonElement>('allow-app-proposal').disabled = phase !== 'dismissed';
+  write(
+    'proposal-state',
+    {
+      ready: 'Ready for one response proposal. A separate host confirmation is always required.',
+      preparing: 'Preparing one response. Further app and form proposals are blocked.',
+      reviewing: 'This response is frozen. Dismiss it before reviewing another response.',
+      confirming: 'Recording this exact frozen response. Further proposals are blocked.',
+      dismissed:
+        'Response dismissed. Submit the host form again, or explicitly allow one new app proposal.',
+      complete: 'This request no longer accepts response proposals.',
+    }[phase],
+  );
+}
 function fields(v: unknown, path = '$') {
   if (v && typeof v === 'object' && Object.keys(v).length)
     for (const [k, x] of Object.entries(v)) fields(x, path + '[' + JSON.stringify(k) + ']');
@@ -56,18 +107,54 @@ function renderPage() {
   el<HTMLButtonElement>('previous').disabled = page === 0;
   el<HTMLButtonElement>('next').disabled = (page + 1) * 40 >= filtered.length;
 }
-async function propose(body: unknown) {
-  candidate = await api(`/v2/requests/${requestId}/candidates`, body);
-  write('exact', {
-    request_id: requestId,
-    request_digest: candidate!.request_digest,
-    decision: candidate!.decision,
-    response: candidate!.response,
-  });
-  el('confirmation').hidden = false;
-  el<HTMLButtonElement>('confirm').disabled = false;
-  el('confirmation').scrollIntoView({ behavior: 'smooth' });
-  return { candidate_id: candidate!.id, status: 'awaiting_human_confirmation' };
+async function propose(body: unknown, source: ProposalSource) {
+  if (!pending || !['ready', 'dismissed'].includes(phase))
+    throw new Error(
+      'A response is already frozen or being prepared. Use the trusted host to dismiss it.',
+    );
+  if (source.kind === 'producer_app' && phase !== 'ready')
+    throw new Error('Use the trusted host to allow one new app proposal after dismissal.');
+  // Reserve the slot before any asynchronous work so a second proposal cannot overtake it.
+  const attempt = ++proposalAttempt;
+  phase = 'preparing';
+  responseControls();
+  try {
+    const candidate = freeze(
+      parseJson(canonicalise(await api(`/v2/requests/${requestId}/candidates`, body))) as Record<
+        string,
+        unknown
+      >,
+    );
+    if (candidate.request_id !== requestId || typeof candidate.id !== 'string')
+      throw new Error('The candidate does not match this request.');
+    const digest = await hash(candidate);
+    if (attempt !== proposalAttempt || phase !== 'preparing' || !pending)
+      throw new Error('This response is no longer available for review.');
+    frozenResponse = freeze({
+      candidate,
+      candidateId: candidate.id,
+      digest,
+      source: { ...source },
+    });
+    write('exact', frozenResponse.candidate);
+    write('candidate-digest', frozenResponse.digest);
+    write(
+      'proposal-source',
+      source.kind === 'native_form'
+        ? 'Source: trusted host response form.'
+        : `Source: producer app. Publisher: ${source.publisher}. Bundle: ${source.bundle_id}. Bundle digest: ${source.bundle_digest}. App content cannot confirm decisions.`,
+    );
+    phase = 'reviewing';
+    responseControls();
+    el('confirmation').scrollIntoView({ behavior: 'smooth' });
+    return { candidate_id: frozenResponse.candidateId, status: 'awaiting_human_confirmation' };
+  } catch (error) {
+    if (attempt === proposalAttempt && phase === 'preparing') {
+      phase = 'dismissed';
+      responseControls();
+    }
+    throw error;
+  }
 }
 async function status() {
   const s = await api(`/v2/requests/${requestId}`);
@@ -76,9 +163,13 @@ async function status() {
     `Decision: ${s.decision_state} · Audit: ${s.audit_state} · Grant: ${s.grant_state} · Execution: ${s.execution_state}`,
   );
   write('receipt', s.receipt ?? 'No confirmed decision.');
-  el('proposal').hidden = s.decision_state !== 'pending';
-  el('assign').hidden = s.decision_state !== 'pending';
-  if (s.decision_state !== 'pending') el('confirmation').hidden = true;
+  if (s.decision_state !== 'pending') {
+    pending = false;
+    phase = 'complete';
+    frozenResponse = undefined;
+    proposalAttempt++;
+  }
+  responseControls();
   const deadline = s.receipt?.payload?.grant_deadline ?? s.request.review_deadline;
   const remaining = Math.max(0, Math.floor((Date.parse(deadline) - Date.now()) / 1000));
   write(
@@ -112,7 +203,7 @@ async function inbox() {
   }
   el<HTMLButtonElement>('more').disabled = result.next_offset === null;
 }
-async function app() {
+async function app(source: ProposalSource) {
   const stored = await api(`/v2/requests/${requestId}/app`);
   const frame = document.createElement('iframe');
   frame.title = 'Producer app — cannot confirm decisions';
@@ -170,7 +261,7 @@ async function app() {
   bridge.oncalltool = async (params) => {
     if (params.name !== 'haip_propose_decision' || !sent)
       throw new Error('Forbidden host operation');
-    const result = await propose(params.arguments);
+    const result = await propose(params.arguments, source);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   };
   bridge.onreadresource = async () => {
@@ -260,28 +351,59 @@ async function app() {
       seed[k] = v.enum?.[0] ?? (v.type === 'number' ? 0 : v.type === 'boolean' ? false : '');
     el<HTMLTextAreaElement>('response').value = JSON.stringify(seed, null, 2);
   }
-  el('proposal').onsubmit = (e) => {
-    e.preventDefault();
-    void Promise.resolve()
-      .then(() =>
-        propose({
+  el('proposal').onsubmit = (event) => {
+    event.preventDefault();
+    if (!trustedGesture(event)) return;
+    try {
+      void propose(
+        {
           decision: select.value,
           response: parseJson(el<HTMLTextAreaElement>('response').value),
-        }),
-      )
-      .catch(showError);
+        },
+        { kind: 'native_form' },
+      ).catch(showError);
+    } catch (error) {
+      showError(error);
+    }
   };
-  el('confirm').onclick = () => {
+  el('dismiss-response').onclick = (event) => {
+    if (!trustedGesture(event) || phase !== 'reviewing') return;
+    frozenResponse = undefined;
+    phase = 'dismissed';
+    proposalAttempt++;
+    write('exact', '');
+    write('candidate-digest', '');
+    write('proposal-source', '');
+    responseControls();
+  };
+  el('allow-app-proposal').onclick = (event) => {
+    if (!trustedGesture(event) || phase !== 'dismissed' || !pending || !appAvailable) return;
+    phase = 'ready';
+    responseControls();
+  };
+  el('confirm').onclick = (event) => {
+    if (!trustedGesture(event) || phase !== 'reviewing' || !frozenResponse || !pending) return;
+    // The displayed record, ID and digest are one immutable snapshot, captured before awaiting I/O.
+    const confirmation = frozenResponse;
+    phase = 'confirming';
+    responseControls();
     void (async () => {
-      if (!candidate) return;
-      el<HTMLButtonElement>('confirm').disabled = true;
       await api(`/v2/requests/${requestId}/confirm`, {
-        candidate_id: candidate.id,
-        candidate_digest: await hash(candidate),
+        candidate_id: confirmation.candidateId,
+        candidate_digest: confirmation.digest,
       });
-      el('confirmation').hidden = true;
+      pending = false;
+      frozenResponse = undefined;
+      phase = 'complete';
+      responseControls();
       await status();
-    })().catch(showError);
+    })().catch((error) => {
+      if (frozenResponse === confirmation && phase === 'confirming') {
+        phase = 'reviewing';
+        responseControls();
+      }
+      showError(error);
+    });
   };
   el('assign').onclick = () => {
     void api(`/v2/requests/${requestId}/assignment`, {})
@@ -289,10 +411,16 @@ async function app() {
       .catch(showError);
   };
   await status();
-  if (r.review.bundle)
-    void app().catch(() =>
-      write('app-state', 'App unavailable. Use the trusted host response form.'),
-    );
+  if (r.review.bundle) {
+    appAvailable = true;
+    responseControls();
+    void app({
+      kind: 'producer_app',
+      publisher: r.review.bundle.publisher,
+      bundle_id: r.review.bundle.id,
+      bundle_digest: r.review.bundle.digest,
+    }).catch(() => write('app-state', 'App unavailable. Use the trusted host response form.'));
+  }
 })().catch((error) => {
   if (error.message === 'unauthenticated')
     location.href = '/auth/login?return_to=' + encodeURIComponent(location.pathname);

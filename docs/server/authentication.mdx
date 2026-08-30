@@ -1,13 +1,18 @@
 ---
-title: "Identity and confirmation"
+title: 'Identity and trusted confirmation'
+description: 'Separate machine credentials from the person who confirms the decision.'
 ---
 
-Machine bearer credentials identify producers, publishers or operators. Publishers register their own immutable bundles; producers can reference only their mapped publisher. Operators configure routes and verified workload owners. A producer-provided name never establishes human identity.
+Machine bearer credentials identify producers, publishers or operators, each with a stable principal ID and tenant. They are not human sessions and cannot confirm decisions. A name supplied in a request never establishes a person's identity or ownership.
 
-Humans sign in through OIDC authorization code flow with PKCE, state and nonce. The issuer/subject pair must map to exactly one enabled operator-directory entry. Sessions are held on the server and use Secure, HttpOnly, host-only SameSite cookies. Human writes also require the session CSRF token and the exact trusted Origin.
+Humans sign in through the OIDC authorisation-code flow with PKCE, state and nonce. The issuer/subject pair must map to exactly one enabled operator-directory entry. Login consumes one-use callback state and rotates the server-side session. Cookies are Secure, HttpOnly and host-only; they are not App credentials.
 
-A human proposes a schema-valid candidate and separately confirms its exact ID and digest. Apps can call only `haip_propose_decision`; they cannot read cookies, obtain bearer credentials or confirm. Production routes require separation between requester and reviewer. Uncertain identity temporarily prevents authority; it does not silently waive the check.
+Human mutations require the authenticated browser session, a session CSRF token and the exact trusted Origin. Review links only locate resources; possessing a link, digest or App registration does not grant payload access or confirmation rights.
 
-Disabling a reviewer or removing them from a route invalidates their affected grants. Re-adding them does not restore those grants. Unrelated membership changes preserve other reviewers’ grants. Authorising rule changes advance the route revision.
+A person proposes a schema-valid response and separately confirms that candidate's exact ID and digest. Replacing the proposal invalidates the previous confirmation target. An App can propose through `haip_propose_decision`, but the host retains the confirmation step.
 
-Rotate machine tokens on the same stable principal ID to preserve quotas. Never recycle a human ID for another OIDC subject. Recovery disables all old credentials and requires explicit reprovisioning.
+Production requires separate registrable sites for the trusted host and sandbox. Different sibling subdomains alone do not provide that boundary. Each tenant/publisher/bundle receives its own sandbox origin, with a scripts-only opaque inner frame and no arbitrary host operations.
+
+Routes require verified requester/reviewer separation. Directory aliases of the same OIDC identity cannot satisfy self-review separation. Uncertain identity blocks authority; disabling or removing a reviewer permanently invalidates affected grants, and re-adding the reviewer does not restore them.
+
+Rotate machine tokens on the same principal ID to preserve ownership and quotas. Never recycle a human ID for a different issuer/subject pair. Recovery disables old credentials and requires explicit reprovisioning. A real Clerk or Entra application still needs isolated deployment acceptance; the local OIDC fixture does not prove a provider configuration.

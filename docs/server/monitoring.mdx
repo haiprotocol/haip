@@ -1,13 +1,20 @@
 ---
-title: "Monitoring and incidents"
+title: 'Monitoring, retention and incidents'
+description: 'Inspect tenant-scoped pressure and delivery state without exposing private material.'
 ---
 
-Use `GET /v2/admin/metrics` for scoped JSON or `GET /v2/admin/metrics.prom` for Prometheus. Authenticate with the tenant operator credential. Responses include request volume, pending age, reviewer pressure, retained bytes, unresolved execution, delivery state and checkpoint lag. HTTP counters reset on process restart; database gauges survive it.
+Authenticate with the tenant's operator credential to read `GET /v2/admin/metrics` for JSON or `GET /v2/admin/metrics.prom` for Prometheus. Metrics cover request volume, pending age, reviewer pressure, retained bytes, uncertainty, delivery state and checkpoint lag. Keep scrape credentials private.
 
-Alert on admission fencing, delivery failures, checkpoint lag beyond five minutes, missing retention runs beyond 30 minutes and unresolved executions past their captured window. Worker success/failure timestamps are exposed in JSON and Prometheus. Adjust reviewer-pressure thresholds to staffing. Configuration examples in `deployment/alerts.yml` are not installed automatically.
+In-process HTTP counters reset at restart. Database-backed gauges and tenant-scoped worker operation stamps survive it. One tenant's failure must not appear as another tenant's status. Operator ledger reads use `GET /v2/admin/ledger?after={sequence}` and return the tenant's original audit records.
 
-Inspect `GET /v2/admin/ledger?after=<sequence>` for the tenant’s original audit records. Request status includes delivery attempts and safe failure codes. SMTP acceptance is not proof of delivery or reading. Keep responses, email addresses and credentials out of alert labels.
+The inbox uses 50-item pages with offset, total and next-offset fields; offsets are integers from 0 to 100,000. Visibility and state filtering happen in SQL before bounded records are returned. Status, material and export reads project current expiry without writing lifecycle events; the retention worker records persistent transitions separately as `haip.retention`.
 
-Checkpoint conflicts or unexpected object versions require incident investigation. Do not delete remote versions to clear the alarm. Missing effects remain uncertain; operators may reconcile only with reasons and independently established evidence. Reconciliation never refunds a consumed occurrence.
+Alert on admission fencing, persistent delivery failures, checkpoint lag beyond five minutes, absent retention progress beyond 30 minutes and unresolved execution past its captured window. Adjust reviewer-pressure thresholds to staffing. `deployment/alerts.yml` is an example, not an installed alerting service.
 
-External executors must supply policy, destination, credential, evidence-storage and dispatch-window monitoring. HAIP cannot observe hidden external effects.
+A worker or provider error is not proof that no remote write or external effect occurred. Checkpoint conflicts and unexpected object versions need investigation; do not delete remote versions to clear the alarm. Preserve launch fences and independently established evidence while reconciling uncertainty.
+
+SMTP acceptance proves neither delivery nor reading. Webhook consumers must persist and deduplicate before acknowledgement, then fetch current status. Keep responses, recipient addresses and credential material out of metric labels and alert messages.
+
+In development, an unconfigured anchor leaves checkpoint work pending without consuming SMTP or webhook delivery slots. Production requires an explicitly configured independent anchor before startup.
+
+External executors supply their own policy, destination, credential, evidence-storage and dispatch-window monitoring. HAIP cannot observe an effect that was hidden from it.

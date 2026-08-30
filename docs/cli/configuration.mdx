@@ -1,20 +1,20 @@
 ---
-title: "CLI \u2014 configuration"
+title: 'CLI configuration'
+description: 'The supported environment variables and handling of private credentials.'
 ---
 
-The CLI uses the same public HTTP protocol and separate producer credentials. Set `HAIP_URL` and `HAIP_TOKEN`; explicitly set `HAIP_LOCAL_HTTP=true` only for a localhost fixture. Build before running `node haip-cli/dist/index.js`.
+The draft CLI reads these environment variables; it does not load HAIP 1 configuration files or support their transport settings.
 
-```sh
-haip create request.json stable-idempotency-key
-haip status REQUEST_ID
-haip events AFTER_CURSOR
-haip cancel REQUEST_ID stable-cancellation-key
-haip export REQUEST_ID audit.json
-haip verify record.json trusted-manifest.json ISSUER AUDIENCE RECORD_TYPE
-```
+| Variable          | Meaning                                                                |
+| ----------------- | ---------------------------------------------------------------------- |
+| `HAIP_URL`        | Exact service HTTPS origin, without a path, query or user information. |
+| `HAIP_TOKEN`      | The scoped machine credential for HTTP commands.                       |
+| `HAIP_LOCAL_HTTP` | Set to `true` only for the disposable localhost fixture.               |
 
-Creation requires an explicit stable idempotency key. Retrying the same key with changed input fails. `events` returns a `next` cursor; persist it after handling the page. Exports use exclusive file creation with private permissions and never overwrite an existing export.
+`help` requires no environment. `verify` reads its record and independently trusted manifest from files and does not need service credentials. Other commands require both `HAIP_URL` and `HAIP_TOKEN`.
 
-`verify` authenticates a signed record against independently supplied trust and expected signing identity. It does not prove complete audit history, completion or current execution authority. The CLI does not approve requests; open the review link and confirm through the authenticated browser.
+For [local development](/quickstart), copy the printed producer credential into a private terminal environment and enable the localhost exception. Do not commit a token, place it in an origin URL, paste it into a public command transcript or expose an operator credential to a producer script.
 
-HAIP 1 streaming/chat commands are archived and are not compatibility aliases for HAIP 2.
+An idempotency key is a command argument, not a replacement for authentication. Generate it once per logical mutation and preserve it across retries. Rotating the bearer credential does not reset producer identity, retained quotas or execution occurrence consumption.
+
+Exports are created with private file permissions and exclusive creation. Choose a new filename when retaining a second export, rather than weakening that safeguard.
