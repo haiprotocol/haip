@@ -1,0 +1,150 @@
+[
+  {
+    "name": "chap_accept_0",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_1",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_2",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_3",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_4",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_5",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_6",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_7",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_8",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_9",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_10",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_11",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_12",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_13",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_accept_14",
+    "pass": true,
+    "outputs_if_failed": null
+  },
+  {
+    "name": "chap_reject_0",
+    "pass": true
+  },
+  {
+    "name": "chap_reject_1",
+    "pass": true
+  },
+  {
+    "name": "chap_reject_2",
+    "pass": true
+  },
+  {
+    "name": "chap_reject_3",
+    "pass": true
+  },
+  {
+    "name": "chap_reject_4",
+    "pass": true
+  },
+  {
+    "name": "chap_reject_5",
+    "pass": true
+  },
+  {
+    "name": "rfc8785_utf16_python",
+    "pass": true
+  },
+  {
+    "name": "rfc8785_utf16_node",
+    "pass": true
+  },
+  {
+    "name": "rfc8785_utf16_rust",
+    "pass": true
+  },
+  {
+    "name": "rfc8785_numeric_rust",
+    "pass": true,
+    "actual": "{\"numbers\":[333333333.3333333,1e+30,4.5,0.002,1e-27]}"
+  },
+  {
+    "name": "rfc8032_1_node",
+    "pass": true
+  },
+  {
+    "name": "rfc8032_1_rust",
+    "pass": true
+  },
+  {
+    "name": "rfc8032_2_node",
+    "pass": true
+  },
+  {
+    "name": "rfc8032_2_rust",
+    "pass": true
+  },
+  {
+    "name": "approval_envelope_canonical_3_languages",
+    "pass": true
+  },
+  {
+    "name": "approval_envelope_same_signature",
+    "pass": true
+  },
+  {
+    "name": "node_signature_verified_by_rust",
+    "pass": true
+  },
+  {
+    "name": "rust_signature_verified_by_node",
+    "pass": true
+  }
+]

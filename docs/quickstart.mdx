@@ -1,172 +1,27 @@
 ---
-title: "Quickstart"
-description: "Get started with HAIP in minutes"
+title: "Try HAIP 2"
 ---
 
-## Get started in three steps
+HAIP accepts an immutable request, presents it to an authenticated person and returns a signed decision. A review response never grants execution authority.
 
-Implement HAIP in your application with this quick guide.
+From a checkout with Node 24 and PostgreSQL 17 installed:
 
-<Note>
-  [Link to the examples in the
-  repo](https://github.com/haiprotocol/haip/tree/docsupdate/examples).
-</Note>
-
-### 📦 **Install Packages**
-
-```bash
-# Install SDK
-npm install @haip/sdk
-
-# Install Server
-npm install @haip/server
-
-# Install Types
-npm install @types/haip
-
-# Install CLI (optional)
-npm install -g @haip/cli
+```sh
+npm ci
+npm run build
+npm run demo
 ```
 
-### Step 1: Create Server
+The demo prints a loopback origin and random fixture credentials. It runs a temporary PostgreSQL database, local identity provider and explicitly non-production anchor. Keep it local. Its data is removed on normal shutdown.
 
-Save this in server.js
+In another terminal, set `HAIP_URL` to that origin, `HAIP_TOKEN` to its producer credential, `HAIP_LOCAL_HTTP=true` and a stable `HAIP_IDEMPOTENCY_KEY`. Run:
 
-```javascript
-import { createPermissionMap, HAIPServer, HAIPTool } from "@haip/server";
-import {
-  HAIPEventType,
-  HAIPMessage,
-  HAIPSessionTransaction,
-  HAIPToolSchema,
-} from "haip";
-import OpenAI from "openai";
-
-const server = new HAIPServer({
-  port: 8080,
-  host: "0.0.0.0",
-  jwtSecret: "CHANGE_THIS_TO_A_SECRET_STRING",
-  enableCORS: true,
-  enableLogging: true,
-  flowControl: {
-    enabled: true,
-    minCredits: 100,
-    maxCredits: 10000,
-    creditThreshold: 200,
-    backPressureThreshold: 0.8,
-    adaptiveAdjustment: true,
-  },
-});
-
-server.authenticate((req) => {
-  // Here you should validate your with your auth system
-  // Hardcoded check here
-  if (req.token === "Bearer TOKEN") {
-    return {
-      id: "user123",
-      permissions: createPermissionMap({ MESSAGE: ["*"] }),
-      credits: 1000,
-    };
-  }
-  return null;
-});
-
-server.start();
+```sh
+node examples/http/review.mjs
 ```
 
-### Step 2: Create client
+Open the returned review link, sign in as `reviewer`, inspect the retained document and payload, propose a response, then press **Confirm this exact response** in the trusted host. Fetch status using the producer credential. The signed receipt commits to the exact response; use the export to obtain retained response bytes.
 
-Save this in client.js
+For an optional independent App, run `npm run example:app`, set the separate `HAIP_PUBLISHER_TOKEN`, and run `node examples/http/register-app.mjs`. Set its returned ID as `HAIP_BUNDLE_ID` for a new review request. The producer must be mapped to that publisher by the operator.
 
-```javascript
-import { createHAIPClient } from "@haip/sdk";
-
-async function main() {
-  const client = createHAIPClient({
-    url: "ws://localhost:8080",
-  });
-
-  client.authenticate(() => {
-    // You should send a token here.
-    return {
-      token: "Bearer TOKEN",
-    };
-  });
-
-  try {
-    await client.connect();
-
-    const transaction = await client.startTransaction("echo", {});
-
-    transaction.on("message", (message: any) => {
-      console.log("🤖 Agent:", message.payload);
-    });
-
-    console.log("✅ Sending to transaction:", "Hello! Can you echo this?");
-    transaction.sendTextMessage("Hello! Can you echo this?");
-  } catch (error) {
-    console.error("Error:", error);
-    await client.disconnect();
-  }
-}
-
-main();
-```
-
-### Step 3: Run Locally
-
-In the client
-
-```bash
-node server.js
-node client.js
-```
-
-You should see something like this:
-
-```
-> @haip/sdk@1.0.1 example
-> ts-node ./example/test-client.ts
-
-[HAIP] Transport connecting...
-[HAIP] Handshake sent
-
-✅ Sending to transaction: Hello! Can you echo this?
-🤖 Agent: Hello! Can you echo this?
-
-```
-
-### Step 4: Connecting with the CLI Tool
-
-Now run (assumig you are running this locally on localhost:8080)
-
-```
-haip chat --tool echo
-```
-
-You can also use the echo tool:
-
-```
-✔ Transaction started...
-You: Hello This is me
-🤖 Agent: Hello This is me
-```
-
-<CardGroup cols={2}>
-  <Card title="Authentication" icon="shield" href="/essentials/authentication">
-    Secure your connections with JWT tokens and proper validation.
-  </Card>
-  <Card title="Tool Integration" icon="wrench" href="/essentials/tools">
-    Enable agents to call external tools and APIs.
-  </Card>
-  <Card title="Flow Control" icon="sliders" href="/essentials/flow-control">
-    Manage back-pressure and prevent system overload.
-  </Card>
-  <Card
-    title="Error Handling"
-    icon="exclamation"
-    href="/essentials/error-handling"
-  >
-    Implement robust error handling and recovery.
-  </Card>
-</CardGroup>
+For deployment, replace every fixture dependency with the explicitly configured services in [deployment](/server/deployment). No default or demo credentials are suitable for production.

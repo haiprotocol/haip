@@ -1,0 +1,8 @@
+[package]
+name = "haip-primitive-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[dependencies]
+jcs-canonicalize = "=0.2.1"
+ed25519-dalek = "=2.2.0"

@@ -1,0 +1,15 @@
+{
+  "current": {
+    "protocol": "2.0.0-draft.1",
+    "status": "draft",
+    "release_ready": false,
+    "openapi": "/protocol/openapi.json"
+  },
+  "archive": [
+    {
+      "major": 1,
+      "path": "/archive/v1/index",
+      "supported": false
+    }
+  ]
+}

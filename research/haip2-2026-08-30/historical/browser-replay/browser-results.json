@@ -1,0 +1,345 @@
+{
+  "recorded_at": "2026-08-30T12:37:43.742Z",
+  "records": [
+    {
+      "mode": "legacy",
+      "checks": [
+        {
+          "name": "two iframe boundaries",
+          "passed": true
+        },
+        {
+          "name": "separate host and proxy origins",
+          "passed": true
+        },
+        {
+          "name": "scripts-only inner sandbox",
+          "passed": true
+        },
+        {
+          "name": "opaque inner origin",
+          "passed": true
+        },
+        {
+          "name": "inner source is stored srcdoc",
+          "passed": true
+        },
+        {
+          "name": "Plan Review visible",
+          "passed": true
+        },
+        {
+          "name": "flow view rendered",
+          "passed": true
+        },
+        {
+          "name": "single app initialisation",
+          "passed": true
+        },
+        {
+          "name": "one tool input",
+          "passed": true
+        },
+        {
+          "name": "one tool result",
+          "passed": true
+        },
+        {
+          "name": "no tool or live-resource requests",
+          "passed": true
+        },
+        {
+          "name": "no host-reported runtime errors",
+          "passed": true
+        },
+        {
+          "name": "cookies inaccessible",
+          "passed": true
+        },
+        {
+          "name": "localStorage inaccessible",
+          "passed": true
+        },
+        {
+          "name": "parent DOM inaccessible",
+          "passed": true
+        },
+        {
+          "name": "top DOM inaccessible",
+          "passed": true
+        },
+        {
+          "name": "no inner network resources loaded",
+          "passed": true
+        },
+        {
+          "name": "fetch denied by CSP",
+          "passed": true
+        }
+      ],
+      "passed": 18,
+      "total": 18,
+      "mainProbe": {
+        "forbiddenCalls": [],
+        "handshake": [
+          {
+            "method": "ui/notifications/sandbox-proxy-ready",
+            "id": null
+          },
+          {
+            "method": "ui/initialize",
+            "id": 0
+          },
+          {
+            "method": "ui/notifications/initialized",
+            "id": null
+          },
+          {
+            "method": "ui/notifications/size-changed",
+            "id": null
+          },
+          {
+            "method": "ui/notifications/size-changed",
+            "id": null
+          }
+        ],
+        "inputCount": 1,
+        "resultCount": 1,
+        "initialised": 1,
+        "errors": [],
+        "mode": "legacy"
+      },
+      "readout": {
+        "origin": "null",
+        "url": "about:srcdoc",
+        "title": "Plan Review",
+        "body": "PLAN REVIEW\npc1\nl_AAAAAAAAQACAAAAAAAAAAQ\npc1\nNEEDS REVIEW\n0w · 2r · 2 steps\n\nproject list reads\n\npc1 · 2 nodes\n\nPLAN\nFLOW\n\nClean · 2 steps analyzed\n\nuntrusted\nitems\nuntrusted\nOUT\nr1\nuntrusted\n\nitems\nALLOW\n\nLABELS IN\nuntrusted\nLABELS OUT\nuntrusted",
+        "localStorageDenied": true,
+        "cookiesDenied": true,
+        "parentDocumentDenied": true,
+        "topDocumentDenied": true,
+        "resourcesBeforeProbe": [],
+        "networkDenied": true,
+        "violations": [
+          {
+            "directive": "connect-src",
+            "blocked": "https://haip-blocked.invalid/probe"
+          }
+        ]
+      }
+    },
+    {
+      "mode": "current",
+      "checks": [
+        {
+          "name": "two iframe boundaries",
+          "passed": true
+        },
+        {
+          "name": "separate host and proxy origins",
+          "passed": true
+        },
+        {
+          "name": "scripts-only inner sandbox",
+          "passed": true
+        },
+        {
+          "name": "opaque inner origin",
+          "passed": true
+        },
+        {
+          "name": "inner source is stored srcdoc",
+          "passed": true
+        },
+        {
+          "name": "Plan Review visible",
+          "passed": true
+        },
+        {
+          "name": "flow view rendered",
+          "passed": true
+        },
+        {
+          "name": "single app initialisation",
+          "passed": true
+        },
+        {
+          "name": "one tool input",
+          "passed": true
+        },
+        {
+          "name": "one tool result",
+          "passed": true
+        },
+        {
+          "name": "no tool or live-resource requests",
+          "passed": true
+        },
+        {
+          "name": "no host-reported runtime errors",
+          "passed": true
+        },
+        {
+          "name": "cookies inaccessible",
+          "passed": true
+        },
+        {
+          "name": "localStorage inaccessible",
+          "passed": true
+        },
+        {
+          "name": "parent DOM inaccessible",
+          "passed": true
+        },
+        {
+          "name": "top DOM inaccessible",
+          "passed": true
+        },
+        {
+          "name": "no inner network resources loaded",
+          "passed": true
+        },
+        {
+          "name": "fetch denied by CSP",
+          "passed": true
+        }
+      ],
+      "passed": 18,
+      "total": 18,
+      "mainProbe": {
+        "forbiddenCalls": [],
+        "handshake": [
+          {
+            "method": "ui/notifications/sandbox-proxy-ready",
+            "id": null
+          },
+          {
+            "method": "ui/initialize",
+            "id": 0
+          },
+          {
+            "method": "ui/notifications/initialized",
+            "id": null
+          },
+          {
+            "method": "ui/notifications/size-changed",
+            "id": null
+          },
+          {
+            "method": "ui/notifications/size-changed",
+            "id": null
+          },
+          {
+            "method": "ui/notifications/size-changed",
+            "id": null
+          }
+        ],
+        "inputCount": 1,
+        "resultCount": 1,
+        "initialised": 1,
+        "errors": [],
+        "mode": "current"
+      },
+      "readout": {
+        "origin": "null",
+        "url": "about:srcdoc",
+        "title": "Plan Review",
+        "body": "PLAN REVIEW\npc1\nl_AAAAAAAAQACAAAAAAAAAAQ\npc1\nNEEDS REVIEW\n0w · 2r · 2 steps\n\nproject list reads\n\npc1 · 2 nodes\n\nPLAN\nFLOW\n\nClean · 2 steps analyzed\n\nuntrusted\nitems\nuntrusted\nOUT\nr1\nuntrusted\n\nitems\nALLOW\n\nLABELS IN\nuntrusted\nLABELS OUT\nuntrusted",
+        "localStorageDenied": true,
+        "cookiesDenied": true,
+        "parentDocumentDenied": true,
+        "topDocumentDenied": true,
+        "resourcesBeforeProbe": [],
+        "networkDenied": true,
+        "violations": [
+          {
+            "directive": "connect-src",
+            "blocked": "https://haip-blocked.invalid/probe"
+          }
+        ]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/?mode=legacy"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/host.js"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/config"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/fixture?mode=legacy"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/favicon.ico"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/bundle"
+    },
+    {
+      "origin": "sandbox",
+      "method": "GET",
+      "url": "/"
+    },
+    {
+      "origin": "host",
+      "method": "POST",
+      "url": "/record"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/?mode=current"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/host.js"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/config"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/fixture?mode=current"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/favicon.ico"
+    },
+    {
+      "origin": "host",
+      "method": "GET",
+      "url": "/bundle"
+    },
+    {
+      "origin": "sandbox",
+      "method": "GET",
+      "url": "/"
+    },
+    {
+      "origin": "host",
+      "method": "POST",
+      "url": "/record"
+    }
+  ]
+}

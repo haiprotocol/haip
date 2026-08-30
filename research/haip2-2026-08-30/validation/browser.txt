@@ -1,0 +1,7 @@
+Browser evidence extracted from the clean staged-tree npm run check execution in check.txt.
+Connecting to 'http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:50289/sandbox/null/forbidden' violates the following Content Security Policy directive: "connect-src 'none'". The action has been blocked.
+Fetch API cannot load http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:50289/sandbox/null/forbidden. Refused to connect because it violates the document's Content Security Policy.
+Blocked opening 'about:blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set.
+Framing 'http://127.0.0.1:50303/' violates the following Content Security Policy directive: "frame-src about:". The request has been blocked.
+✔ browser OIDC, app replay, restricted tool bridge, escaped text and trusted confirmation (4130.759292ms)
+✔ near-10-MiB payload remains searchable through the last of 1,000 steps (1161.372ms)

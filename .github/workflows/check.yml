@@ -1,0 +1,41 @@
+name: Draft checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Clear historical output before this run
+        run: |
+          rm -rf output/playwright
+          rm -f research/haip2-2026-08-30/runners/results.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y postgresql
+      - name: Record runtime versions
+        run: |
+          node --version
+          python3 --version
+          rustc --version
+          pg_config --version
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+      - run: python3 -m venv .local/primitive-python && .local/primitive-python/bin/pip install -r research/haip2-2026-08-30/runners/requirements.txt
+      - run: npm run test:cross-language
+      - run: npm audit --omit=dev && npm run pack:check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: draft-fixture-evidence
+          path: |
+            output/playwright
+            research/haip2-2026-08-30/runners/results.json

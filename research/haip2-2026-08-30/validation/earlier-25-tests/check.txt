@@ -1,0 +1,71 @@
+
+> haip-workspace@2.0.0-draft.1 check
+> npm run build && node scripts/check-integrity.mjs && npm test
+
+
+> haip-workspace@2.0.0-draft.1 build
+> npm run generate && npm run build --workspaces && tsc -p haip-server/tsconfig.browser.json && node scripts/build-browser.mjs
+
+
+> haip-workspace@2.0.0-draft.1 generate
+> node scripts/generate.mjs && node scripts/openapi.mjs
+
+
+> @haip/protocol@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/sdk@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/server@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/cli@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+Draft identity, dependency pins and evaluation-integrity checks passed
+
+> haip-workspace@2.0.0-draft.1 test
+> node --import tsx --test --test-concurrency=1 tests/*.test.ts
+
+✔ expiry during anchoring does not restart the grant clock (2352.014625ms)
+✔ uncertain identity temporarily blocks admission without permanently revoking grants (104.255791ms)
+✔ offline authority rejects tampering, stale nonces, clock skew and missing independent anchoring (135.69375ms)
+✔ checkpoint conflict fences every new claim (115.606792ms)
+Connecting to 'http://5qnmu2mvozz3c8lwoeg1w3vd3h3qbklyr0q4ml1rg3l9tpt47a.localhost:60864/sandbox/null/forbidden' violates the following Content Security Policy directive: "connect-src 'none'". The action has been blocked.
+Fetch API cannot load http://5qnmu2mvozz3c8lwoeg1w3vd3h3qbklyr0q4ml1rg3l9tpt47a.localhost:60864/sandbox/null/forbidden. Refused to connect because it violates the document's Content Security Policy.
+Blocked opening 'about:blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set.
+Framing 'http://127.0.0.1:60877/' violates the following Content Security Policy directive: "frame-src about:". The request has been blocked.
+
+✔ browser OIDC, app replay, restricted tool bridge, escaped text and trusted confirmation (3937.001584ms)
+✔ near-10-MiB payload remains searchable through the last of 1,000 steps (581.32475ms)
+✔ ordinary HTTP structured review produces an authenticated signed receipt without execution fields (1252.543792ms)
+✔ exclusive claim, fresh admission, outcomes and replays keep one execution identity (134.960625ms)
+✔ tenant, producer and publisher ownership is checked without existence leaks (69.455458ms)
+✔ producer cannot confirm; human separation, CSRF and frozen candidates are enforced (70.966833ms)
+✔ creation idempotency, unsupported profiles and ambiguous JSON reject without downgrade (24.159709ms)
+✔ targeted revocation survives re-adding a reviewer and issued permits remain historical (188.152459ms)
+✔ supersession atomically invalidates old candidates and preserves occurrence identity (50.130875ms)
+✔ independent bounded HTTP counter validates authority and never repeats its effect (244.29025ms)
+✔ HITL browser/poll mapping uses the same authoritative lifecycle and never executes (45.384667ms)
+✔ test SMTP honours recipient quotas and notifies the owner after human sign-out (4030.685833ms)
+✔ webhook destinations reject private, mapped and loopback addresses (1.153833ms)
+✔ RFC 8785 property ordering, UTF-16 and number serialisation (0.740125ms)
+✔ RFC 8032 test vector 1 uses the authoritative empty-message signature (1.827708ms)
+✔ unambiguous parser rejects lossy and executable JSON edge cases (0.922667ms)
+✔ an isolated PostgreSQL backup missing independently anchored history cannot admit execution (1727.222834ms)
+✔ production cannot admit even a valid fixture grant while namespace recovery is unfinished (1376.999ms)
+✔ private deletion removes response copies and cannot restore a consumed occurrence (1356.8645ms)
+✔ captured deadlines expire immediately and cleanup keeps consumption after audit removal (10105.90875ms)
+✔ creation quotas and fresh keys cannot bypass fatigue limits or prevent existing confirmation (1560.436291ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 32847.52575

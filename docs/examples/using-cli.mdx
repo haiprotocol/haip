@@ -1,43 +1,13 @@
 ---
-title: "Example CLI Use"
-description: "Usage examples and patterns for the HAIP CLI"
+title: "Independent HTTP examples"
 ---
 
-This page provides comprehensive examples of how to use the HAIP CLI for various scenarios and use cases.
+The examples use HAIP credentials and public endpoints without Plasm or another agent framework.
 
-<Card
-  title="Install the SDK"
-  icon="download"
-  href="/cli/installation"
-  horizontal
->
-  You need the CLI Installed
-</Card>
+`examples/http/review.mjs` creates a structured-choice review from `review.json`. The optional `choice-app.js` is independently bundled with the exact supported MCP pins. Register it with `register-app.mjs` using the publisher credential, then reference its bundle ID with the producer credential. The App proposes a response; only trusted host confirmation records the decision.
 
-## Basic Examples
+`examples/http/counter.ts` exports `runCounter`, a deliberately bounded one-counter executor. It verifies signed authority and independent anchor acceptance, records original evidence, persists a launch fence, checks the monotonic deadline at the first mutation and writes one local effect. It reports the result separately. A lost outcome-report connection can be retried without another effect. A fence without a completed result remains uncertain.
 
-### Server Health Check
+The tests demonstrate ordinary browser confirmation, signed decimal response retrieval, events, one effect, refusal of invalid authority and recovery after a lost report. These are fixed fixtures, not a general runtime or production-effect integration.
 
-```bash
-# Check if server is running
-haip health
-
-# Check specific server
-haip health --url http://my-server:8080
-
-# Get detailed health information
-haip health --format json
-```
-
-### Send Messages
-
-```bash
-# Send open a chat with the echo tool
-haip chat
-
-# Send open a chat with the llm tool
-haip chat --tool llm
-
-# Choose a server to send the command to
-haip chat --url ws://localhost:8080
-```
+Run `npm run check`, `npm run test:cross-language` and `npm run example:app`. The research index records actual runs and the limits of their evidence.

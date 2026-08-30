@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "HAIProtocol (HAIP)",
+  "name": "HAIP \u2014 Human-Agent Interaction Protocol",
   "colors": {
     "primary": "#EAB308",
     "light": "#FCD34D",
@@ -11,69 +11,32 @@
   "navigation": {
     "groups": [
       {
-        "group": "Getting Started",
+        "group": "HAIP 2 draft",
         "pages": [
           "index",
           "quickstart",
-          "technical_overview"        ]
-      },
-      {
-        "group": "Protocol",
-        "pages": [
           "protocol/overview",
           "protocol/openapi"
-
         ]
       },
       {
-        "group": "Examples",
-        "pages": [
-          "examples/basic-chat",
-          "examples/using-cli",
-          "examples/audio-streaming",
-          "examples/flow-control"
-        ]
-      },
-      {
-        "group": "TypeScript SDK",
-        "pages": [
-          "sdk/overview",
-          "sdk/installation",
-          "sdk/quickstart",
-          "sdk/client",
-          "sdk/transports",
-          "sdk/authentication",
-          "sdk/messaging",
-          "sdk/tools",
-          "sdk/flow-control",
-          "sdk/error-handling",
-          "sdk/api-reference"
-        ]
-      },
-      {
-        "group": "HAIP Server",
+        "group": "Reference implementation",
         "pages": [
           "server/overview",
-          "server/installation",
-          "server/quickstart",
-          "server/configuration",
-          "server/transports",
-          "server/tools",
-          "server/authentication",
-          "server/monitoring",
           "server/deployment",
-          "server/api-reference"
+          "server/providers",
+          "server/authentication",
+          "server/configuration",
+          "server/monitoring",
+          "sdk/overview",
+          "cli/overview",
+          "examples/using-cli"
         ]
       },
       {
-        "group": "HAIP CLI",
+        "group": "Archive",
         "pages": [
-          "cli/overview",
-          "cli/installation",
-          "cli/quickstart",
-          "cli/commands",
-          "cli/configuration",
-          "cli/api-reference"
+          "archive/v1/index"
         ]
       }
     ]
@@ -82,4 +45,4 @@
     "light": "light.svg",
     "dark": "dark.svg"
   }
-} 
+}

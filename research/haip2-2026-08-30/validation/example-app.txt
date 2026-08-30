@@ -1,0 +1,5 @@
+
+> haip-workspace@2.0.0-draft.1 example:app
+> node scripts/build-choice-app.mjs
+
+Built output/examples/choice-app.html

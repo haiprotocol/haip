@@ -1,0 +1,28 @@
+   Compiling plasm-agent-core v0.4.45 (/Users/leecrossley/pro/haip2-plasm/plasm-oss/crates/plasm-agent-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.48s
+     Running unittests src/lib.rs (/Users/leecrossley/plasm/target/debug/deps/plasm_agent_core-fc953de0332d973f)
+
+running 20 tests
+test flow_policy_simulate::tests::dry_verdict_wire_matches_canonical ... ok
+test flow_policy_simulate::tests::published_inactive_fail_closed ... ok
+test flow_policy_simulate::tests::draft_missing_without_ephemeral ... ok
+test flow_policy_env::tests::bundled_vultr_linear_ops_security_preset_parses ... ok
+test flow_policy_simulate::tests::draft_uses_ephemeral_policy ... ok
+test flow_policy_validate::tests::warns_approve_posture_with_no_allow_gates ... ok
+test flow_policy_validate::tests::warns_broad_capability_gate ... ok
+test flow_policy_validate::tests::warns_deny_posture_with_no_allow_gates ... ok
+test flow_policy_validate::tests::rejects_non_deterministic_sanitizer ... ok
+test flow_policy_validate::tests::rejects_unknown_sanitizer_label ... ok
+test flow_policy_validate::tests::rejects_unknown_label ... ok
+test flow_policy_validate::tests::warns_dimension_mismatch ... ok
+test flow_policy_validate::tests::rejects_missing_reason ... ok
+test flow_policy_validate::tests::accepts_known_label_and_sink ... ok
+test plan_flow_policy::tests::default_deny_gate_allow_whitelists ... ok
+test plan_flow_policy::tests::default_posture_deny_blocks_unmatched ... ok
+test plan_flow_policy::tests::inactive_and_empty_allow_unmatched_mutations ... ok
+test plan_flow_policy::tests::capability_gate_matches_by_name ... ok
+test plan_flow_policy::tests::default_posture_approve_requires_hitl_for_unmatched ... ok
+test flow_policy_env::tests::loads_forbidden_rules_from_json_file ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 879 filtered out; finished in 0.01s
+

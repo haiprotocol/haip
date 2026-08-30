@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>HAIP · Human review</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+    <script type="module" src="/assets/host.js"></script>
+  </head>
+  <body>
+    <header>
+      <a href="/inbox">HAIP</a><span>Human-Agent Interaction Protocol · draft</span
+      ><span id="identity"></span>
+    </header>
+    <main>
+      <div id="error" role="alert"></div>
+      <section id="inbox">
+        <h1>Review inbox</h1>
+        <label
+          >State
+          <select id="filter">
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="expired">Expired</option>
+            <option value="superseded">Superseded</option>
+            <option value="">All history</option>
+          </select></label
+        >
+        <div id="requests"></div>
+        <button id="more">Next page</button>
+      </section>
+      <section id="review" hidden>
+        <a href="/inbox">← Inbox</a>
+        <h1 id="summary"></h1>
+        <p id="status"></p>
+        <p id="deadline"></p>
+        <p id="remaining"></p>
+        <button id="refresh-status">Refresh status</button>
+        <button id="assign">Assign to me</button>
+        <details>
+          <summary>Immutable request and bindings</summary>
+          <pre id="binding"></pre>
+        </details>
+        <h2>Canonical review document</h2>
+        <p>
+          This represents the retained material. It does not prove exact pixels or understanding.
+        </p>
+        <pre id="document"></pre>
+        <h2>Review payload</h2>
+        <label>Search all retained fields <input id="search" type="search" /></label>
+        <p id="page-state"></p>
+        <pre id="payload"></pre>
+        <button id="previous">Previous</button><button id="next">Next</button>
+        <details>
+          <summary>Producer review app (isolated)</summary>
+          <p id="app-state">The host response form is always available.</p>
+          <div id="app"></div>
+        </details>
+        <h2>Your response</h2>
+        <pre id="schema"></pre>
+        <form id="proposal">
+          <label
+            >Decision
+            <select id="decision"></select></label
+          ><label>Response (JSON)<textarea id="response" rows="8" required>{}</textarea></label
+          ><button type="submit">Review this response</button>
+        </form>
+        <section id="confirmation" hidden>
+          <h2>Trusted confirmation</h2>
+          <p>Check the exact response below. Only this confirmation records your decision.</p>
+          <pre id="exact"></pre>
+          <button id="confirm">Confirm this exact response</button>
+        </section>
+        <h2>Recorded decision</h2>
+        <pre id="receipt"></pre>
+        <details>
+          <summary>Notification and checkpoint delivery</summary>
+          <pre id="delivery"></pre>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

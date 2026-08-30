@@ -1,106 +1,20 @@
 ---
-title: "Installation"
-description: "Install and set up the HAIP TypeScript SDK"
+title: "SDK \u2014 installation"
 ---
 
-<Note>
-  **New protocol version released**: This page may contain outdated information.
-</Note>
+`@haip/sdk` provides ordinary HTTP creation, status, cancellation, event cursors, audit export, exclusive claims, admission and outcome reporting. It does not expose human confirmation as a machine convenience method.
 
-## Installation
-
-The HAIP SDK is available as a TypeScript package with comprehensive type definitions and extensive test coverage.
-
-### NPM Package
-
-<Note>
-  **Package Status**: The HAIP SDK package is now available on npm and ready for
-  production use.
-</Note>
-
-[![npm version](https://badge.fury.io/js/%40haip%2Fsdk.svg)](https://badge.fury.io/js/%40haip%2Fsdk)
-[![npm downloads](https://img.shields.io/npm/dm/@haip/sdk)](https://www.npmjs.com/package/@haip/sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-```bash
-# Install from npm
-npm install @haip/sdk
+```ts
+import { HAIPClient } from '@haip/sdk';
+const client = new HAIPClient('https://review.example', producerToken);
+const request = await client.create(input, stableIdempotencyKey);
+const status = await client.status(request.request.id);
+const page = await client.events(savedCursor);
+// Process page.items durably, then save page.next.
 ```
 
-### TypeScript Support
+`verifyExecutionAuthority` checks trusted signatures, immutable request/response/material commitments, purpose/profile, receipt/claim/admission identity, fresh nonce, checkpoint proof and timing. Supply trust independently and implement the independent anchor-acceptance callback. Included manifests and supplied acceptance objects are not self-authenticating trust.
 
-The SDK is written in TypeScript and includes comprehensive type definitions:
+Record monotonic and wall-clock time around admission. Thirty seconds is clock-health tolerance, not extra validity. Keep the returned deadline check at the launch fence and first covered mutation. Fresh status never moves the original dispatch deadline.
 
-```typescript
-import { createHAIPClient, HAIPConnectionConfig } from "haip-sdk";
-
-const config: HAIPConnectionConfig = {
-  url: "ws://localhost:8080",
-  token: "your-jwt-token",
-};
-
-const client = createHAIPClient(config);
-```
-
-### Browser Usage
-
-<Note>
-  **Browser Distribution**: UMD/ESM builds are planned but not yet available.
-  For browser usage, you'll need to bundle the SDK with your application.
-</Note>
-
-For browser applications, you can use a bundler like Webpack, Rollup, or Vite:
-
-```bash
-# Install with bundler
-npm install @haip/sdk
-```
-
-Then import in your browser code:
-
-```typescript
-import { createHAIPClient } from "haip-sdk";
-```
-
-### Development Setup
-
-## Requirements
-
-<CardGroup cols={3}>
-  <Card title="Node.js" icon="code">
-    Version 20.0.0 or higher
-    <br />
-    Windows, macOS, Linux
-  </Card>
-  <Card title="Browser Support" icon="globe">
-    Chrome 88+, Firefox 85+
-    <br />
-    Safari 14+, Edge 88+
-  </Card>
-  <Card title="Dependencies" icon="box">
-    ws, uuid, TypeScript 5.2.2+
-  </Card>
-</CardGroup>
-
-## Implementation Status
-
-<CardGroup cols={2}>
-  <Card title="Core SDK" icon="check">
-    Complete TypeScript implementation with full protocol support
-  </Card>
-  <Card title="Type Definitions" icon="check">
-    Comprehensive TypeScript types for all protocol features
-  </Card>
-  <Card title="Test Coverage" icon="check">
-    85% test coverage with comprehensive test suite
-  </Card>
-  <Card title="NPM Package" icon="check">
-    Package published and available on npm
-  </Card>
-  <Card title="Browser Builds" icon="clock">
-    UMD/ESM builds planned
-  </Card>
-  <Card title="Documentation" icon="check">
-    Comprehensive documentation with examples
-  </Card>
-</CardGroup>
+`verifyWebhook` checks the envelope and nested signed event, exact identity and a five-minute replay window. `PostgresWebhookInbox` commits deduplication and a status-refresh queue before acknowledgement. Its queue contains advisory revisions; a consumer fetches current status. No callback launches work.

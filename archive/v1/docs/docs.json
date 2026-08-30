@@ -1,0 +1,85 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "HAIProtocol (HAIP)",
+  "colors": {
+    "primary": "#EAB308",
+    "light": "#FCD34D",
+    "dark": "#CA8A04"
+  },
+  "favicon": "favicon.ico",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "index",
+          "quickstart",
+          "technical_overview"        ]
+      },
+      {
+        "group": "Protocol",
+        "pages": [
+          "protocol/overview",
+          "protocol/openapi"
+
+        ]
+      },
+      {
+        "group": "Examples",
+        "pages": [
+          "examples/basic-chat",
+          "examples/using-cli",
+          "examples/audio-streaming",
+          "examples/flow-control"
+        ]
+      },
+      {
+        "group": "TypeScript SDK",
+        "pages": [
+          "sdk/overview",
+          "sdk/installation",
+          "sdk/quickstart",
+          "sdk/client",
+          "sdk/transports",
+          "sdk/authentication",
+          "sdk/messaging",
+          "sdk/tools",
+          "sdk/flow-control",
+          "sdk/error-handling",
+          "sdk/api-reference"
+        ]
+      },
+      {
+        "group": "HAIP Server",
+        "pages": [
+          "server/overview",
+          "server/installation",
+          "server/quickstart",
+          "server/configuration",
+          "server/transports",
+          "server/tools",
+          "server/authentication",
+          "server/monitoring",
+          "server/deployment",
+          "server/api-reference"
+        ]
+      },
+      {
+        "group": "HAIP CLI",
+        "pages": [
+          "cli/overview",
+          "cli/installation",
+          "cli/quickstart",
+          "cli/commands",
+          "cli/configuration",
+          "cli/api-reference"
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "light.svg",
+    "dark": "dark.svg"
+  }
+} 

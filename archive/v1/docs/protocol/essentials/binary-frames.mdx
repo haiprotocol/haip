@@ -1,0 +1,658 @@
+---
+title: "Binary Frames"
+description: "Handle binary data transmission in HAIP"
+---
+
+## Overview
+
+HAIP supports binary frame transmission for efficient handling of audio, video, and file data. Binary frames are sent as separate WebSocket frames after the JSON envelope, providing optimal performance for large binary payloads.
+
+## Binary Frame Structure
+
+### Envelope Format
+
+Binary data in HAIP uses a two-frame approach:
+
+1. **JSON Envelope**: Contains metadata about the binary data
+2. **Binary Frame**: Contains the actual binary data
+
+```typescript
+interface BinaryEnvelope {
+  id: string;
+  session: string;
+  seq: string;
+  ts: string;
+  channel: string;
+  type: string;
+  bin_len: number;        // Size of binary data in bytes
+  bin_mime: string;       // MIME type of binary data
+  payload: {
+    message_id: string;
+    mime: string;
+    [key: string]: any;   // Additional metadata
+  };
+}
+```
+
+## Audio Data Transmission
+
+### Sending Audio Chunks
+
+```typescript
+class HAIPAudioTransmitter {
+  private sessionId: string;
+  private seqCounter = 1;
+  
+  constructor() {
+    this.sessionId = this.generateUUID();
+  }
+  
+  sendAudioChunk(audioData: ArrayBuffer, messageId: string, mimeType: string = 'audio/opus') {
+    // Create envelope
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "AUDIO_CHUNK",
+      bin_len: audioData.byteLength,
+      bin_mime: mimeType,
+      payload: {
+        message_id: messageId,
+        mime: mimeType,
+        duration_ms: this.calculateDuration(audioData, mimeType).toString(),
+        sample_rate: "48000",
+        channels: "1"
+      }
+    };
+    
+    // Send envelope first
+    this.ws.send(JSON.stringify(envelope));
+    
+    // Send binary data in second frame
+    this.ws.send(audioData);
+  }
+  
+  sendAudioStream(mediaStream: MediaStream, messageId: string) {
+    const audioContext = new AudioContext();
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    
+    processor.onaudioprocess = (event) => {
+      const audioData = event.inputBuffer.getChannelData(0);
+      const buffer = this.convertToOpus(audioData);
+      
+      this.sendAudioChunk(buffer, messageId, 'audio/opus');
+    };
+    
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+  }
+  
+  private convertToOpus(audioData: Float32Array): ArrayBuffer {
+    // Convert Float32Array to Opus format
+    // This is a simplified example - use a proper Opus encoder in production
+    const buffer = new ArrayBuffer(audioData.length * 2);
+    const view = new DataView(buffer);
+    
+    for (let i = 0; i < audioData.length; i++) {
+      view.setInt16(i * 2, audioData[i] * 32767, true);
+    }
+    
+    return buffer;
+  }
+  
+  private calculateDuration(audioData: ArrayBuffer, mimeType: string): number {
+    // Calculate duration based on format and data size
+    const sampleRate = 48000; // Opus default
+    const channels = 1;
+    const bytesPerSample = 2;
+    
+    return (audioData.byteLength / (sampleRate * channels * bytesPerSample)) * 1000;
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+}
+```
+
+### Receiving Audio Data
+
+```typescript
+class HAIPAudioReceiver {
+  private audioBuffers = new Map<string, ArrayBuffer[]>();
+  private audioContext: AudioContext;
+  private expectedBinaryData = new Map<string, ExpectedBinaryData>();
+  
+  constructor() {
+    this.audioContext = new AudioContext();
+  }
+  
+  handleBinaryEnvelope(envelope: any) {
+    const { bin_len, bin_mime, payload } = envelope;
+    const { message_id } = payload;
+    
+    // Store expected binary data info
+    this.expectedBinaryData.set(message_id, {
+      expectedSize: bin_len,
+      mimeType: bin_mime,
+      receivedSize: 0,
+      chunks: []
+    });
+  }
+  
+  handleBinaryFrame(binaryData: ArrayBuffer) {
+    // Find the message this binary data belongs to
+    // This is a simplified implementation - in practice, you'd need to track
+    // which envelope this binary data corresponds to
+    
+    for (const [messageId, expected] of this.expectedBinaryData.entries()) {
+      if (expected.receivedSize < expected.expectedSize) {
+        expected.chunks.push(binaryData);
+        expected.receivedSize += binaryData.byteLength;
+        
+        // Check if we have all the data
+        if (expected.receivedSize >= expected.expectedSize) {
+          this.processCompleteAudio(messageId, expected);
+          this.expectedBinaryData.delete(messageId);
+        }
+        break;
+      }
+    }
+  }
+  
+  private processCompleteAudio(messageId: string, expected: ExpectedBinaryData) {
+    // Combine all chunks
+    const totalSize = expected.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const combinedBuffer = new ArrayBuffer(totalSize);
+    const view = new Uint8Array(combinedBuffer);
+    
+    let offset = 0;
+    for (const chunk of expected.chunks) {
+      view.set(new Uint8Array(chunk), offset);
+      offset += chunk.byteLength;
+    }
+    
+    // Process based on MIME type
+    switch (expected.mimeType) {
+      case 'audio/opus':
+        this.playOpusAudio(messageId, combinedBuffer);
+        break;
+      case 'audio/webm':
+        this.playWebMAudio(messageId, combinedBuffer);
+        break;
+      default:
+        console.warn(`Unsupported audio format: ${expected.mimeType}`);
+    }
+  }
+  
+  private playOpusAudio(messageId: string, audioData: ArrayBuffer) {
+    // Decode Opus audio and play
+    this.audioContext.decodeAudioData(audioData).then((audioBuffer) => {
+      const source = this.audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioContext.destination);
+      source.start();
+    }).catch((error) => {
+      console.error('Audio decode error:', error);
+    });
+  }
+  
+  private playWebMAudio(messageId: string, audioData: ArrayBuffer) {
+    // Create blob and play WebM audio
+    const blob = new Blob([audioData], { type: 'audio/webm' });
+    const url = URL.createObjectURL(blob);
+    
+    const audio = new Audio(url);
+    audio.play().catch((error) => {
+      console.error('Audio play error:', error);
+    });
+  }
+}
+
+interface ExpectedBinaryData {
+  expectedSize: number;
+  mimeType: string;
+  receivedSize: number;
+  chunks: ArrayBuffer[];
+}
+```
+
+## File Data Transmission
+
+### Sending Files
+
+```typescript
+class HAIPFileTransmitter {
+  private sessionId: string;
+  private seqCounter = 1;
+  private chunkSize = 64 * 1024; // 64KB chunks
+  
+  constructor() {
+    this.sessionId = this.generateUUID();
+  }
+  
+  async sendFile(file: File): Promise<void> {
+    const messageId = this.generateUUID();
+    const totalChunks = Math.ceil(file.size / this.chunkSize);
+    
+    // Send file start message
+    await this.sendFileStart(file, messageId, totalChunks);
+    
+    // Send file in chunks
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const start = chunkIndex * this.chunkSize;
+      const end = Math.min(start + this.chunkSize, file.size);
+      const chunk = file.slice(start, end);
+      
+      await this.sendFileChunk(chunk, messageId, chunkIndex, totalChunks);
+    }
+    
+    // Send file end message
+    await this.sendFileEnd(messageId);
+  }
+  
+  private async sendFileStart(file: File, messageId: string, totalChunks: number) {
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "FILE_START",
+      payload: {
+        message_id: messageId,
+        filename: file.name,
+        size: file.size.toString(),
+        mime: file.type,
+        total_chunks: totalChunks.toString()
+      }
+    };
+    
+    this.ws.send(JSON.stringify(envelope));
+  }
+  
+  private async sendFileChunk(chunk: Blob, messageId: string, chunkIndex: number, totalChunks: number) {
+    const arrayBuffer = await chunk.arrayBuffer();
+    
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "FILE_CHUNK",
+      bin_len: arrayBuffer.byteLength,
+      bin_mime: chunk.type,
+      payload: {
+        message_id: messageId,
+        chunk_index: chunkIndex.toString(),
+        total_chunks: totalChunks.toString(),
+        mime: chunk.type
+      }
+    };
+    
+    // Send envelope
+    this.ws.send(JSON.stringify(envelope));
+    
+    // Send binary data
+    this.ws.send(arrayBuffer);
+  }
+  
+  private async sendFileEnd(messageId: string) {
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "FILE_END",
+      payload: {
+        message_id: messageId
+      }
+    };
+    
+    this.ws.send(JSON.stringify(envelope));
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+}
+```
+
+### Receiving Files
+
+```typescript
+class HAIPFileReceiver {
+  private fileBuffers = new Map<string, FileBuffer>();
+  private expectedBinaryData = new Map<string, ExpectedBinaryData>();
+  
+  handleFileStart(message: any) {
+    const { message_id, filename, size, mime, total_chunks } = message.payload;
+    
+    this.fileBuffers.set(message_id, {
+      filename,
+      size: parseInt(size),
+      mime,
+      totalChunks: parseInt(total_chunks),
+      receivedChunks: 0,
+      chunks: new Array(parseInt(total_chunks))
+    });
+  }
+  
+  handleFileChunk(message: any) {
+    const { message_id, chunk_index, total_chunks } = message.payload;
+    const chunkIndex = parseInt(chunk_index);
+    
+    // Store expected binary data info
+    this.expectedBinaryData.set(message_id, {
+      expectedSize: message.bin_len,
+      mimeType: message.bin_mime,
+      receivedSize: 0,
+      chunks: [],
+      chunkIndex
+    });
+  }
+  
+  handleBinaryFrame(binaryData: ArrayBuffer) {
+    // Find the file this binary data belongs to
+    for (const [messageId, expected] of this.expectedBinaryData.entries()) {
+      if (expected.receivedSize < expected.expectedSize) {
+        expected.chunks.push(binaryData);
+        expected.receivedSize += binaryData.byteLength;
+        
+        // Check if we have all the data for this chunk
+        if (expected.receivedSize >= expected.expectedSize) {
+          this.processFileChunk(messageId, expected);
+          this.expectedBinaryData.delete(messageId);
+        }
+        break;
+      }
+    }
+  }
+  
+  private processFileChunk(messageId: string, expected: ExpectedBinaryData) {
+    const fileBuffer = this.fileBuffers.get(messageId);
+    if (!fileBuffer) return;
+    
+    // Combine chunk data
+    const totalSize = expected.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const combinedBuffer = new ArrayBuffer(totalSize);
+    const view = new Uint8Array(combinedBuffer);
+    
+    let offset = 0;
+    for (const chunk of expected.chunks) {
+      view.set(new Uint8Array(chunk), offset);
+      offset += chunk.byteLength;
+    }
+    
+    // Store chunk in file buffer
+    fileBuffer.chunks[expected.chunkIndex] = combinedBuffer;
+    fileBuffer.receivedChunks++;
+    
+    // Check if file is complete
+    if (fileBuffer.receivedChunks === fileBuffer.totalChunks) {
+      this.completeFile(messageId, fileBuffer);
+    }
+  }
+  
+  private completeFile(messageId: string, fileBuffer: FileBuffer) {
+    // Combine all chunks into final file
+    const finalBuffer = new ArrayBuffer(fileBuffer.size);
+    const view = new Uint8Array(finalBuffer);
+    
+    let offset = 0;
+    for (const chunk of fileBuffer.chunks) {
+      if (chunk) {
+        view.set(new Uint8Array(chunk), offset);
+        offset += chunk.byteLength;
+      }
+    }
+    
+    // Create file blob
+    const blob = new Blob([finalBuffer], { type: fileBuffer.mime });
+    
+    // Emit file received event
+    this.emit('file_received', {
+      messageId,
+      filename: fileBuffer.filename,
+      size: fileBuffer.size,
+      mime: fileBuffer.mime,
+      blob
+    });
+    
+    // Clean up
+    this.fileBuffers.delete(messageId);
+  }
+  
+  handleFileEnd(message: any) {
+    const { message_id } = message.payload;
+    
+    // File end is handled in completeFile when all chunks are received
+    console.log(`File ${message_id} transfer completed`);
+  }
+}
+
+interface FileBuffer {
+  filename: string;
+  size: number;
+  mime: string;
+  totalChunks: number;
+  receivedChunks: number;
+  chunks: ArrayBuffer[];
+}
+```
+
+## Video Data Transmission
+
+### Sending Video Frames
+
+```typescript
+class HAIPVideoTransmitter {
+  private sessionId: string;
+  private seqCounter = 1;
+  
+  constructor() {
+    this.sessionId = this.generateUUID();
+  }
+  
+  async sendVideoFrame(canvas: HTMLCanvasElement, messageId: string, frameNumber: number) {
+    // Convert canvas to blob
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.8);
+    });
+    
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    const envelope = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "USER",
+      type: "VIDEO_FRAME",
+      bin_len: arrayBuffer.byteLength,
+      bin_mime: 'image/jpeg',
+      payload: {
+        message_id: messageId,
+        frame_number: frameNumber.toString(),
+        width: canvas.width.toString(),
+        height: canvas.height.toString(),
+        mime: 'image/jpeg'
+      }
+    };
+    
+    // Send envelope
+    this.ws.send(JSON.stringify(envelope));
+    
+    // Send binary data
+    this.ws.send(arrayBuffer);
+  }
+  
+  sendVideoStream(mediaStream: MediaStream, messageId: string) {
+    const video = document.createElement('video');
+    video.srcObject = mediaStream;
+    video.play();
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    
+    let frameNumber = 0;
+    
+    const captureFrame = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      
+      this.sendVideoFrame(canvas, messageId, frameNumber++);
+      
+      // Continue capturing at 30fps
+      setTimeout(captureFrame, 33);
+    };
+    
+    video.onloadedmetadata = () => {
+      captureFrame();
+    };
+  }
+  
+  private generateUUID(): string {
+    return crypto.randomUUID();
+  }
+}
+```
+
+## Binary Frame Best Practices
+
+### Memory Management
+
+```typescript
+class HAIPBinaryMemoryManager {
+  private maxBufferSize = 100 * 1024 * 1024; // 100MB
+  private currentBufferSize = 0;
+  private buffers = new Map<string, ArrayBuffer>();
+  
+  addBuffer(id: string, buffer: ArrayBuffer): boolean {
+    if (this.currentBufferSize + buffer.byteLength > this.maxBufferSize) {
+      // Clean up old buffers
+      this.cleanupOldBuffers(buffer.byteLength);
+    }
+    
+    if (this.currentBufferSize + buffer.byteLength <= this.maxBufferSize) {
+      this.buffers.set(id, buffer);
+      this.currentBufferSize += buffer.byteLength;
+      return true;
+    }
+    
+    return false;
+  }
+  
+  getBuffer(id: string): ArrayBuffer | undefined {
+    return this.buffers.get(id);
+  }
+  
+  removeBuffer(id: string): void {
+    const buffer = this.buffers.get(id);
+    if (buffer) {
+      this.currentBufferSize -= buffer.byteLength;
+      this.buffers.delete(id);
+    }
+  }
+  
+  private cleanupOldBuffers(requiredSpace: number): void {
+    const bufferEntries = Array.from(this.buffers.entries());
+    
+    // Sort by access time (oldest first)
+    bufferEntries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    
+    for (const [id, buffer] of bufferEntries) {
+      this.removeBuffer(id);
+      
+      if (this.currentBufferSize + requiredSpace <= this.maxBufferSize) {
+        break;
+      }
+    }
+  }
+  
+  getMemoryUsage(): number {
+    return this.currentBufferSize;
+  }
+  
+  getBufferCount(): number {
+    return this.buffers.size;
+  }
+}
+```
+
+### Error Handling
+
+```typescript
+class HAIPBinaryErrorHandler {
+  handleBinaryError(error: any, messageId: string) {
+    console.error('Binary frame error:', error);
+    
+    // Send error message
+    const errorMessage = {
+      id: this.generateUUID(),
+      session: this.sessionId,
+      seq: this.seqCounter++.toString(),
+      ts: Date.now().toString(),
+      channel: "SYSTEM",
+      type: "ERROR",
+      payload: {
+        code: "BINARY_FRAME_ERROR",
+        message: error.message,
+        related_id: messageId
+      }
+    };
+    
+    this.ws.send(JSON.stringify(errorMessage));
+  }
+  
+  validateBinaryEnvelope(envelope: any): boolean {
+    // Check required fields
+    if (!envelope.bin_len || !envelope.bin_mime) {
+      return false;
+    }
+    
+    // Validate size limits
+    if (envelope.bin_len > 100 * 1024 * 1024) { // 100MB limit
+      return false;
+    }
+    
+    // Validate MIME type
+    const allowedMimeTypes = [
+      'audio/opus', 'audio/webm', 'audio/mpeg',
+      'image/jpeg', 'image/png', 'image/webp',
+      'video/mp4', 'video/webm',
+      'application/pdf', 'application/json'
+    ];
+    
+    return allowedMimeTypes.includes(envelope.bin_mime);
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+
+<Card title="Memory Management" icon="database">
+  Implement proper memory management for binary buffers to prevent memory leaks.
+</Card>
+
+<Card title="Chunking" icon="puzzle-piece">
+  Break large files into manageable chunks for efficient transmission.
+</Card>
+
+<Card title="MIME Validation" icon="check">
+  Validate MIME types and file formats for security and compatibility.
+</Card>
+
+<Card title="Error Recovery" icon="exclamation">
+  Robust error handling for corrupted or incomplete binary data.
+</Card>
+
+</CardGroup> 

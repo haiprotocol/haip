@@ -1,0 +1,45 @@
+{
+  "name": "haip-workspace",
+  "version": "2.0.0-draft.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "@types",
+    "haip-sdk",
+    "haip-server",
+    "haip-cli"
+  ],
+  "scripts": {
+    "generate": "node scripts/generate.mjs && node scripts/openapi.mjs",
+    "build": "npm run generate && npm run build --workspaces && tsc -p haip-server/tsconfig.browser.json && node scripts/build-browser.mjs",
+    "check": "npm run build && node scripts/check-integrity.mjs && npm test",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test:primitives": "node --import tsx --test tests/primitives.test.ts",
+    "test:browser": "node --import tsx --test tests/browser.test.ts",
+    "dev": "node --import tsx haip-server/src/main.ts",
+    "test:cross-language": "node research/haip2-2026-08-30/runners/run.mjs",
+    "format": "prettier --write \"@types/src/**/*.ts\" \"haip-{sdk,server,cli}/src/**/*.ts\" \"tests/**/*.ts\" \"examples/http/*.{ts,mjs,json}\" \"scripts/*.mjs\" \"protocol/**/*.json\" \"*.{json,md}\" \"haip-server/public/*.{html,css}\"",
+    "pack:check": "npm pack --workspaces --dry-run --json",
+    "demo": "node --import tsx scripts/demo.ts",
+    "example:app": "node scripts/build-choice-app.mjs"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": "1.29.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/express": "5.0.3",
+    "@types/node": "24.3.0",
+    "@types/nodemailer": "6.4.19",
+    "@types/pg": "8.15.5",
+    "esbuild": "0.25.9",
+    "json-schema-to-typescript": "15.0.4",
+    "prettier": "3.9.6",
+    "smtp-server": "3.19.4",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2"
+  }
+}

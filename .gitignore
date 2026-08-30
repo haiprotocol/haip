@@ -17,6 +17,7 @@ lib/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
 
 # IDE and editor files
 .vscode/
@@ -120,10 +121,20 @@ temp/
 # Local development
 .local/
 
-# Package manager files (keep package.json but ignore lock files in subdirectories)
-**/package-lock.json
-**/yarn.lock
-**/pnpm-lock.yaml
 
-# Keep the main package-lock.json for the SDK
-!haip-sdk/package-lock.json 
+# One committed workspace lockfile
+archive/v1/**/node_modules/
+.local/
+!package-lock.json
+target/
+haip-server/public/host.js
+haip-server/public/sandbox.js
+haip-server/schema/
+@types/contracts/
+haip-server/third-party/
+haip-server/public/*.LEGAL.txt
+
+# Reproducible release outputs stay local; keep the browser evidence screenshot.
+/output/examples/
+/output/packages/
+/output/*.tar.gz
