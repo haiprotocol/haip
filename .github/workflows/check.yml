@@ -1,7 +1,14 @@
 name: Draft checks
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   reference:
     runs-on: ubuntu-24.04
@@ -36,6 +43,7 @@ jobs:
         if: always()
         with:
           name: draft-fixture-evidence
+          retention-days: 7
           path: |
             output/playwright
             research/haip2-2026-08-30/runners/results.json
