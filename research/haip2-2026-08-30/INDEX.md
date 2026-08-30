@@ -68,8 +68,10 @@ primitive checks are separate from signed protocol object validation and runtime
 
 HAIP code is in `/Users/leecrossley/pro/haip`. The original Plasm checkout was preserved.
 Local proposals are in `/Users/leecrossley/pro/haip2-plasm/upstream-proposal`, with separate
-`core-safety.patch` and `mcp-pins.patch` files and exact test results. No PR, commit or push
-has been made. Maintainer acceptance and full integration tests remain external work.
+`core-safety.patch` and `mcp-pins.patch` files and exact test results. No Plasm PR, commit
+or push has been made for these proposals. Maintainer acceptance and full integration
+tests remain external work. HAIP's own changes are in
+[draft PR #5](https://github.com/haiprotocol/haip/pull/5).
 The proposed core changes do not implement contexts, continuations or schema-3 evidence.
 
 MCP licences are retained under `../../third-party`; historical CHAP sources retain their
@@ -83,3 +85,9 @@ The latest local run passes 46 tests; the earlier 25- and 40-test records are re
 separately. New regressions cover OIDC callback/identity aliases, exact expiry and lock
 waits, counter reads exhausting validity, and daily quotas surviving audit deletion and
 credential rotation. These checks do not validate a deployed identity or storage account.
+
+[The first hosted CI run](https://github.com/haiprotocol/haip/actions/runs/33334308802)
+also passed all 46 tests, 25 comparisons, the production dependency audit and four
+package dry runs. Its [separate remote record](validation/remote-ci-33334308802/manifest.json)
+retains the tested commit, merge checkout, runtime versions and artefacts. Historical
+local manifests remain unchanged; later results are available in the draft PR's checks.

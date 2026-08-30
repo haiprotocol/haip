@@ -1,10 +1,14 @@
 # HAIP 2 acceptance matrix
 
 This maps the agreed plan to concrete evidence. **Local** means the HAIP-owned
-implementation is exercised by isolated tests, not certified for a deployed system.
+implementation is exercised by isolated fixtures, locally or in hosted CI, not
+certified for a deployed system.
 **External** identifies Plasm or real infrastructure that has not been validated here.
 Contracts remain draft. Exact results and source hashes are in
 `research/haip2-2026-08-30/validation/manifest.json`.
+The first hosted run passed 46 tests and 25 cross-language comparisons; its versions,
+tested commit and retained artefacts are in the
+[remote CI record](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json).
 
 | Plan area             | HAIP evidence                                                                                                                                                               | Remaining boundary                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -40,7 +44,7 @@ Contracts remain draft. Exact results and source hashes are in
 | Retention             | Captured private/audit deadlines, response-copy deletion, consumption after cleanup, migration/recovery                                                                     | Deployed storage/lifecycle enforcement external                               |
 | Offline evidence      | JCS/Ed25519, original record verification, identity/purpose/profile/binding/nonce/anchor/timing refusal; historical time indeterminate without evidence                     | Plasm schema-3 prefix/seal/evidence CLI external                              |
 | Backup restoration    | Encrypted dump/empty-target restore, wrong key/tamper refusal, newer remote history and matching prefix with missing tail; retirement and credential/private-data clearing  | Real storage account and deployed rehearsal external                          |
-| Operations/release    | Metrics, worker failure stamps, alert/service examples, runbook, packages, integrity CI and v1 archive                                                                      | No installation, remote CI, publication, independent review or stable release |
+| Operations/release    | Metrics, worker failure stamps, alert/service examples, runbook, packages, passing hosted integrity checks and v1 archive                                                   | No installation, publication, independent review or stable release            |
 
 The filesystem safety store is a fault-injection fixture, not production WORM.
 Azure adapter tests do not contact Azure. The OIDC fixture is not a Clerk account.

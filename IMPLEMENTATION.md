@@ -1,9 +1,9 @@
 # HAIP 2 implementation ledger
 
-Status: **HAIP-owned draft implementation with local acceptance evidence; full HAIP 2
+Status: **HAIP-owned draft implementation with local and hosted CI evidence; full HAIP 2
 release remains incomplete**. Protocol/package version is `2.0.0-draft.1`.
-Prepared for review as a HAIP-only draft PR. Package publication and deployment
-remain unauthorised and have not been performed.
+Available for review in [HAIP draft PR #5](https://github.com/haiprotocol/haip/pull/5).
+Package publication and deployment remain unauthorised and have not been performed.
 
 ## Ownership and baseline
 
@@ -65,6 +65,13 @@ The final local suite passes **46 tests**, with **25 cross-language comparisons*
 **zero known dependency vulnerabilities** at the recorded audit. Four draft package
 tarballs are prepared under `output/packages`; nothing is published.
 
+[The first hosted CI run](https://github.com/haiprotocol/haip/actions/runs/33334308802)
+also passed 46 tests, 25 comparisons, the production dependency audit and all four
+package dry runs. It tested `5f70557e7d8a0f29a1e0ea87170689d452375d31` through GitHub's
+PR merge checkout, whose tree matches that commit.
+[Remote evidence](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json)
+preserves its actual versions, results and artefacts separately from local snapshots.
+
 Local tests use throwaway PostgreSQL, a local OIDC provider, browser/TLS/SMTP fixtures
 and fixed mock effects. Recovery performs real dump/restore, including a matching
 checkpoint prefix with a lost unanchored consumption/deletion tail. Fault injection
@@ -84,8 +91,9 @@ administration. Generic OAuth is tested; a real Clerk/Entra application is not
 configured. No R2 uploader or Vercel deployment is claimed. Local HTTPS/persistence
 tests do not validate a future deployment's network path. The validation manifest is
 a local run snapshot; the draft PR's checks are authoritative for remote CI status.
-GitHub Actions was disabled in the repository during pre-push review, so the workflow
-has not run remotely. Enabling it is a separate repository setting change.
+GitHub Actions was disabled during pre-push review and is now enabled for this HAIP
+repository. The workflow has read-only repository permissions and uses standard
+public-repository runners. The PR remains a draft; no merge or deployment is triggered.
 
 The Node/Python/Rust runner retains 25 exact comparisons, including decimal responses
 and RFC 8032 vector 1. Dependency audit and four package contents are recorded
@@ -96,8 +104,8 @@ separately. Passing fixtures is bounded evidence, not exhaustive security proof.
 1. Validate an approved deployment's external identity, TLS/DNS, independent Azure
    administration, writer restrictions, real immutable storage and restore procedure.
    No paid account/resource exists; free options come first.
-2. Obtain independent implementation/security review and run remote CI before calling
-   the reference service production-ready.
+2. Obtain independent implementation/security review and keep remote CI passing before
+   calling the reference service production-ready.
 3. Plasm maintainers own live/durable contexts, execution enforcement, credentials,
    dispatch accounting, continuations and schema-3 evidence. Hosted Plasm owns its
    control-plane integration. Those milestones and acceptance tests are absent.

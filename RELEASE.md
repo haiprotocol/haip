@@ -1,15 +1,22 @@
 # HAIP 2 release gates
 
-Version: **2.0.0-draft.1**. HAIP-owned implementation and isolated checks are prepared
-locally for a HAIP-only draft PR. Full HAIP 2 and a Plasm live-window release are
-**not ready**. Package publication and deployment have not been performed.
+Version: **2.0.0-draft.1**. HAIP-owned implementation and isolated checks are available
+in [HAIP draft PR #5](https://github.com/haiprotocol/haip/pull/5).
+Full HAIP 2 and a Plasm live-window release are **not ready**. Package publication
+and deployment have not been performed.
 
-## Local deliverables
+## Draft deliverables and checks
 
 Draft contracts, schemas, generated types, OpenAPI, reference service, native host/inbox,
 SDK/CLI, independent HTTP review/App and fixed-counter demonstrations, HITL mapping,
 delivery, quotas, retention, recovery, backups, migrations and operations are implemented.
 Exact results are in the research manifest; [ACCEPTANCE.md](ACCEPTANCE.md) maps coverage.
+
+[Hosted CI](https://github.com/haiprotocol/haip/actions/runs/33334308802) passed on
+`5f70557e7d8a0f29a1e0ea87170689d452375d31`: 46 tests, 25 cross-language comparisons,
+zero known production dependency vulnerabilities and four package dry runs.
+[Retained remote evidence](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json)
+is separate from historical local records. Current PR checks govern later revisions.
 
 Optional Azure Blob locked WORM and permanent safety records replace the Amazon
 adapter. Free local development needs no cloud account. R2/Clerk/Vercel suitability
@@ -27,10 +34,8 @@ and limitations are in [PROVIDERS.md](PROVIDERS.md).
   account is not integrated.
 - Key custody, independent trust distribution, backup deletion, incident routing,
   worker/retention alerts and recovery on every restart. Deployment files are examples.
-- Independent review and remote CI. Stabilise schemas only after the full release
-  scenarios, including external executor integration, pass.
-  GitHub Actions was disabled at pre-push review and must be enabled before its
-  workflow can supply remote evidence.
+- Independent review and passing CI for the release revision. Stabilise schemas only
+  after the full release scenarios, including external executor integration, pass.
 
 ## Plasm-maintainer and hosted-product dependencies
 
