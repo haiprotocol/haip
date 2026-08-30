@@ -1,0 +1,8 @@
+{
+  "scope": "Parse final staged MDX snapshots with the installed Prettier MDX parser; format comparison is advisory and limited to live pages. Not a hosted renderer check.",
+  "index_listing_sha256": "dfb05f2d60c655963cb55f19aa3ebf25437e4366bac08eb9a8019fc18d4d6470",
+  "prettier_version": "3.9.6",
+  "parsed_pages": 73,
+  "issues": [],
+  "live_format_warnings": []
+}

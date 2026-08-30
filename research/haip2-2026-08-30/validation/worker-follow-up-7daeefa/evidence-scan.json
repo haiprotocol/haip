@@ -1,0 +1,172 @@
+{
+  "recorded_at": "2026-08-30T23:47:02.982781+00:00",
+  "tool": "gitleaks 8.30.1",
+  "scope": "Newly retained local, publication and hosted evidence for 7daeefa, including the prior publication claims record; source scan is recorded separately in local/secret-review.json.",
+  "raw_findings": 26,
+  "rule_counts": {
+    "generic-api-key": 26
+  },
+  "disposition": "Every finding is a SHA-256 file hash in publication metadata. Each value was independently recomputed from its referenced blob at the source commit. No real credential was identified; this is not a zero-finding scan.",
+  "source_commit_for_hash_verification": "7daeefacb04891a610ebaea0b23bb942fec55782",
+  "verified_findings": [
+    {
+      "file": "publication/claims.json",
+      "line": 19,
+      "referenced_source_file": "protocol/draft-2.0.0-1/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/claims.json",
+      "line": 20,
+      "referenced_source_file": "docs/protocol/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/prior-claims.json",
+      "line": 27,
+      "referenced_source_file": "protocol/draft-2.0.0-1/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/prior-claims.json",
+      "line": 28,
+      "referenced_source_file": "docs/protocol/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 19,
+      "referenced_source_file": "archive/v1/docs/cli/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 35,
+      "referenced_source_file": "archive/v1/docs/protocol/essentials/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 45,
+      "referenced_source_file": "archive/v1/docs/protocol/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 46,
+      "referenced_source_file": "archive/v1/docs/protocol/openapi.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 49,
+      "referenced_source_file": "archive/v1/docs/sdk/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 50,
+      "referenced_source_file": "archive/v1/docs/sdk/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 60,
+      "referenced_source_file": "archive/v1/docs/server/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 61,
+      "referenced_source_file": "archive/v1/docs/server/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 142,
+      "referenced_source_file": "docs/archive/v1/cli/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 157,
+      "referenced_source_file": "docs/archive/v1/protocol/essentials/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 167,
+      "referenced_source_file": "docs/archive/v1/protocol/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 168,
+      "referenced_source_file": "docs/archive/v1/protocol/openapi.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 171,
+      "referenced_source_file": "docs/archive/v1/sdk/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 172,
+      "referenced_source_file": "docs/archive/v1/sdk/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 182,
+      "referenced_source_file": "docs/archive/v1/server/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 183,
+      "referenced_source_file": "docs/archive/v1/server/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 207,
+      "referenced_source_file": "docs/protocol/openapi.json",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 208,
+      "referenced_source_file": "docs/protocol/openapi.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 212,
+      "referenced_source_file": "docs/sdk/api-reference.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 213,
+      "referenced_source_file": "docs/sdk/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 218,
+      "referenced_source_file": "docs/server/authentication.mdx",
+      "matches_source_blob": true
+    },
+    {
+      "file": "publication/snapshot.json",
+      "line": 329,
+      "referenced_source_file": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/secret-review.json",
+      "matches_source_blob": true
+    }
+  ],
+  "all_retained_manifest_hashes_verified": true,
+  "machine_local_paths_found": false,
+  "raw_report_sha256": "8c9ce1ad661812e66b64437724c2255c4d079ede1bdbf00a114fa581af5f7409"
+}

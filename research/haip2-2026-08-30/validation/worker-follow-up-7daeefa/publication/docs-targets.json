@@ -1,0 +1,11 @@
+{
+  "scope": "Final staged page/frontmatter, navigation and file/redirect targets; excludes external availability, fragment anchors and hosted rendering.",
+  "index_listing_sha256": "dfb05f2d60c655963cb55f19aa3ebf25437e4366bac08eb9a8019fc18d4d6470",
+  "live_pages": 27,
+  "archived_pages": 46,
+  "navigation_entries": 28,
+  "redirects": 41,
+  "internal_link_targets_checked": 292,
+  "unique_live_bodies": 27,
+  "issues": []
+}

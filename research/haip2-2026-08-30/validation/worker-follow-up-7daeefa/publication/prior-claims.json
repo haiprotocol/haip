@@ -1,0 +1,71 @@
+{
+  "scope": "Read-only publication consistency review of staged narrative documents and three live server guides. Auth implementation excluded. Static checks complement manual inspection; this is not a fresh runtime suite, hosted CI result, cloud acceptance or external-link check.",
+  "index_listing_sha256": "7156eb272423e5682f98218526cebdaadbd3e5e8b65f7930193bb285a9123969",
+  "index_unchanged_at_completion": true,
+  "documents": [
+    "WORKER-FOLLOW-UP.md",
+    "OPERATIONS.md",
+    "REVIEW-FIXES.md",
+    "ACCEPTANCE.md",
+    "IMPLEMENTATION.md",
+    "RELEASE.md",
+    "docs/server/authentication.mdx",
+    "docs/server/configuration.mdx",
+    "docs/server/monitoring.mdx"
+  ],
+  "source_hashes": {
+    "haip-server/src/worker.ts": "4323fa5230e4a39b2788b98a2fde683bd0f97645503f35215df476f1646bfd67",
+    "haip-server/src/main.ts": "a9e4f84a2873f245c8b078b3a6f04c10b29bf1be62b2598c7aa7b32bed8719c2",
+    "haip-server/src/startup.ts": "6441f6ed54969819606c77a87df4a32e5ef14c32aa324c098907adde3323a701",
+    "haip-server/src/admin.ts": "554b2e28762f45625b72bb0390d11d636314ccf0fe7e756feeb008ba73263a32",
+    "haip-server/src/server.ts": "897d3787dee4d93c1288417baad48cf7b50e2c95748e33d1fff3443c1336b8ae",
+    "haip-server/src/service.ts": "45a2efc93fd0929c34f296180d0b9d1df00273e397c8567af5574a1e9d8e13fb",
+    "haip-server/src/bundle.ts": "672f22633719405e8846c65a2bee391537deae7ed91444dbd3667a0ac3f662b5",
+    "haip-server/src/browser/host.ts": "8c35772bfc94a9efe8521699a0ade8735708673d874edd254f1a740b887ebcf3",
+    "haip-server/migrations/005_worker_progress.sql": "857d9cccbdd2174f3cabd990cfa46c98a2d1029db555fd6a50cbf01bbcdfe8f9",
+    "protocol/draft-2.0.0-1/schema.json": "b112d94ab3596bdbc43e0995c6b8dfa2e8db6273dd744dac05123a7dc3f0803c",
+    "protocol/draft-2.0.0-1/openapi.json": "6f88c090d4326a16ac07c6b458eb5aec9cd99182f6eecc2b3f1306397a9f3771",
+    "docs/protocol/openapi.json": "6f88c090d4326a16ac07c6b458eb5aec9cd99182f6eecc2b3f1306397a9f3771",
+    "@types/src/generated.ts": "9bd21fdf8673ee221a3a600fd5f607219ec5acfd0e84430bf6176009bf127ad8"
+  },
+  "checked_policy_claims": {
+    "requestlist_has_only_items_next_offset": true,
+    "requestlist_max_items_50": true,
+    "requestlist_next_offset_cap_100000": true,
+    "both_openapi_copies_identical": true,
+    "generated_requestlist_no_total": true,
+    "generated_requestlist_has_next_offset": true,
+    "list_queries_use_51_lookahead": true,
+    "list_next_offset_guard": true,
+    "native_host_consumes_next_offset": true,
+    "examined_sources_match_staged": true,
+    "worker_50_rows_10_pages_per_tenant": true,
+    "collection_500_with_lookahead": true,
+    "checkpoint_persistent_30_second_delay": true,
+    "retention_continues_after_1_second_otherwise_15_minutes": true,
+    "no_retention_reschedule_after_shutdown": true,
+    "bootstrap_decoded_32_bytes": true,
+    "bootstrap_maximum_200_encoded": true,
+    "bootstrap_canonical_base64url": true,
+    "bootstrap_obvious_repetition_guard": true,
+    "remote_development_origin_gate": true,
+    "private_psl_enabled": true,
+    "openapi_requestlist_matches_schema_after_reference_mapping": true
+  },
+  "manual_assessment": {
+    "worker_bounds_are_per_tenant_and_not_global_time_guarantee": true,
+    "inbox_unpublished_shape_change_and_offset_scan_limits_disclosed": true,
+    "bootstrap_random_source_cannot_be_proved_by_format_validation": true,
+    "https_distinct_registrable_sites_remote_development_and_production": true,
+    "loopback_exception_requires_both_hosts": true,
+    "historical_46_and_68_test_snapshots_distinguished_from_pending_current_validation": true,
+    "no_current_suite_count_or_hosted_pass_invented": true,
+    "production_identity_storage_and_deployment_gates_remain_external": true,
+    "no_plasm_change_or_acceptance_claimed": true
+  },
+  "issues": [],
+  "comparison_notes": [
+    "OpenAPI remaps the Assignment reference from #/$defs/Assignment to #/components/schemas/Assignment; normalising this generated reference prefix gives exact RequestList structural equality.",
+    "Native inbox uses result.items and result.next_offset; it has no total dependency."
+  ]
+}

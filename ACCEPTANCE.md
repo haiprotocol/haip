@@ -15,6 +15,8 @@ checks. [New evidence](research/haip2-2026-08-30/validation/review-fixes-bc1feed
 is retained separately; historical records are not overwritten by later runs.
 The [worker and boundary follow-up](WORKER-FOLLOW-UP.md) records the subsequent
 bounded-maintenance, export, pagination, login and browser changes.
+Its [separate evidence](research/haip2-2026-08-30/validation/worker-follow-up-7daeefa/README.md)
+records 85 passing tests, 25 comparisons and nine container checks on `7daeefa`.
 
 | Plan area             | HAIP evidence                                                                                                                                                               | Remaining boundary                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |

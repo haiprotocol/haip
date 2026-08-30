@@ -1,0 +1,158 @@
+{
+  "scope": "Final staged local file/directory links in the six requested root narrative documents; external URLs and fragment anchors excluded.",
+  "index_listing_sha256": "dfb05f2d60c655963cb55f19aa3ebf25437e4366bac08eb9a8019fc18d4d6470",
+  "internal_link_targets_checked": 30,
+  "targets": [
+    {
+      "file": "WORKER-FOLLOW-UP.md",
+      "line": 5,
+      "target": "REVIEW-FIXES.md"
+    },
+    {
+      "file": "WORKER-FOLLOW-UP.md",
+      "line": 86,
+      "target": "deployment/acceptance.md"
+    },
+    {
+      "file": "OPERATIONS.md",
+      "line": 9,
+      "target": "PROVIDERS.md"
+    },
+    {
+      "file": "OPERATIONS.md",
+      "line": 103,
+      "target": "tests/environment.ts"
+    },
+    {
+      "file": "OPERATIONS.md",
+      "line": 321,
+      "target": "protocol/draft-2.0.0-1/plasm-profile.md"
+    },
+    {
+      "file": "REVIEW-FIXES.md",
+      "line": 9,
+      "target": "WORKER-FOLLOW-UP.md"
+    },
+    {
+      "file": "REVIEW-FIXES.md",
+      "line": 45,
+      "target": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/local/manifest.json"
+    },
+    {
+      "file": "REVIEW-FIXES.md",
+      "line": 61,
+      "target": "research/haip2-2026-08-30/publication-edits.json"
+    },
+    {
+      "file": "REVIEW-FIXES.md",
+      "line": 65,
+      "target": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md"
+    },
+    {
+      "file": "REVIEW-FIXES.md",
+      "line": 75,
+      "target": "deployment/acceptance.md"
+    },
+    {
+      "file": "ACCEPTANCE.md",
+      "line": 11,
+      "target": "research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json"
+    },
+    {
+      "file": "ACCEPTANCE.md",
+      "line": 12,
+      "target": "REVIEW-FIXES.md"
+    },
+    {
+      "file": "ACCEPTANCE.md",
+      "line": 14,
+      "target": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md"
+    },
+    {
+      "file": "ACCEPTANCE.md",
+      "line": 16,
+      "target": "WORKER-FOLLOW-UP.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 62,
+      "target": "research/haip2-2026-08-30/validation/manifest.json"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 63,
+      "target": "ACCEPTANCE.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 67,
+      "target": "REVIEW-FIXES.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 70,
+      "target": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 72,
+      "target": "WORKER-FOLLOW-UP.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 79,
+      "target": "research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 86,
+      "target": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/hosted/manifest.json"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 130,
+      "target": "PROVIDERS.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 130,
+      "target": "OPERATIONS.md"
+    },
+    {
+      "file": "IMPLEMENTATION.md",
+      "line": 130,
+      "target": "RELEASE.md"
+    },
+    {
+      "file": "RELEASE.md",
+      "line": 13,
+      "target": "ACCEPTANCE.md"
+    },
+    {
+      "file": "RELEASE.md",
+      "line": 14,
+      "target": "REVIEW-FIXES.md"
+    },
+    {
+      "file": "RELEASE.md",
+      "line": 17,
+      "target": "WORKER-FOLLOW-UP.md"
+    },
+    {
+      "file": "RELEASE.md",
+      "line": 23,
+      "target": "research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json"
+    },
+    {
+      "file": "RELEASE.md",
+      "line": 29,
+      "target": "research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md"
+    },
+    {
+      "file": "RELEASE.md",
+      "line": 35,
+      "target": "PROVIDERS.md"
+    }
+  ],
+  "issues": []
+}

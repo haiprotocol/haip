@@ -16,6 +16,10 @@ clean-copy and hosted coverage without treating historical run records as
 current-source evidence.
 The subsequent [worker and boundary follow-up](WORKER-FOLLOW-UP.md) records bounded
 cleanup and checkpoint continuation, draft pagination and remaining boundary fixes.
+Its [hosted run](https://github.com/haiprotocol/haip/actions/runs/33342151204) passed
+85 tests, 25 comparisons, four package dry runs, the production dependency audit
+and nine container checks on `7daeefa`, with
+[separate evidence](research/haip2-2026-08-30/validation/worker-follow-up-7daeefa/README.md).
 
 [Hosted CI](https://github.com/haiprotocol/haip/actions/runs/33334308802) passed on
 `5f70557e7d8a0f29a1e0ea87170689d452375d31`: 46 tests, 25 cross-language comparisons,

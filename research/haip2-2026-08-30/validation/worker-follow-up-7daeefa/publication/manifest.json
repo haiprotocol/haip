@@ -1,0 +1,21 @@
+{
+  "record": "Final worker follow-up publication review",
+  "completed_utc": "2026-08-30T23:32:17.546925+00:00",
+  "scope": "Read-only final staged publication verification after screenshot-capture adjustment. Hashes, source archive, migrations 001\u2013004, older research, navigation, links and MDX rerun. Screenshot policy wording checked against staged test ordering. No auth implementation review or new runtime, hosted rendering or provider acceptance claim.",
+  "head": "67b6f1752e5865cd0fa0843dac54885340cdce2a",
+  "index_listing_sha256": "dfb05f2d60c655963cb55f19aa3ebf25437e4366bac08eb9a8019fc18d4d6470",
+  "index_unchanged_at_completion": true,
+  "working_files_match_staged_at_completion": true,
+  "earlier_local_publication_record_unchanged": true,
+  "files": {
+    "snapshot.json": "2593cf2426f6a508fa00186017d6e1ee1cc91915059032b28750f65b0f012a41",
+    "check-summary.json": "08aefb1d3790e998c19e25ad8cc880f9869040d97288aea0cfd84a78d59e5fe8",
+    "publication-integrity.json": "f75f1c83023991bba13eed44f05adc124b750e1b0b47c1202d583c8ec054aab8",
+    "docs-targets.json": "990d9ff3f7d01868cd918719cb156da20e70ca9236776bda669c7c90ae94247f",
+    "docs-mdx.json": "421bd487282b14f83c78a6fe94bdf9e878937c17d59b583d912fcf8b51a24438",
+    "root-links.json": "d510995851ca2dc6618b01b5dbe9193f8ea60e4f30f517cf0482c2767419203c",
+    "claims.json": "73e8e22870110e8b26673975a7d0749e8f149ebc3ffa3c14c69cea599b1d07b8"
+  },
+  "issues": [],
+  "result": "pass"
+}

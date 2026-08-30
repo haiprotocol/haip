@@ -78,8 +78,19 @@ real cross-site browser redirects, session replacement failures and opener isola
 Screenshot capture temporarily expands the actual viewport so the isolated app
 is on screen; full-page capture alone omitted its pixels when it was off screen.
 Normal-viewport interaction and confirmation remain tested with the same headers.
-Final clean-copy and hosted results are recorded separately from the earlier 46-test
-and 68-test evidence. The PR's checks identify the tested revision.
+The [clean-copy run](research/haip2-2026-08-30/validation/worker-follow-up-7daeefa/local/manifest.json)
+and [hosted run](https://github.com/haiprotocol/haip/actions/runs/33342151204) passed
+**85 tests**, **25 primitive cross-language comparisons**, four package dry runs
+and the production dependency audit, with **zero known vulnerabilities at those runs**.
+GitHub also built the development image and passed **nine packaged-service checks**.
+Its PR merge checkout matches the clean-copy source tree for
+`7daeefacb04891a610ebaea0b23bb942fec55782`; all 459 tracked files remained unchanged
+after the local checks.
+
+[Retained evidence](research/haip2-2026-08-30/validation/worker-follow-up-7daeefa/README.md)
+records versions, hashes, reviewed secret findings and populated browser screenshots,
+separately from the earlier 46-test and 68-test records. The PR's checks identify
+which later documentation revision GitHub has tested.
 
 Keep the PR a draft. Actual identity/storage permissions, independent administration,
 production origins, delivery, backup/restore and restart acceptance remain the

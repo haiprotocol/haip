@@ -1,0 +1,184 @@
+{
+  "recorded_at": "2026-08-30T23:37:31.036Z",
+  "node": "v24.19.0",
+  "python": "Python 3.12.14",
+  "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "checks": [
+    {
+      "language": "Python",
+      "input": "null",
+      "expected": "null",
+      "actual": "null",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "null",
+      "expected": "null",
+      "actual": "null",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "true",
+      "expected": "true",
+      "actual": "true",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "true",
+      "expected": "true",
+      "actual": "true",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "0",
+      "expected": "0",
+      "actual": "0",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "0",
+      "expected": "0",
+      "actual": "0",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "0",
+      "expected": "0",
+      "actual": "0",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "0",
+      "expected": "0",
+      "actual": "0",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "42",
+      "expected": "42",
+      "actual": "42",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "42",
+      "expected": "42",
+      "actual": "42",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "\"a\\n€\"",
+      "expected": "\"a\\n€\"",
+      "actual": "\"a\\n€\"",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "\"a\\n€\"",
+      "expected": "\"a\\n€\"",
+      "actual": "\"a\\n€\"",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "{\"z\":2,\"a\":1}",
+      "expected": "{\"a\":1,\"z\":2}",
+      "actual": "{\"a\":1,\"z\":2}",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "{\"z\":2,\"a\":1}",
+      "expected": "{\"a\":1,\"z\":2}",
+      "actual": "{\"a\":1,\"z\":2}",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "{\"\":1,\"😀\":2}",
+      "expected": "{\"😀\":2,\"\":1}",
+      "actual": "{\"😀\":2,\"\":1}",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "{\"\":1,\"😀\":2}",
+      "expected": "{\"😀\":2,\"\":1}",
+      "actual": "{\"😀\":2,\"\":1}",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "[0.1,1.5,1e-7,1e-27]",
+      "expected": "[0.1,1.5,1e-7,1e-27]",
+      "actual": "[0.1,1.5,1e-7,1e-27]",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "[0.1,1.5,1e-7,1e-27]",
+      "expected": "[0.1,1.5,1e-7,1e-27]",
+      "actual": "[0.1,1.5,1e-7,1e-27]",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "{\"choice\":\"accept\",\"score\":0.1}",
+      "expected": "{\"choice\":\"accept\",\"score\":0.1}",
+      "actual": "{\"choice\":\"accept\",\"score\":0.1}",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "{\"choice\":\"accept\",\"score\":0.1}",
+      "expected": "{\"choice\":\"accept\",\"score\":0.1}",
+      "actual": "{\"choice\":\"accept\",\"score\":0.1}",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "input": "9007199254740991",
+      "expected": "9007199254740991",
+      "actual": "9007199254740991",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "input": "9007199254740991",
+      "expected": "9007199254740991",
+      "actual": "9007199254740991",
+      "passed": true
+    },
+    {
+      "language": "Node",
+      "vector": "RFC 8032 section 7.1 test 1",
+      "expected": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+      "actual": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+      "passed": true
+    },
+    {
+      "language": "Python",
+      "vector": "RFC 8032 section 7.1 test 1",
+      "expected": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+      "actual": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+      "passed": true
+    },
+    {
+      "language": "Rust",
+      "vector": "RFC 8032 section 7.1 test 1",
+      "expected": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+      "actual": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+      "passed": true
+    }
+  ],
+  "scope": "Primitive cross-language evidence, not full protocol or Plasm conformance"
+}

@@ -71,6 +71,11 @@ production dependency audit. [New evidence](research/haip2-2026-08-30/validation
 is kept separately from those historical snapshots.
 The [worker and boundary follow-up](WORKER-FOLLOW-UP.md) addresses the next review's
 operational issues and remaining request/login boundaries, with separate evidence.
+Its clean-copy and [hosted run](https://github.com/haiprotocol/haip/actions/runs/33342151204)
+passed **85 tests**, 25 comparisons, four package dry runs and a clean production
+dependency audit on `7daeefacb04891a610ebaea0b23bb942fec55782`. GitHub also passed
+nine development-container checks. [Retained records](research/haip2-2026-08-30/validation/worker-follow-up-7daeefa/README.md)
+bind those results to the tested source; they do not replace earlier evidence.
 
 [The first hosted CI run](https://github.com/haiprotocol/haip/actions/runs/33334308802)
 also passed 46 tests, 25 comparisons, the production dependency audit and all four
