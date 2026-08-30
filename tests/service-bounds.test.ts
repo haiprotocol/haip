@@ -255,19 +255,26 @@ test('inbox pages enforce visibility in SQL; reads project expiry without audit 
     const human = await env.login();
     const one = await human.call('/v2/requests'),
       two = await human.call('/v2/requests?offset=50');
-    assert.equal(one.body.total, 75);
+    assert.equal(one.body.total, undefined);
     assert.equal(one.body.items.length, 50);
+    assert.equal(one.body.next_offset, 50);
     assert.equal(two.body.items.length, 25);
     assert.equal(two.body.next_offset, null);
     assert.equal(new Set([...one.body.items, ...two.body.items].map((r: any) => r.id)).size, 75);
-    assert.equal(
-      (await env.api('/v2/requests', undefined, env.credentials.foreignProducer)).body.total,
-      0,
+    assert.deepEqual(
+      (await env.api('/v2/requests', undefined, env.credentials.foreignProducer)).body,
+      { items: [], next_offset: null },
     );
-    assert.equal(
-      (await env.api('/v2/requests', undefined, env.credentials.operator)).body.total,
-      100,
+    const operatorPage = await env.api('/v2/requests', undefined, env.credentials.operator);
+    assert.equal(operatorPage.body.items.length, 50);
+    assert.equal(operatorPage.body.next_offset, 50);
+    const operatorLastPage = await env.api(
+      '/v2/requests?offset=50',
+      undefined,
+      env.credentials.operator,
     );
+    assert.equal(operatorLastPage.body.items.length, 50);
+    assert.equal(operatorLastPage.body.next_offset, null);
     assert.equal((await env.api('/v2/requests?offset=100001')).status, 400);
     const before = (
       await env.store.pool.query("SELECT audit_sequence FROM haip_tenants WHERE id='test-tenant'")
@@ -280,8 +287,13 @@ test('inbox pages enforce visibility in SQL; reads project expiry without audit 
     try {
       await lock.query('BEGIN');
       await lock.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['test-tenant']);
-      assert.equal((await human.call('/v2/requests?state=pending')).body.total, 0);
-      assert.equal((await human.call('/v2/requests?state=expired')).body.total, 75);
+      assert.deepEqual((await human.call('/v2/requests?state=pending')).body, {
+        items: [],
+        next_offset: null,
+      });
+      const expired = await human.call('/v2/requests?state=expired');
+      assert.equal(expired.body.items.length, 50);
+      assert.equal(expired.body.next_offset, 50);
       assert.equal((await human.call('/v2/requests/' + id)).body.decision_state, 'expired');
       assert.equal((await human.call('/v2/requests/' + id + '/material')).status, 410);
       assert.equal((await human.call('/v2/requests/' + id + '/export')).body.material, null);

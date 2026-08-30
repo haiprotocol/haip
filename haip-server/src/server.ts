@@ -5,7 +5,7 @@ import express, {
   type RequestHandler,
 } from 'express';
 import { readFileSync } from 'node:fs';
-import { digest, digestBytes, parseJson } from '@haip/protocol/crypto';
+import { digest, parseJson } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
 import { hitlStatus, hitlPoll } from './hitl.js';
 import { installAuth } from './auth.js';
@@ -13,6 +13,7 @@ import { registerPrincipal, registerRoute } from './admin.js';
 import { ProtocolError, requireThat } from './errors.js';
 import { Metrics, prometheus } from './metrics.js';
 import { validate } from './validation.js';
+import { requireBoundBundle } from './bundle.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = (name: string) =>
   readFileSync(new URL('../public/' + name, import.meta.url), 'utf8');
@@ -58,6 +59,9 @@ export function createApp(service: ReviewService) {
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
       'X-Frame-Options': 'DENY',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'same-origin',
       'Permissions-Policy':
         'camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-read=(), clipboard-write=()',
       'Content-Security-Policy': hostPolicy(),
@@ -192,16 +196,7 @@ export function createApp(service: ReviewService) {
         [req.principal.tenant, bundle.id, bundle.publisher],
       )
     ).rows[0];
-    requireThat(found?.html, 410, 'bundle_deleted');
-    requireThat(
-      digestBytes(found.html) === bundle.digest &&
-        found.manifest?.digest === bundle.digest &&
-        found.manifest.id === bundle.id &&
-        found.manifest.tenant === req.principal.tenant &&
-        found.manifest.publisher === bundle.publisher,
-      409,
-      'bundle_integrity_mismatch',
-    );
+    requireBoundBundle(found, req.principal.tenant, bundle);
     const scope = bundleScope(req.principal.tenant, bundle);
     const inline =
       Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes;
@@ -340,6 +335,9 @@ export function createSandboxApp(service: ReviewService) {
       'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
       'Permissions-Policy':
         'camera=(), microphone=(), geolocation=(), payment=(), clipboard-read=(), clipboard-write=()',
       'Content-Security-Policy': `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors ${service.config.origin}`,

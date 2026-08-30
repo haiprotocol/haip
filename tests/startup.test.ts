@@ -16,6 +16,21 @@ import { postgres } from './fixtures/postgres.js';
 
 test('production separates registrable sites, including private public-suffix entries', () => {
   validateOrigins('development', 'http://localhost:8080', 'http://{scope}.localhost:8081');
+  validateOrigins('development', 'http://127.0.0.1:8080', 'http://{scope}.localhost:8081');
+  validateOrigins('development', 'http://[::1]:8080', 'http://{scope}.localhost:8081');
+  validateOrigins('development', 'https://review.example.com', 'https://{scope}.sandbox.net');
+  for (const [host, sandbox] of [
+    ['https://review.example.com', 'https://{scope}.example.com'],
+    ['https://review.alpha.pages.dev', 'https://{scope}.alpha.pages.dev'],
+    ['http://review.example.com', 'http://{scope}.sandbox.net'],
+    ['http://localhost:8080', 'https://{scope}.example.net'],
+    ['https://review.example.com', 'http://{scope}.localhost:8081'],
+    ['http://localhost.attacker.example', 'http://{scope}.localhost.attacker.example'],
+  ])
+    assert.throws(
+      () => validateOrigins('development', host!, sandbox!),
+      /Non-loopback development requires HTTPS/,
+    );
   validateOrigins('production', 'https://review.example.com', 'https://{scope}.review-sandbox.net');
   validateOrigins('production', 'https://review.alpha.pages.dev', 'https://{scope}.beta.pages.dev');
   validateOrigins('production', 'https://review.example.com', 'https://{scope}.scope.example.net');

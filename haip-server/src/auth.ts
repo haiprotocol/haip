@@ -54,29 +54,49 @@ export function installAuth(app: Express, service: ReviewService) {
     const c = await client(),
       state = random(),
       nonce = oidc.randomNonce(),
-      verifier = oidc.randomPKCECodeVerifier(),
-      session = random();
+      verifier = oidc.randomPKCECodeVerifier();
     const old = cookie(req, '__Host-haip');
+    const previousSessionHash = old ? digestBytes(old) : null;
+    const previousSessionActive =
+      previousSessionHash !== null &&
+      (
+        await store.pool.query(
+          "SELECT 1 FROM haip_sessions WHERE token_hash=$1 AND data ? 'id' AND data ? 'tenant' AND expires_at>clock_timestamp()",
+          [previousSessionHash],
+        )
+      ).rowCount === 1;
     const returnTo =
       typeof req.query.return_to === 'string' &&
       /^\/review\/[a-f0-9-]{36}$/.test(req.query.return_to)
         ? req.query.return_to
         : '/inbox';
-    await store.pool.query(
-      "INSERT INTO haip_sessions(token_hash,data,expires_at) VALUES($1,$2,clock_timestamp()+interval '10 minutes')",
-      [
-        digestBytes(session),
-        JSON.stringify({
-          login: {
-            state,
-            nonce,
-            verifier,
-            returnTo,
-            ...(old ? { previousSessionHash: digestBytes(old) } : {}),
-          },
-        }),
-      ],
-    );
+    const data = JSON.stringify({
+      login: {
+        state,
+        nonce,
+        verifier,
+        returnTo,
+        previousSessionHash,
+        previousSessionActive,
+      },
+    });
+    // A pending login cookie is a browser-local flow handle. Replacing its generation
+    // also invalidates a callback already exchanging a code, including anonymous starts.
+    // Never adopt a supplied handle unless it identifies our own unexpired login record.
+    const pending = cookie(req, '__Host-haip-login');
+    const renewed = pending
+      ? await store.pool.query(
+          `UPDATE haip_sessions SET data=$2,expires_at=clock_timestamp()+interval '10 minutes'
+           WHERE token_hash=$1 AND data ? 'login' AND expires_at>clock_timestamp()`,
+          [digestBytes(pending), data],
+        )
+      : undefined;
+    const session = renewed?.rowCount === 1 ? pending! : random();
+    if (renewed?.rowCount !== 1)
+      await store.pool.query(
+        "INSERT INTO haip_sessions(token_hash,data,expires_at) VALUES($1,$2,clock_timestamp()+interval '10 minutes')",
+        [digestBytes(session), data],
+      );
     res.cookie('__Host-haip-login', session, {
       secure: true,
       httpOnly: true,
@@ -98,13 +118,25 @@ export function installAuth(app: Express, service: ReviewService) {
   app.get('/auth/callback', async (req, res) => {
     const token = cookie(req, '__Host-haip-login');
     requireThat(token, 401, 'invalid_login');
-    // Delete before token exchange so concurrent callback replay cannot authenticate twice.
+    requireThat(typeof req.query.state === 'string', 401, 'invalid_login');
+    // Claim once before token exchange, retaining the generation until finalisation.
+    // Network I/O holds no database lock. A new login can replace this generation.
     const { rows } = await store.pool.query(
-      'DELETE FROM haip_sessions WHERE token_hash=$1 AND expires_at>clock_timestamp() RETURNING data',
-      [digestBytes(token)],
+      `UPDATE haip_sessions SET data=jsonb_set(data,'{login,claimed}','true'::jsonb)
+       WHERE token_hash=$1 AND data ? 'login' AND NOT (data->'login' ? 'claimed')
+         AND data->'login'->>'state'=$2 AND expires_at>clock_timestamp() RETURNING data`,
+      [digestBytes(token), req.query.state],
     );
     const login = rows[0]?.data.login;
     requireThat(login, 401, 'invalid_login');
+    // The login cookie binds the browser; also bind its authenticated/anonymous state.
+    // Keep Lax cookies so a legitimate top-level OIDC redirect can supply both cookies.
+    const current = cookie(req, '__Host-haip');
+    requireThat(
+      (login.previousSessionHash ?? null) === (current ? digestBytes(current) : null),
+      401,
+      'login_session_changed',
+    );
     const tokens = await oidc.authorizationCodeGrant(
       await client(),
       new URL(req.originalUrl, config.origin),
@@ -133,17 +165,36 @@ export function installAuth(app: Express, service: ReviewService) {
         csrf: random(),
         authenticated_at: new Date().toISOString(),
       };
-    // One statement makes retirement and replacement atomic. Failed OIDC/directory checks
-    // and a failed session insert must leave the previously authenticated session intact.
-    await store.pool.query(
-      `WITH previous_session AS (
+    // Finalise only the claimed generation and, when present at login start, a still
+    // active initiating session. A failed insert rolls back both deletions, while the
+    // earlier claim remains consumed. Newer login state is never deleted by this callback.
+    const replacement = await store.pool.query(
+      `WITH current_login AS (
+        DELETE FROM haip_sessions
+        WHERE token_hash=$5 AND data->'login'->>'state'=$6
+          AND data->'login'->>'claimed'='true' AND expires_at>clock_timestamp()
+        RETURNING token_hash
+      ), previous_session AS (
         DELETE FROM haip_sessions
         WHERE token_hash=$1 AND data ? 'id' AND data ? 'tenant'
+          AND (NOT $4::boolean OR expires_at>clock_timestamp())
+          AND EXISTS (SELECT 1 FROM current_login)
+        RETURNING token_hash
       )
       INSERT INTO haip_sessions(token_hash,data,expires_at)
-      VALUES($2,$3,clock_timestamp()+interval '8 hours')`,
-      [login.previousSessionHash ?? null, digestBytes(session), JSON.stringify(data)],
+      SELECT $2,$3,clock_timestamp()+interval '8 hours'
+      WHERE EXISTS (SELECT 1 FROM current_login)
+        AND (NOT $4::boolean OR EXISTS (SELECT 1 FROM previous_session))`,
+      [
+        login.previousSessionHash ?? null,
+        digestBytes(session),
+        JSON.stringify(data),
+        login.previousSessionActive ?? login.previousSessionHash != null,
+        digestBytes(token),
+        login.state,
+      ],
     );
+    requireThat(replacement.rowCount === 1, 401, 'login_session_changed');
     res.clearCookie('__Host-haip-login', {
       secure: true,
       httpOnly: true,

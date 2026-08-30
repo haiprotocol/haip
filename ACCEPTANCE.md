@@ -13,6 +13,8 @@ The [review follow-up](REVIEW-FIXES.md) records the subsequent safety fixes and
 expanded 68-test clean-copy and hosted suites, plus nine development-container
 checks. [New evidence](research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md)
 is retained separately; historical records are not overwritten by later runs.
+The [worker and boundary follow-up](WORKER-FOLLOW-UP.md) records the subsequent
+bounded-maintenance, export, pagination, login and browser changes.
 
 | Plan area             | HAIP evidence                                                                                                                                                               | Remaining boundary                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |

@@ -19,7 +19,7 @@ export function publicAddress(address: string): boolean {
     );
   }
   if (isIP(address) !== 4) return false;
-  const [a, b] = address.split('.').map(Number) as [number, number];
+  const [a, b, c] = address.split('.').map(Number) as [number, number, number];
   return !(
     a === 0 ||
     a === 10 ||
@@ -28,6 +28,7 @@ export function publicAddress(address: string): boolean {
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && (b === 168 || b === 0 || b === 2)) ||
+    (a === 192 && b === 88 && c === 99) ||
     (a === 100 && b >= 64 && b <= 127) ||
     (a === 198 && (b === 18 || b === 19 || b === 51)) ||
     (a === 203 && b === 0)

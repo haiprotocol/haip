@@ -199,18 +199,46 @@ test('a checkpoint covering many decisions is applied in bounded resumable batch
     await env.store.pool.query(
       "UPDATE haip_outbox SET next_at=clock_timestamp()+interval '1 day' WHERE kind='checkpoint'",
     );
-    const latest = (
+    const checkpoint = (
       await env.store.pool.query(
-        "SELECT id FROM haip_outbox WHERE tenant='test-tenant' AND kind='checkpoint' ORDER BY (body->'payload'->>'sequence')::bigint DESC LIMIT 1",
+        "SELECT id,body FROM haip_outbox WHERE tenant='test-tenant' AND kind='checkpoint' ORDER BY (body->'payload'->>'sequence')::bigint DESC LIMIT 1",
       )
-    ).rows[0].id;
+    ).rows[0];
+    const latest = checkpoint.id,
+      checkpointDigest = digest(checkpoint.body);
+    const accept = env.anchor.accept.bind(env.anchor);
+    let attempts = 0;
+    env.anchor.accept = async (record) => {
+      if (digest(record) === checkpointDigest) attempts++;
+      return accept(record);
+    };
+    const originalReceipts = (
+      await env.store.pool.query(
+        "SELECT id,data->'receipt' AS receipt,data->>'grant_deadline' AS deadline FROM haip_requests WHERE tenant='test-tenant' ORDER BY id",
+      )
+    ).rows;
     await env.store.pool.query('UPDATE haip_outbox SET next_at=clock_timestamp() WHERE id=$1', [
       latest,
     ]);
     await new Promise((resolve) =>
       setTimeout(resolve, Math.max(0, finalDeadline - Date.now() + 20)),
     );
+    const began = Date.now();
     assert.equal(await env.worker.tick(), 50);
+    assert.equal(attempts, 1);
+    const partial = (
+      await env.store.pool.query(
+        'SELECT state,next_at,accepted,body FROM haip_outbox WHERE id=$1',
+        [latest],
+      )
+    ).rows[0];
+    assert.equal(partial.state, 'pending');
+    assert(
+      partial.next_at.getTime() >= began + 29000,
+      'a partial checkpoint page is deferred for thirty seconds',
+    );
+    assert(partial.accepted);
+    assert.deepEqual(partial.body, checkpoint.body);
     const counts = () =>
       env.store.pool.query(
         "SELECT data->>'audit_state' AS state,count(*) FROM haip_requests WHERE tenant='test-tenant' GROUP BY data->>'audit_state'",
@@ -223,7 +251,40 @@ test('a checkpoint covering many decisions is applied in bounded resumable batch
         .state,
       'pending',
     );
-    await env.worker.tick();
+    // Isolate this partially applied checkpoint from the new checkpoints emitted by its first page.
+    await env.store.pool.query(
+      "UPDATE haip_outbox SET next_at=clock_timestamp()+interval '1 day' WHERE kind='checkpoint' AND id<>$1",
+      [latest],
+    );
+    const resumed = new OutboxWorker(env.service, env.anchor);
+    await resumed.reconcile();
+    assert.equal(await resumed.tick(), 0, 'the database-backed delay survives a worker restart');
+    assert.equal(await resumed.tick(), 0);
+    assert.equal(attempts, 1, 'fast ticks do not call the external anchor again');
+    // Simulate the scheduled retry becoming due, without changing any grant clock.
+    await env.store.pool.query(
+      'UPDATE haip_outbox SET next_at=clock_timestamp(),accepted=\'{"backend":"untrusted_database_copy"}\' WHERE id=$1',
+      [latest],
+    );
+    await resumed.tick();
+    assert.equal(
+      attempts,
+      2,
+      'an accepted database receipt is never used instead of re-verifying independent storage',
+    );
+    const applied = (
+      await env.store.pool.query('SELECT accepted,body FROM haip_outbox WHERE id=$1', [latest])
+    ).rows[0];
+    assert.equal(applied.accepted.backend, 'test_filesystem');
+    assert.deepEqual(applied.body, checkpoint.body);
+    assert.deepEqual(
+      (
+        await env.store.pool.query(
+          "SELECT id,data->'receipt' AS receipt,data->>'grant_deadline' AS deadline FROM haip_requests WHERE tenant='test-tenant' ORDER BY id",
+        )
+      ).rows,
+      originalReceipts,
+    );
     assert.equal(Number((await counts()).rows.find((r) => r.state === 'anchored')?.count), 52);
     assert.equal(
       (await env.store.pool.query('SELECT state FROM haip_outbox WHERE id=$1', [latest])).rows[0]

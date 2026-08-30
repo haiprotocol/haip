@@ -139,7 +139,7 @@ if (process.argv.includes('--bootstrap')) {
     await store.close();
     throw new Error('Offline namespace recovery is required before opening production listeners');
   }
-  await worker.cleanup();
+  const initialCleanup = await worker.cleanup();
   const server = createApp(service).listen(Number(process.env.PORT ?? 8080), listenHost);
   const sandbox = createSandboxApp(service).listen(
     Number(process.env.HAIP_SANDBOX_PORT ?? 8081),
@@ -156,17 +156,33 @@ if (process.argv.includes('--bootstrap')) {
         busy = false;
       });
   }, 1000);
-  const cleanup = setInterval(
-    () => void worker.cleanup().catch(() => console.error('HAIP retention failure')),
-    15 * 60000,
-  );
+  let closing = false;
+  let cleanup: ReturnType<typeof setTimeout> | undefined;
+  function scheduleCleanup(more: boolean) {
+    // Continue bounded passes after listeners open; never overlap retention runs.
+    cleanup = setTimeout(
+      async () => {
+        cleanup = undefined;
+        let continuation = false;
+        try {
+          continuation = (await worker.cleanup()).more;
+        } catch {
+          console.error('HAIP retention failure');
+        }
+        if (!closing) scheduleCleanup(continuation);
+      },
+      more ? 1000 : 15 * 60000,
+    );
+  }
+  scheduleCleanup(initialCleanup.more);
   console.log(
     `HAIP draft service: ${origin}; ${service.discovery().notifications}; ${anchor ? 'independent namespace checks enabled' : 'unanchored; execution admission fenced'}`,
   );
   for (const signal of ['SIGTERM', 'SIGINT'])
     process.once(signal, () => {
+      closing = true;
       clearInterval(tick);
-      clearInterval(cleanup);
+      clearTimeout(cleanup);
       server.close();
       sandbox.close();
       void store.close();

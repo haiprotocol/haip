@@ -233,6 +233,18 @@ export async function registerRoute(
     return { id, revision, config };
   });
 }
+function validBootstrapToken(token: string): boolean {
+  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43,200}$/.test(token)) return false;
+  const hex = /^(?:[a-fA-F0-9]{2}){32,100}$/.test(token);
+  const bytes = Buffer.from(token, hex ? 'hex' : 'base64url');
+  if (bytes.length < 32 || (!hex && bytes.toString('base64url') !== token)) return false;
+  // Reject obvious repeated-byte fixtures. Input validation cannot prove a random source;
+  // operators must generate the token with a CSPRNG, never a password or repeated template.
+  for (let period = 1; period <= 16; period++)
+    if (bytes.every((byte, index) => byte === bytes[index % period])) return false;
+  return true;
+}
+
 /** Local provisioning entry point. No HTTP bootstrap or default credentials exist. */
 export async function bootstrapTenant(
   service: ReviewService,
@@ -241,7 +253,7 @@ export async function bootstrapTenant(
   token: string,
 ): Promise<void> {
   requireThat(
-    name(tenant) && name(operator) && /^[A-Za-z0-9_-]{32,200}$/.test(token),
+    name(tenant) && name(operator) && validBootstrapToken(token),
     400,
     'invalid_bootstrap',
   );

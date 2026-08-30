@@ -69,6 +69,8 @@ startup, quota, isolation, documentation and publication corrections. The expand
 clean-copy and hosted suites pass **68 tests** with 25 comparisons and a clean
 production dependency audit. [New evidence](research/haip2-2026-08-30/validation/review-fixes-bc1feed/README.md)
 is kept separately from those historical snapshots.
+The [worker and boundary follow-up](WORKER-FOLLOW-UP.md) addresses the next review's
+operational issues and remaining request/login boundaries, with separate evidence.
 
 [The first hosted CI run](https://github.com/haiprotocol/haip/actions/runs/33334308802)
 also passed 46 tests, 25 comparisons, the production dependency audit and all four

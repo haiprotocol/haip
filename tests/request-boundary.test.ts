@@ -137,6 +137,9 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     headers: { Cookie: human.cookie },
   });
   assert.equal(reviewPage.status, 200);
+  assert.equal(reviewPage.headers.get('Cross-Origin-Opener-Policy'), 'same-origin');
+  assert.equal(reviewPage.headers.get('Cross-Origin-Embedder-Policy'), 'require-corp');
+  assert.equal(reviewPage.headers.get('Cross-Origin-Resource-Policy'), 'same-origin');
   const policy = reviewPage.headers.get('Content-Security-Policy')!;
   assert.equal(
     policy
@@ -147,6 +150,12 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
   );
   const inbox = await fetch(env.origin + '/inbox', { headers: { Cookie: human.cookie } });
   assert.match(inbox.headers.get('Content-Security-Policy')!, /frame-src 'none'/);
+  const missing = await fetch(env.origin + '/review/' + randomUUID(), {
+    headers: { Cookie: human.cookie },
+  });
+  assert.equal(missing.status, 404);
+  assert.match(missing.headers.get('Content-Security-Policy')!, /frame-src 'none'/);
+  assert.equal((await missing.json()).error, 'not_found');
   const sandbox = new URL(app.body.origin);
   for (const path of ['/unknown', '/sandbox/not-a-scope', '/sandbox/' + app.body.scope]) {
     const result = await new Promise<{
@@ -171,6 +180,9 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     assert.match(result.headers['content-security-policy'] as string, /connect-src 'none'/);
     assert.equal(result.headers['cache-control'], 'no-store');
     assert.equal(result.headers['x-content-type-options'], 'nosniff');
+    assert.equal(result.headers['cross-origin-opener-policy'], 'same-origin');
+    assert.equal(result.headers['cross-origin-embedder-policy'], 'require-corp');
+    assert.equal(result.headers['cross-origin-resource-policy'], 'cross-origin');
   }
   await env.store.pool.query('UPDATE haip_bundles SET html=$1 WHERE tenant=$2 AND id=$3', [
     '<script>changed()</script>',

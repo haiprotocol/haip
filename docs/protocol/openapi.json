@@ -3889,31 +3889,28 @@
                 "execution",
                 "assignment"
               ]
-            }
-          },
-          "total": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
+            },
+            "maxItems": 50
           },
           "next_offset": {
             "anyOf": [
               {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 100000
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Next page offset, or null when no further page is available within the offset limit."
           }
         },
         "required": [
           "items",
-          "total",
           "next_offset"
-        ]
+        ],
+        "description": "A page of visible request summaries, without an exact total count."
       },
       "Material": {
         "type": "object",

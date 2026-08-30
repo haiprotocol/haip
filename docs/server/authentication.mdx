@@ -5,13 +5,15 @@ description: 'Separate machine credentials from the person who confirms the deci
 
 Machine bearer credentials identify producers, publishers or operators, each with a stable principal ID and tenant. They are not human sessions and cannot confirm decisions. A name supplied in a request never establishes a person's identity or ownership.
 
-Humans sign in through the OIDC authorisation-code flow with PKCE, state and nonce. The issuer/subject pair must map to exactly one enabled operator-directory entry. Login consumes one-use callback state and rotates the server-side session. Cookies are Secure, HttpOnly and host-only; they are not App credentials.
+Humans sign in through the OIDC authorisation-code flow with PKCE, state and nonce. The issuer/subject pair must map to exactly one enabled operator-directory entry. Login claims callback state once and rotates the server-side session atomically only after successful identity verification. Cookies are Secure, HttpOnly, host-only and `SameSite=Lax` so a legitimate provider GET redirect works; they are not App credentials.
+
+The callback must retain the authenticated-cookie state that initiated login. A new login using the same pending browser cookie replaces its generation, so a delayed earlier callback cannot complete against it. Failed login leaves the existing session usable; pending rotation cannot undo a completed logout. A callback URL from another browser is insufficient without its host-only login cookie.
 
 Human mutations require the authenticated browser session, a session CSRF token and the exact trusted Origin. Review links only locate resources; possessing a link, digest or App registration does not grant payload access or confirmation rights.
 
 A person proposes a schema-valid response and separately confirms that candidate's exact ID and digest. Replacing the proposal invalidates the previous confirmation target. An App can propose through `haip_propose_decision`, but the host retains the confirmation step.
 
-Production requires separate registrable sites for the trusted host and sandbox. Different sibling subdomains alone do not provide that boundary. Each tenant/publisher/bundle receives its own sandbox origin, with a scripts-only opaque inner frame and no arbitrary host operations.
+The trusted host and sandbox require HTTPS and separate registrable sites, except when both hosts are loopback in development. Different sibling subdomains alone do not provide that boundary. Each tenant/publisher/bundle receives its own sandbox origin, with a scripts-only opaque inner frame and no arbitrary host operations. Opener and embedder policies isolate the trusted page from cross-origin windows while allowing the explicitly permitted sandbox frame.
 
 Routes require verified requester/reviewer separation. Directory aliases of the same OIDC identity cannot satisfy self-review separation. Uncertain identity blocks authority; disabling or removing a reviewer permanently invalidates affected grants, and re-adding the reviewer does not restore them.
 

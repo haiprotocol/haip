@@ -14,6 +14,8 @@ Exact results are in the research manifest; [ACCEPTANCE.md](ACCEPTANCE.md) maps 
 The [review follow-up](REVIEW-FIXES.md) records the later fixes and expanded
 clean-copy and hosted coverage without treating historical run records as
 current-source evidence.
+The subsequent [worker and boundary follow-up](WORKER-FOLLOW-UP.md) records bounded
+cleanup and checkpoint continuation, draft pagination and remaining boundary fixes.
 
 [Hosted CI](https://github.com/haiprotocol/haip/actions/runs/33334308802) passed on
 `5f70557e7d8a0f29a1e0ea87170689d452375d31`: 46 tests, 25 cross-language comparisons,

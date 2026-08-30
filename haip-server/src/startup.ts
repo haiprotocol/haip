@@ -1,11 +1,21 @@
 import { createPublicKey, type KeyObject } from 'node:crypto';
 import type { PoolConfig } from 'pg';
 import { checkServerIdentity } from 'node:tls';
+import { isIP } from 'node:net';
 import { getDomain } from 'tldts';
 import { PROTOCOL_REVISION, type TrustManifest } from '@haip/protocol';
 import { validate } from './validation.js';
 
 type Mode = 'development' | 'production';
+
+function loopbackHost(host: string): boolean {
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '[::1]' ||
+    (isIP(host) === 4 && host.startsWith('127.'))
+  );
+}
 
 export function validateOrigins(mode: Mode, origin: string, sandboxPattern: string): void {
   const parts = sandboxPattern.split('{scope}');
@@ -26,7 +36,8 @@ export function validateOrigins(mode: Mode, origin: string, sandboxPattern: stri
     throw new Error(
       'Trusted host and sandbox require separate exact origins, with scope in a DNS label',
     );
-  if (mode === 'production') {
+  // Only disposable loopback development may relax HTTPS and site separation.
+  if (mode === 'production' || !loopbackHost(trusted.hostname) || !loopbackHost(sandbox.hostname)) {
     const trustedSite = getDomain(trusted.hostname, { allowPrivateDomains: true });
     const sandboxSite = getDomain(sandbox.hostname, { allowPrivateDomains: true });
     const alternateSite = getDomain(
@@ -42,7 +53,7 @@ export function validateOrigins(mode: Mode, origin: string, sandboxPattern: stri
       sandboxSite !== alternateSite
     )
       throw new Error(
-        'Production requires HTTPS origins on distinct registrable sites; scope must be a subdomain',
+        `${mode === 'production' ? 'Production' : 'Non-loopback development'} requires HTTPS origins on distinct registrable sites; scope must be a subdomain`,
       );
   }
 }

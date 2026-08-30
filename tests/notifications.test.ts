@@ -96,12 +96,30 @@ test('webhook destinations reject private, mapped and loopback addresses', async
     '10.0.0.1',
     '172.16.0.1',
     '192.168.1.1',
+    '192.88.99.0',
+    '192.88.99.1',
+    '192.88.99.2',
+    '192.88.99.255',
     '169.254.169.254',
     '::1',
     '::ffff:127.0.0.1',
     'fc00::1',
   ])
     assert.equal(publicAddress(ip), false, ip);
+  for (const ip of ['192.88.98.255', '192.88.100.0']) assert.equal(publicAddress(ip), true, ip);
+  let requested = false;
+  await assert.rejects(
+    () =>
+      deliverWebhook('https://relay.example.invalid/', {}, ['relay.example.invalid'], {
+        resolve: (async () => [{ address: '192.88.99.1', family: 4 }]) as any,
+        request: (() => {
+          requested = true;
+          throw new Error('A relay address must never be contacted');
+        }) as any,
+      }),
+    /webhook_address_rejected/,
+  );
+  assert.equal(requested, false);
   await assert.rejects(
     () => deliverWebhook('https://localhost/', {}, ['localhost']),
     /webhook_address_rejected/,

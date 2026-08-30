@@ -5,6 +5,10 @@ at `7e58dece5fe4c93afa33fe42cbc062e8be102141`. The protocol and packages remain
 unreleased `2.0.0-draft.1`. No Plasm repository, package publication or deployment
 is included.
 
+The later review at `67b6f17` is addressed in the
+[worker and boundary follow-up](WORKER-FOLLOW-UP.md). Results below remain the
+record of this first review pass.
+
 ## Confirmed findings and changes
 
 | Finding                                                           | Change and regression evidence                                                                                                                                                                                                                                                                                                  |

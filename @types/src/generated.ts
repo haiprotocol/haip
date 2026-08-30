@@ -427,7 +427,13 @@ export interface Assignment {
   reviewer: string;
   expires_at: string;
 }
+/**
+ * A page of visible request summaries, without an exact total count.
+ */
 export interface RequestList {
+  /**
+   * @maxItems 50
+   */
   items: {
     id: string;
     summary: string;
@@ -455,7 +461,9 @@ export interface RequestList {
       | 'abandoned';
     assignment: Assignment | null;
   }[];
-  total: number;
+  /**
+   * Next page offset, or null when no further page is available within the offset limit.
+   */
   next_offset: number | null;
 }
 export interface Material {

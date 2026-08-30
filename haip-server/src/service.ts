@@ -23,6 +23,7 @@ import type { Store, Tx } from './store.js';
 import type { Principal, RouteConfig, ServiceConfig } from './config.js';
 import { missing, requireThat } from './errors.js';
 import { validate, validateResponseSchema } from './validation.js';
+import { requireBoundBundle } from './bundle.js';
 
 export interface RequestData {
   request: DecisionRequest;
@@ -199,6 +200,7 @@ export class ReviewService {
       p.tenant,
     ]);
     const t = rows[0];
+    if (!t) throw missing();
     const seq = Number(t.audit_sequence) + 1;
     requireThat(Number.isSafeInteger(seq), 503, 'ledger_exhausted');
     const record = this.signed(type, payload, p, now, request);
@@ -479,10 +481,6 @@ export class ReviewService {
         (r.data->'request'->>'review_deadline' <= $3 OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
       const visible = `r.tenant=$1 AND ${access} AND ($4::text IS NULL OR (${decision})=$4)`;
       const parameters = [p.tenant, p.id, iso(now), filter ?? null];
-      const total = Number(
-        (await tx.query(`SELECT count(*) FROM haip_requests r WHERE ${visible}`, parameters))
-          .rows[0].count,
-      );
       const { rows } = await tx.query(
         `SELECT r.id,r.data->'request'->>'summary' AS summary,r.data->'request'->>'review_deadline' AS deadline,
          ${decision} AS decision,r.data->>'audit_state' AS audit,r.data->>'execution_state' AS execution,
@@ -490,10 +488,13 @@ export class ReviewService {
               WHEN r.data->>'grant_state' IN ('pending_anchor','available') AND ${privateDue} THEN 'revoked'
               ELSE r.data->>'grant_state' END AS grant,
          CASE WHEN r.data->'review_claim'->>'expires_at' > $3 THEN r.data->'review_claim' ELSE NULL END AS assignment
-         FROM haip_requests r WHERE ${visible} ORDER BY r.created_at DESC,r.id LIMIT 50 OFFSET $5`,
+         FROM haip_requests r WHERE ${visible} ORDER BY r.created_at DESC,r.id LIMIT 51 OFFSET $5`,
         [...parameters, offset],
       );
-      return { items: rows, total, next_offset: offset + 50 < total ? offset + 50 : null };
+      return {
+        items: rows.slice(0, 50),
+        next_offset: rows.length > 50 && offset + 50 <= 100000 ? offset + 50 : null,
+      };
     });
   }
   private async preflight(
@@ -1623,6 +1624,7 @@ export class ReviewService {
               )
             ).rows[0]
           : undefined;
+      if (row.material && binding) requireBoundBundle(bundle, p.tenant, binding);
       return {
         request: row.data.request,
         request_digest: row.data.request_digest,

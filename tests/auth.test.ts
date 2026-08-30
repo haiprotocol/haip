@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { digestBytes } from '@haip/protocol/crypto';
 import { environment } from './environment.js';
 
 async function begin(
@@ -13,7 +14,7 @@ async function begin(
     headers: oldCookie ? { Cookie: oldCookie } : {},
   });
   assert.equal(login.status, 302);
-  const cookie = login.headers.getSetCookie()[0]!.split(';')[0]!;
+  const loginCookie = login.headers.getSetCookie()[0]!.split(';')[0]!;
   const provider = new URL(login.headers.get('location')!);
   alter?.(provider.searchParams);
   const grant = await fetch(provider.origin + '/authorize', {
@@ -22,13 +23,141 @@ async function begin(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ query: provider.searchParams.toString(), subject }),
   });
-  return { cookie, callback: grant.headers.get('location')! };
+  return {
+    loginCookie,
+    cookie: [
+      loginCookie,
+      ...(oldCookie
+        ?.split(';')
+        .map((value) => value.trim())
+        .filter((value) => !value.startsWith('__Host-haip-login=')) ?? []),
+    ].join('; '),
+    callback: grant.headers.get('location')!,
+  };
 }
 const fetchCallback = (flow: { cookie: string; callback: string }) =>
   fetch(flow.callback, {
     redirect: 'manual',
     headers: { Cookie: flow.cookie },
   });
+
+async function holdExchange(
+  env: Awaited<ReturnType<typeof environment>>,
+  flow: { cookie: string; callback: string },
+  run: (finish: () => Promise<Response>) => Promise<void>,
+) {
+  const originalFetch = globalThis.fetch;
+  const reached = Promise.withResolvers<void>(),
+    release = Promise.withResolvers<void>();
+  const code = new URL(flow.callback).searchParams.get('code');
+  let pending: Promise<Response> | undefined;
+  const timer = setTimeout(() => reached.reject(new Error('Token exchange was not reached')), 5000);
+  timer.unref();
+  try {
+    globalThis.fetch = async (input, options) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const response = await originalFetch(input, options);
+      if (
+        url === env.service.config.oidc.issuer + '/token' &&
+        new URLSearchParams(String(options?.body)).get('code') === code
+      ) {
+        reached.resolve();
+        await release.promise;
+      }
+      return response;
+    };
+    pending = fetchCallback(flow);
+    await reached.promise;
+    clearTimeout(timer);
+    await run(async () => {
+      release.resolve();
+      return pending!;
+    });
+  } finally {
+    clearTimeout(timer);
+    release.resolve();
+    globalThis.fetch = originalFetch;
+    await pending?.catch(() => undefined);
+  }
+}
+
+test('new pending login generations prevent delayed anonymous and expired-session callbacks replacing a newer sign-in', async () => {
+  const env = await environment();
+  try {
+    for (const expired of [false, true]) {
+      let initialCookie: string | undefined;
+      if (expired) {
+        initialCookie = (await env.login()).cookie;
+        await env.store.pool.query(
+          "UPDATE haip_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE token_hash=$1",
+          [digestBytes(initialCookie.slice('__Host-haip='.length))],
+        );
+      }
+      const slow = await begin(env, initialCookie);
+      await holdExchange(env, slow, async (finish) => {
+        const fresh = await begin(env, slow.cookie, undefined, 'reviewer2');
+        assert.equal(
+          fresh.loginCookie,
+          slow.loginCookie,
+          'the same browser retains its pending flow handle',
+        );
+        assert.notEqual(
+          new URL(fresh.callback).searchParams.get('state'),
+          new URL(slow.callback).searchParams.get('state'),
+        );
+        assert.equal(
+          (await fetchCallback(slow)).status,
+          401,
+          'an old state cannot consume the new generation',
+        );
+        const accepted = await fetchCallback(fresh);
+        assert.equal(accepted.status, 302);
+        const currentCookie = accepted.headers
+          .getSetCookie()
+          .find((value) => value.startsWith('__Host-haip='))!
+          .split(';')[0]!;
+        const stale = await finish();
+        assert.equal(
+          stale.status,
+          401,
+          'the delayed callback must recheck its generation after OIDC I/O',
+        );
+        assert.equal(
+          stale.headers.getSetCookie().length,
+          0,
+          'the stale response must not alter either browser cookie',
+        );
+        const current = await fetch(env.origin + '/auth/session', {
+          headers: { Cookie: currentCookie },
+        });
+        assert.equal(current.status, 200);
+        assert.equal((await current.json()).subject, 'reviewer2');
+      });
+    }
+  } finally {
+    await env.close();
+  }
+});
+
+test('a refused newer login does not revive an older claimed generation or retire the existing session', async () => {
+  const env = await environment();
+  try {
+    const existing = await env.login();
+    const slow = await begin(env, existing.cookie);
+    await holdExchange(env, slow, async (finish) => {
+      const refused = await begin(env, slow.cookie, undefined, 'not-in-the-directory');
+      assert.equal((await fetchCallback(refused)).status, 403);
+      assert.equal((await finish()).status, 401);
+      assert.equal(
+        (await fetch(env.origin + '/auth/session', { headers: { Cookie: existing.cookie } }))
+          .status,
+        200,
+      );
+    });
+  } finally {
+    await env.close();
+  }
+});
 
 test('OIDC state, nonce, PKCE, one-use callbacks and session rotation fail closed through HTTP', async () => {
   const env = await environment();
@@ -41,16 +170,16 @@ test('OIDC state, nonce, PKCE, one-use callbacks and session rotation fail close
     const changed = new URL(invalidState.callback);
     changed.searchParams.set('state', 'unrelated-state');
     assert.notEqual((await fetchCallback({ ...invalidState, callback: changed.href })).status, 302);
-    assert.equal(
-      (await fetchCallback(invalidState)).status,
-      401,
-      'failed callback also consumes its login state',
+    const unclaimed = await env.store.pool.query(
+      "SELECT data->'login' ? 'claimed' AS claimed FROM haip_sessions WHERE token_hash=$1",
+      [digestBytes(invalidState.loginCookie.slice('__Host-haip-login='.length))],
     );
     assert.equal(
-      await sessionStatus(),
-      200,
-      'wrong state and replay preserve the existing session',
+      unclaimed.rows[0].claimed,
+      false,
+      'a stale or unrelated state cannot claim the current generation',
     );
+    assert.equal(await sessionStatus(), 200, 'wrong state preserves the existing session');
     for (const [name, value] of [
       ['nonce', 'wrong-nonce'],
       ['code_challenge', 'wrong-challenge'],
@@ -95,7 +224,8 @@ test('OIDC state, nonce, PKCE, one-use callbacks and session rotation fail close
       200,
     );
     assert.equal(
-      (await fetch(env.origin + '/auth/session', { headers: { Cookie: valid.cookie } })).status,
+      (await fetch(env.origin + '/auth/session', { headers: { Cookie: valid.loginCookie } }))
+        .status,
       401,
     );
     assert.equal(await sessionStatus(), 401, 'success retires the session bound at login start');
@@ -103,6 +233,188 @@ test('OIDC state, nonce, PKCE, one-use callbacks and session rotation fail close
       await sessionStatus(unrelated.cookie),
       200,
       'other sessions for the same human remain valid',
+    );
+  } finally {
+    await env.close();
+  }
+});
+
+test('callback requires the same authenticated-cookie state that initiated login, before token exchange', async () => {
+  const env = await environment();
+  try {
+    const existing = await env.login(),
+      other = await env.login('reviewer2');
+    for (const item of [
+      { label: 'missing authenticated cookie', before: existing.cookie, current: undefined },
+      { label: 'different authenticated cookie', before: existing.cookie, current: other.cookie },
+      {
+        label: 'anonymous login transplanted into an authenticated browser',
+        before: undefined,
+        current: existing.cookie,
+      },
+    ]) {
+      const flow = await begin(env, item.before);
+      const loginToken = flow.loginCookie.slice('__Host-haip-login='.length);
+      const stored = (
+        await env.store.pool.query('SELECT data FROM haip_sessions WHERE token_hash=$1', [
+          digestBytes(loginToken),
+        ])
+      ).rows[0].data.login;
+      const rejected = await fetchCallback({
+        ...flow,
+        cookie: [flow.loginCookie, item.current].filter(Boolean).join('; '),
+      });
+      assert.equal(rejected.status, 401, item.label);
+      assert.equal(
+        rejected.headers.getSetCookie().some((cookie) => cookie.startsWith('__Host-haip=')),
+        false,
+      );
+      assert.equal(
+        (await fetchCallback(flow)).status,
+        401,
+        'binding failure consumes the one-use login state',
+      );
+      // The fixture code is still usable: refusal happened before any token exchange.
+      const token = await fetch(env.service.config.oidc.issuer + '/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: new URL(flow.callback).searchParams.get('code')!,
+          client_id: 'haip-test',
+          client_secret: 'test-secret',
+          redirect_uri: env.origin + '/auth/callback',
+          code_verifier: stored.verifier,
+        }),
+      });
+      assert.equal(
+        token.status,
+        200,
+        'the refused callback must not redeem the identity-provider code',
+      );
+      for (const human of [existing, other])
+        assert.equal(
+          (await fetch(env.origin + '/auth/session', { headers: { Cookie: human.cookie } })).status,
+          200,
+        );
+    }
+  } finally {
+    await env.close();
+  }
+});
+
+test('callback finishing after another login retires its initiating session cannot overwrite the replacement', async () => {
+  const env = await environment();
+  const originalFetch = globalThis.fetch;
+  const tokenReceived = Promise.withResolvers<void>(),
+    releaseToken = Promise.withResolvers<void>();
+  let delayed: Promise<Response> | undefined;
+  try {
+    const existing = await env.login();
+    const slow = await begin(env, existing.cookie);
+    const code = new URL(slow.callback).searchParams.get('code');
+    globalThis.fetch = async (input, options) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const response = await originalFetch(input, options);
+      if (
+        url === env.service.config.oidc.issuer + '/token' &&
+        new URLSearchParams(String(options?.body)).get('code') === code
+      ) {
+        tokenReceived.resolve();
+        await releaseToken.promise;
+      }
+      return response;
+    };
+    delayed = fetchCallback(slow);
+    await Promise.race([
+      tokenReceived.promise,
+      new Promise<void>((_resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('The first callback never reached token exchange')),
+          5000,
+        );
+        timer.unref();
+        tokenReceived.promise.then(() => clearTimeout(timer));
+      }),
+    ]);
+    const replacement = await fetchCallback(
+      await begin(env, existing.cookie, undefined, 'reviewer2'),
+    );
+    assert.equal(replacement.status, 302);
+    const replacementCookie = replacement.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith('__Host-haip='))!
+      .split(';')[0]!;
+    releaseToken.resolve();
+    const stale = await delayed;
+    assert.equal(
+      stale.status,
+      401,
+      'a callback whose original cookie was valid at arrival must recheck retirement atomically',
+    );
+    assert.equal(
+      stale.headers.getSetCookie().some((cookie) => cookie.startsWith('__Host-haip=')),
+      false,
+    );
+    const current = await fetch(env.origin + '/auth/session', {
+      headers: { Cookie: replacementCookie },
+    });
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).subject, 'reviewer2');
+    assert.equal(
+      (await fetch(env.origin + '/auth/session', { headers: { Cookie: existing.cookie } })).status,
+      401,
+    );
+    assert.equal((await fetchCallback(slow)).status, 401);
+  } finally {
+    releaseToken.resolve();
+    globalThis.fetch = originalFetch;
+    await delayed?.catch(() => undefined);
+    await env.close();
+  }
+});
+
+test('logout invalidates a pending rotation while a fresh login can recover from an already expired cookie', async () => {
+  const env = await environment();
+  try {
+    const human = await env.login(),
+      pending = await begin(env, human.cookie);
+    const logout = await fetch(env.origin + '/auth/logout', {
+      method: 'POST',
+      headers: { Cookie: human.cookie, Origin: env.origin, 'X-CSRF-Token': human.csrf },
+    });
+    assert.equal(logout.status, 204);
+    assert.equal(
+      (await fetchCallback(pending)).status,
+      401,
+      'a pending callback cannot undo a completed logout',
+    );
+    const expired = await env.login();
+    await env.store.pool.query(
+      "UPDATE haip_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE token_hash=$1",
+      [digestBytes(expired.cookie.slice('__Host-haip='.length))],
+    );
+    const fresh = await fetchCallback(await begin(env, expired.cookie));
+    assert.equal(fresh.status, 302, 'an expired cookie must not prevent starting a fresh sign-in');
+    const cookie = fresh.headers
+      .getSetCookie()
+      .find((value) => value.startsWith('__Host-haip='))!
+      .split(';')[0]!;
+    assert.equal(
+      (await fetch(env.origin + '/auth/session', { headers: { Cookie: cookie } })).status,
+      200,
+    );
+    const malformed = await fetch(env.origin + '/auth/callback', {
+      redirect: 'manual',
+      headers: {
+        Cookie: '__Host-haip-login=' + cookie.slice('__Host-haip='.length) + '; ' + cookie,
+      },
+    });
+    assert.equal(malformed.status, 401);
+    assert.equal(
+      (await fetch(env.origin + '/auth/session', { headers: { Cookie: cookie } })).status,
+      200,
+      'only login records may be consumed as callback state',
     );
   } finally {
     await env.close();

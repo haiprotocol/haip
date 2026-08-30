@@ -46,9 +46,11 @@ Do not edit applied migrations. A binary downgrade must refuse a newer schema.
 
 Production checks origin separation, explicit anchoring configuration and trust before
 database migrations or listeners, including during bootstrap. Trusted and sandbox
-origins require different registrable sites, including private public-suffix entries;
+origins require HTTPS and different registrable sites, including private public-suffix entries;
 sibling subdomains do not suffice. The scope placeholder cannot change the registrable
-site. The trust manifest must match the issuer and protocol revision, contain unique
+site. These origin checks also apply to development unless both hosts are loopback;
+setting development mode does not make a remote or shared site safe.
+The trust manifest must match the issuer and protocol revision, contain unique
 public key IDs and match the active Ed25519 private key within its validity window.
 Historical public keys can remain for verification after their signing windows close.
 
@@ -73,12 +75,23 @@ Register the OIDC redirect URI as `<HAIP_ORIGIN>/auth/callback`. Provision each 
 issuer and subject through the operator directory; producer assertions do not establish
 human ownership. OIDC identity must map to exactly one enabled directory entry.
 Sessions use host-only Secure/HttpOnly cookies, state, nonce, PKCE and CSRF protection.
+The login cookie remains `SameSite=Lax` for the provider's top-level GET redirect.
+Callback state is bound to the authenticated-cookie state at login start. Starting
+another login with the same pending browser cookie replaces its generation; a callback
+already exchanging a code must still own that generation when creating the session.
+Session retirement and replacement are atomic. Failed login preserves the existing
+session, and a pending rotation cannot undo a completed logout. The login endpoint
+does not log anyone out merely because it is visited.
 Production requires HTTPS and requester/reviewer separation. Do not weaken cookie
 flags to run on arbitrary development hostnames; localhost fixtures support them.
 
 To initialise a new isolated tenant, also set `HAIP_BOOTSTRAP_TENANT`,
-`HAIP_BOOTSTRAP_OPERATOR` and a random `HAIP_BOOTSTRAP_TOKEN` of at least 32 URL-safe
-characters, then run:
+`HAIP_BOOTSTRAP_OPERATOR` and `HAIP_BOOTSTRAP_TOKEN` generated from at least 32 bytes
+from a cryptographically secure random source. Encode it as canonical unpadded
+base64url (43 characters for 32 bytes) or hexadecimal (64 characters for 32 bytes),
+with a maximum of 200 encoded characters. Short inputs and obvious repeated-byte
+fixtures are refused; validation cannot prove that a supplied value is random.
+Never use a password or template. Then run:
 
 ```sh
 node haip-server/dist/main.js --bootstrap
@@ -96,6 +109,14 @@ base-36 DNS label from a SHA-256 digest. Keep sandbox cookies unset. CSP, frame
 ancestors, exact message sources and the opaque scripts-only inner frame are mandatory.
 The trusted confirmation origin must not be frameable. The static host never interprets
 producer text as HTML or Markdown. App code belongs only in the isolated frame.
+The trusted host uses `Cross-Origin-Opener-Policy: same-origin`,
+`Cross-Origin-Embedder-Policy: require-corp` and `Cross-Origin-Resource-Policy: same-origin`.
+The sandbox also requires the embedder policy, with `Cross-Origin-Resource-Policy:
+cross-origin` to permit its intended embedding; CSP still limits its frame ancestor.
+Keep these response headers at the proxy, including on error responses.
+`/review/:id` deliberately checks authenticated request visibility before rendering,
+returning 404 for an unknown or inaccessible request. This database read derives its
+exact sandbox frame policy; a generic inbox page does not need a request lookup.
 
 ## Decisions, quotas and notifications
 
@@ -176,6 +197,10 @@ events. Public checkpoints contain only opaque ledger/generation IDs, sequence, 
 and signing metadata. The adapter conditionally creates the object, verifies its exact
 version/content and compliance retention for 90 days from the signed checkpoint time.
 Conflicting versions or deleted versions fence admission. Identical retries are safe.
+If a checkpoint covers more than 50 pending decisions, each transaction processes
+one page and persists a 30-second delay before continuing that job. The next page
+re-verifies independent storage; a stored acceptance receipt is diagnostic, not
+authority. This delay survives worker restart and never renews a grant deadline.
 
 At startup the worker reconciles retained independent checkpoints against local chain
 heads. A mismatch blocks execution. A matching retained prefix does not prove that a
@@ -214,7 +239,19 @@ retention to seven further days but reconciliation can never extend it. Review-o
 private material expires at its captured review maximum. Request schema and response
 copies are removed with private material; signed commitments survive to audit expiry.
 
-Cleanup runs every 15 minutes. Reads reject expired private material immediately.
+Cleanup performs one bounded pass before opening listeners, then continues after
+one second while that pass has unvisited work. Once caught up, it runs every
+15 minutes. Retention runs do not overlap. Each call examines at most 500 due
+requests per tenant in pages of 50, releasing the tenant lock between pages.
+Each of seven housekeeping collections runs once per tenant and changes at most
+500 rows; expired sessions are collected once globally in a batch of at most 500.
+These limits are per tenant, not a service-wide startup time guarantee.
+
+An unchanged due page cannot loop forever or hide later requests: a cursor skips
+inspected rows during the bounded pass. A wholly stalled set ends that pass and is
+retried at the ordinary interval, with a deduplicated `retention_stalled` incident.
+Investigate the captured record and import provenance; never rewrite signed
+deadlines to silence an incident. Reads reject expired private material immediately.
 Unused bundles are cleared after 15 minutes when no retained request refers to them.
 Early discard invalidates unused grants and prevents fresh permits, including on an
 already consumed claim. Already issued permits keep only their original bounded

@@ -7,7 +7,9 @@ Authenticate with the tenant's operator credential to read `GET /v2/admin/metric
 
 In-process HTTP counters reset at restart. Database-backed gauges and tenant-scoped worker operation stamps survive it. One tenant's failure must not appear as another tenant's status. Operator ledger reads use `GET /v2/admin/ledger?after={sequence}` and return the tenant's original audit records.
 
-The inbox uses 50-item pages with offset, total and next-offset fields; offsets are integers from 0 to 100,000. Visibility and state filtering happen in SQL before bounded records are returned. Status, material and export reads project current expiry without writing lifecycle events; the retention worker records persistent transitions separately as `haip.retention`.
+The draft inbox returns `{items, next_offset}` with at most 50 items and no exact total. It reads one extra row to detect a next page; offsets are integers from 0 to 100,000, and a returned next offset never exceeds that cap. Visibility and state filtering happen in SQL. Offset pagination and filtering may still inspect earlier rows; this removes the separate full-count query, not all scan cost. Status, material and export reads project current expiry without writing lifecycle events; the retention worker records persistent transitions separately as `haip.retention`.
+
+Cleanup examines at most 500 due requests per tenant per call, releasing the tenant lock between pages of 50. Each housekeeping collection changes at most 500 rows once per tenant; expired sessions are collected once globally. Further unvisited work schedules a continuation after one second, without overlapping retention runs. A stalled page advances the pass cursor and records a deduplicated `retention_stalled` incident; it cannot keep startup in an endless loop. Completed or wholly stalled passes return to the ordinary 15-minute interval. Investigate stalled records without editing their signed deadlines.
 
 Alert on admission fencing, persistent delivery failures, checkpoint lag beyond five minutes, absent retention progress beyond 30 minutes and unresolved execution past its captured window. Adjust reviewer-pressure thresholds to staffing. `deployment/alerts.yml` is an example, not an installed alerting service.
 
@@ -16,5 +18,7 @@ A worker or provider error is not proof that no remote write or external effect 
 SMTP acceptance proves neither delivery nor reading. Webhook consumers must persist and deduplicate before acknowledgement, then fetch current status. Keep responses, recipient addresses and credential material out of metric labels and alert messages.
 
 In development, an unconfigured anchor leaves checkpoint work pending without consuming SMTP or webhook delivery slots. Production requires an explicitly configured independent anchor before startup.
+
+A checkpoint covering more than 50 decisions waits 30 seconds between pages and re-verifies independent storage each time. The delay is stored in the outbox and survives restart. Neither queued work nor storage outages extend captured grant times.
 
 External executors supply their own policy, destination, credential, evidence-storage and dispatch-window monitoring. HAIP cannot observe an effect that was hidden from it.

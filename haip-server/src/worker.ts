@@ -6,7 +6,24 @@ import type { AnchorStore } from './anchor.js';
 import { deliverWebhook } from './delivery.js';
 import { requireThat } from './errors.js';
 import { RecoveryGuard } from './recovery.js';
+import type { Tx } from './store.js';
+
+const maintenancePageSize = 50;
+const maintenancePageLimit = 10;
+const collectionLimit = 500;
+interface MaintenanceCursor {
+  at: string;
+  id: string;
+}
+export interface CleanupResult {
+  examined: number;
+  changed: number;
+  stalled: number;
+  /** Unvisited work in this bounded pass, rather than previously inspected stalled rows. */
+  more: boolean;
+}
 export class OutboxWorker {
+  private readonly maintenanceCursors = new Map<string, MaintenanceCursor>();
   constructor(
     readonly service: ReviewService,
     readonly anchor?: AnchorStore,
@@ -25,6 +42,7 @@ export class OutboxWorker {
   }
   async reconcile(): Promise<void> {
     const { service: s } = this;
+    this.maintenanceCursors.clear();
     if (s.recovery) s.recovery = new RecoveryGuard(s, s.recovery.store);
     for (const t of (await s.store.pool.query('SELECT * FROM haip_tenants')).rows) {
       await s.store.transaction(t.id, async (tx) => {
@@ -90,8 +108,8 @@ export class OutboxWorker {
     const s = this.service;
     const jobs = (
       await s.store.pool.query(
-        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending' AND next_at<=clock_timestamp()
-         ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"} ORDER BY created_at,id LIMIT 50`,
+        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending' AND next_at<=statement_timestamp()
+         ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"} ORDER BY next_at,created_at,id LIMIT 50`,
         [tenant],
       )
     ).rows;
@@ -164,6 +182,11 @@ export class OutboxWorker {
             );
             if (remaining.rowCount) {
               // A newer checkpoint may cover a backlog; finish it in bounded transactions.
+              // The receipt is diagnostic only: the next page re-verifies independent storage.
+              await tx.query(
+                "UPDATE haip_outbox SET attempts=attempts+1,accepted=$2,error=NULL,next_at=clock_timestamp()+interval '30 seconds' WHERE id=$1",
+                [item.id, JSON.stringify(acceptance)],
+              );
               completed += rows.length;
               return;
             }
@@ -278,24 +301,57 @@ export class OutboxWorker {
       });
     return completed;
   }
-  async cleanup(): Promise<void> {
+  async cleanup(): Promise<CleanupResult> {
+    const result: CleanupResult = { examined: 0, changed: 0, stalled: 0, more: false };
+    // Expired sessions belong to the whole service, not to every tenant's request page.
+    const sessions = await this.collect(
+      this.service.store.pool,
+      'haip_sessions',
+      'expires_at<=statement_timestamp()',
+      [],
+      'expires_at,token_hash',
+    );
+    result.more = sessions.more;
     for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
       .rows)
       await this.operation(t.id, 'retention', async () => {
-        // Release the tenant lock between pages so review and confirmation keep making progress.
-        while (await this.sweep(t.id)) {}
+        for (let page = 0; page < maintenancePageLimit; page++) {
+          const swept = await this.sweep(t.id, this.maintenanceCursors.get(t.id));
+          result.examined += swept.examined;
+          result.changed += swept.changed;
+          result.stalled += swept.stalled;
+          if (swept.next) this.maintenanceCursors.set(t.id, swept.next);
+          else this.maintenanceCursors.delete(t.id);
+          // A stalled page is skipped on the next bounded continuation. Once the end
+          // is reached, these rows cannot themselves request another immediate pass.
+          if (!swept.more || !swept.changed || page + 1 === maintenancePageLimit) {
+            result.more ||= swept.more;
+            break;
+          }
+        }
+        const housekeepingMore = await this.housekeeping(t.id);
+        result.more ||= housekeepingMore;
       });
+    return result;
   }
-  private async sweep(tenant: string): Promise<boolean> {
+  private async sweep(
+    tenant: string,
+    cursor?: MaintenanceCursor,
+  ): Promise<CleanupResult & { next?: MaintenanceCursor }> {
     const s = this.service,
       t = { id: tenant };
     return s.store.transaction(t.id, async (tx, now) => {
+      const values: unknown[] = [t.id, now.toISOString()];
+      if (cursor) values.push(cursor.at, cursor.id);
       const due = await tx.query(
-        `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
-           WHERE tenant=$1 AND maintenance_at <= $2 ORDER BY maintenance_at,id LIMIT 50`,
-        [t.id, now.toISOString()],
+        `SELECT tenant,id,producer,route,data,retained_bytes,maintenance_at,NULL::jsonb AS material FROM haip_requests
+         WHERE tenant=$1 AND maintenance_at <= $2 ${cursor ? 'AND (maintenance_at,id)>($3,$4::uuid)' : ''}
+         ORDER BY maintenance_at,id LIMIT ${maintenancePageSize}`,
+        values,
       );
+      let changed = 0;
       for (const row of due.rows as RequestRow[]) {
+        const revision = row.data.revision;
         const p = (
           await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
             t.id,
@@ -322,38 +378,118 @@ export class OutboxWorker {
             [t.id, row.id],
           );
           await tx.query('DELETE FROM haip_requests WHERE tenant=$1 AND id=$2', [t.id, row.id]);
-        }
+          changed++;
+        } else if (row.data.revision !== revision) changed++;
       }
-      await tx.query(
-        "UPDATE haip_bundles b SET html=NULL,retained_bytes=0 WHERE b.tenant=$1 AND b.html IS NOT NULL AND b.created_at<clock_timestamp()-interval '15 minutes' AND NOT EXISTS (SELECT 1 FROM haip_requests r WHERE r.tenant=b.tenant AND r.material IS NOT NULL AND r.data->'request'->'review'->'bundle'->>'id'=b.id::text)",
-        [t.id],
-      );
-      await tx.query(
-        "UPDATE haip_audit SET record=NULL WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
-        [t.id],
-      );
-      await tx.query(
-        "DELETE FROM haip_outbox WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
-        [t.id],
-      );
-      await tx.query(
-        "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND created_at<clock_timestamp()-interval '90 days'",
-        [t.id],
-      );
-      await tx.query(
-        "DELETE FROM haip_notification_windows WHERE tenant=$1 AND hour<clock_timestamp()-interval '1 day'",
-        [t.id],
-      );
-      await tx.query('DELETE FROM haip_creation_windows WHERE tenant=$1 AND day<$2', [
-        t.id,
-        now.toISOString().slice(0, 10),
-      ]);
-      await tx.query('DELETE FROM haip_bundle_windows WHERE tenant=$1 AND day<$2', [
-        t.id,
-        now.toISOString().slice(0, 10),
-      ]);
-      await tx.query('DELETE FROM haip_sessions WHERE expires_at<=clock_timestamp()');
-      return due.rows.length === 50;
+      const last = due.rows.at(-1);
+      const more =
+        !!last &&
+        !!(
+          await tx.query(
+            'SELECT 1 FROM haip_requests WHERE tenant=$1 AND maintenance_at<=$2 AND (maintenance_at,id)>($3,$4::uuid) LIMIT 1',
+            [t.id, now.toISOString(), last.maintenance_at, last.id],
+          )
+        ).rowCount;
+      const stalled = due.rows.length - changed;
+      if (stalled)
+        await tx.query(
+          `INSERT INTO haip_incidents(tenant,code,details)
+         SELECT $1,'retention_stalled',jsonb_build_object('first_seen',$2::text,'rows',$3::integer)
+         WHERE NOT EXISTS (SELECT 1 FROM haip_incidents WHERE tenant=$1 AND code='retention_stalled')`,
+          [t.id, now.toISOString(), stalled],
+        );
+      return {
+        examined: due.rows.length,
+        changed,
+        stalled,
+        more,
+        ...(more ? { next: { at: last.maintenance_at, id: last.id } } : {}),
+      };
     });
   }
+  private async housekeeping(tenant: string): Promise<boolean> {
+    return this.service.store.transaction(tenant, async (tx, now) => {
+      let more = false;
+      const older = (milliseconds: number) => new Date(now.getTime() - milliseconds);
+      const run = async (
+        table: CollectionTable,
+        where: string,
+        values: unknown[],
+        order: string,
+        update?: string,
+      ) => {
+        const result = await this.collect(tx, table, where, values, order, update);
+        more ||= result.more;
+      };
+      await run(
+        'haip_bundles',
+        "retained.tenant=$1 AND html IS NOT NULL AND created_at<$2 AND NOT EXISTS (SELECT 1 FROM haip_requests r WHERE r.tenant=retained.tenant AND r.material IS NOT NULL AND r.data->'request'->'review'->'bundle'->>'id'=retained.id::text)",
+        [tenant, older(15 * 60000)],
+        'created_at,id',
+        'html=NULL,retained_bytes=0',
+      );
+      await run(
+        'haip_audit',
+        'tenant=$1 AND record IS NOT NULL AND created_at<$2',
+        [tenant, older(90 * 86400000)],
+        'created_at,sequence',
+        'record=NULL',
+      );
+      await run(
+        'haip_outbox',
+        'tenant=$1 AND created_at<$2',
+        [tenant, older(90 * 86400000)],
+        'created_at,id',
+      );
+      await run(
+        'haip_idempotency',
+        'tenant=$1 AND result IS NOT NULL AND created_at<$2',
+        [tenant, older(90 * 86400000)],
+        'created_at',
+        'result=NULL',
+      );
+      await run(
+        'haip_notification_windows',
+        'tenant=$1 AND hour<$2',
+        [tenant, older(86400000)],
+        'hour',
+      );
+      const day = now.toISOString().slice(0, 10);
+      await run('haip_creation_windows', 'tenant=$1 AND day<$2', [tenant, day], 'day');
+      await run('haip_bundle_windows', 'tenant=$1 AND day<$2', [tenant, day], 'day');
+      return more;
+    });
+  }
+  /** Only fixed internal table names/expressions reach this helper; values stay parameterised. */
+  private async collect(
+    queryable: Pick<Tx, 'query'>,
+    table: CollectionTable,
+    where: string,
+    values: unknown[],
+    order: string,
+    update?: string,
+  ): Promise<{ changed: number; more: boolean }> {
+    const result = await queryable.query(
+      `WITH candidates AS MATERIALIZED (
+         SELECT ctid FROM ${table} retained WHERE ${where} ORDER BY ${order}
+         LIMIT ${collectionLimit + 1} FOR UPDATE SKIP LOCKED
+       ), changed AS (
+         ${update ? `UPDATE ${table} SET ${update}` : `DELETE FROM ${table}`}
+         WHERE ctid IN (SELECT ctid FROM candidates LIMIT ${collectionLimit}) RETURNING 1
+       ) SELECT (SELECT count(*)::integer FROM changed) AS changed,
+         (SELECT count(*) FROM candidates)>${collectionLimit} AS more`,
+      values,
+    );
+    return result.rows[0];
+  }
 }
+
+type CollectionTable =
+  | 'haip_sessions'
+  | 'haip_bundles'
+  | 'haip_audit'
+  | 'haip_outbox'
+  | 'haip_idempotency'
+  | 'haip_notification_windows'
+  | 'haip_creation_windows'
+  | 'haip_bundle_windows';

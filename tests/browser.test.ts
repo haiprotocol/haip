@@ -148,7 +148,16 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
     (await env.api('/v2/requests/' + created.body.request.id)).body.decision_state,
     'pending',
   );
+  // Keep the isolated frame on screen during capture: a full-page image alone can
+  // omit its pixels after the host scrolls to confirmation. Do not alter app content.
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({
+    width: viewport.width,
+    height: await page.evaluate(() => document.documentElement.scrollHeight),
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await inner.getByText('Stored review payload', { exact: true }).click();
+  assert.equal(await inner.locator('#stored').isVisible(), true);
   assert.match((await inner.locator('#stored').textContent()) ?? '', /A stored support message/);
   assert.match(
     (await page.locator('#proposal-source').textContent()) ?? '',
@@ -162,10 +171,23 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
     'playwright',
   );
   await mkdir(browserOutput, { recursive: true });
+  await Promise.all(
+    page
+      .frames()
+      .map((frame) =>
+        frame.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+        ),
+      ),
+  );
   await page.screenshot({ path: join(browserOutput, 'trusted-review.png'), fullPage: true });
   await page
     .locator('#confirmation')
     .screenshot({ path: join(browserOutput, 'frozen-confirmation.png') });
+  await page.setViewportSize(viewport);
   await page.getByRole('button', { name: 'Confirm this exact response' }).click();
   await page.waitForFunction(() =>
     document.querySelector('#status')?.textContent?.includes('confirmed'),
