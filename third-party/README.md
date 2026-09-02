@@ -16,10 +16,11 @@ Historical CHAP primitive sources are research material under their retained
 Apache-2.0 licence, not the HAIP response canonicaliser. Their integer-only rule is
 not adopted. HAIP supports valid decimal responses and tests authoritative RFC vectors.
 
-Plasm's renderer remains in its owning repository. No Plasm renderer implementation
-is vendored into HAIP or relicensed as MIT. The recorded parent revision
-`835d276a4652e1505c29467018ba61dcf87b3ce2` carries a GPL-3.0 root licence, separate from
-Plasm Core's MIT/Apache-2.0 licences and its trace sink's BUSL licence. Renderer
-distribution needs the applicable notices and source obligations checked against its
-exact source revision. The independently authored test app uses MCP libraries with the notices
-above. Historical renderer screenshots and data are feasibility evidence only.
+External agent UI renderers remain in their owning repositories. No external agent UI
+renderer implementation is vendored into HAIP or relicensed as MIT. The recorded parent
+revision `835d276a4652e1505c29467018ba61dcf87b3ce2` carries a GPL-3.0 root licence,
+separate from Plasm Core's MIT/Apache-2.0 licences and its trace sink's BUSL licence.
+Third-party renderer distribution needs the applicable notices and source obligations
+checked against its exact source revision. The independently authored test app uses MCP
+libraries with the notices above. Historical renderer screenshots and data are
+feasibility evidence only.

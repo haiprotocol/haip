@@ -22,6 +22,6 @@ node examples/http/register-app.mjs
 
 The registration command also needs `HAIP_PUBLISHER_TOKEN` and its own stable `HAIP_IDEMPOTENCY_KEY`. The producer must be operator-mapped to that publisher. Set the returned registration ID as `HAIP_BUNDLE_ID`, choose a new request key, and run the review command again. The App may propose the choice, but the trusted host still performs confirmation.
 
-The generated HTML retains HAIP, MCP, Zod and schema-converter notices. It is a local build output, not a published package or Plasm renderer.
+The generated HTML retains HAIP, MCP, Zod and schema-converter notices. It is a local build output, not a published package or an external agent UI renderer.
 
 For another implementation, `conformance/review.mjs` exercises the public HTTP review contract with supplied credentials and a real-host confirmation callback. It does not bypass the human step or claim conformance from a fabricated receipt.

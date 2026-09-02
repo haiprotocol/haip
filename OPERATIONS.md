@@ -321,7 +321,7 @@ HAIP does not implement Plasm contexts, credentials, continuations, runtime sche
 or execution evidence. The [draft Plasm profile](protocol/draft-2.0.0-1/plasm-profile.md)
 is a set of integration requirements, not an advertised capability. Changes require
 upstream acceptance and hosted-product coordination. No renderer licence is changed by
-bundle registration; this distribution does not vendor Plasm's renderer.
+bundle registration; this distribution does not vendor external agent UI renderers.
 
 A future live-window deployment must route to the originating process. Restart,
 context loss or another replica must refuse resumption. A future durable integration
