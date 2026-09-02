@@ -1,0 +1,108 @@
+haip-server/src/browser/host.ts
+  s_08f73032aa8e41::t_6fd3b8bd192f13 239,480,635-639
+  s_08f73032aa8e41::t_de0bd363e7e332 18,118,139,154,172,243-244,265-281,284-286,290-294,308,332-335,341-349,353,358-389,391,410,454,457,459,473-474,479,481-486,584
+tests/service-exports.test.ts
+  s_08f73032aa8e41::t_2697579b9d1ebe 103-106,112-142,151-172
+  s_08f73032aa8e41::t_bbec407e2f4748 102,107-111,143-150
+  s_08f73032aa8e41::t_122894c952420c 190
+haip-sdk/src/index.ts
+  s_08f73032aa8e41::t_8132f138fd4112 159-160
+verification/native-isolate/package.json
+  s_08f73032aa8e41::t_c670b44cc5c2a1 14
+haip-server/src/server.ts
+  s_08f73032aa8e41::t_68a971022b5547 201-205,216,219
+verification/native-isolate/review/haip-agent-ui-profile.md
+  s_08f73032aa8e41::t_db277cb998769a 66-71,88-101
+scripts/build-browser.mjs
+  s_08f73032aa8e41::t_f9560456adae9e 2-3,12
+haip-server/src/browser/sandbox.ts
+  s_08f73032aa8e41::t_87e52b2157ffd5 9,27-30,33,95
+  s_08f73032aa8e41::t_961aecb9941023 38-44,124-126
+  s_08f73032aa8e41::t_d814137a3a8e17 6-8,15-26,31-32,34-37,55,66-79,96-98,100,104-108,119-120
+  s_08f73032aa8e41::t_fc5b5517d3b493 80
+conformance/review.mjs
+  s_08f73032aa8e41::t_bb1ad6db26d57a 73-78
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_7375c49808b616 1043-1065,1638
+  s_08f73032aa8e41::t_631e809dd5e605 1070,1082,1333,1359,1413,1547
+docs/index.mdx
+  s_08f73032aa8e41::t_cbfb10c398a7c8 8
+tests/browser.test.ts
+  s_08f73032aa8e41::t_122894c952420c 241,243-246,296-319,322,377-380
+  s_08f73032aa8e41::t_e8bd2718f38fbe 101-114,128-129,235,339-346,351,693,695-696,699-701,740,742-745,756-759
+  s_08f73032aa8e41::t_1418545603bef2 357-376,381-498,503-529
+  s_08f73032aa8e41::t_4186494a34ab1c 499-502
+  s_08f73032aa8e41::t_cbfb10c398a7c8 27
+third-party/README.md
+  s_08f73032aa8e41::t_1020a7e60e68ee 7-8
+  s_08f73032aa8e41::t_f9560456adae9e 9
+tests/service-bounds.test.ts
+  s_08f73032aa8e41::t_bb1ad6db26d57a 241,283-288
+  s_08f73032aa8e41::t_e810fdaa1089fd 237-240
+verification/native-isolate/quint/haip_spec.qnt
+  s_08f73032aa8e41::t_bfe6d6522bbc14 9
+docs/technical_overview.mdx
+  s_08f73032aa8e41::t_cbfb10c398a7c8 13
+verification/native-isolate/quint/invariants.qnt
+  s_08f73032aa8e41::t_c2534f6759a888 80-87,97-104
+verification/native-isolate/quint/scenarios.qnt
+  s_08f73032aa8e41::t_7ece8ce5f8e72c 280-282,285-289,315-318
+  s_08f73032aa8e41::t_bfe6d6522bbc14 283-284,290-314
+  s_08f73032aa8e41::t_d6179320f6535d 22,77,84-85,87,144-169,173,176,178,184-186,192-204,213-214,220-231,237-238,248,252-253,328-349,354-361,568,571-579,583-591
+  s_08f73032aa8e41::t_0ba687557d9154 350-353
+tests/request-boundary.test.ts
+  s_08f73032aa8e41::t_2f4f775b3dfc0b 206-234
+CHANGELOG.md
+  s_08f73032aa8e41::t_8132f138fd4112 8-9
+  s_08f73032aa8e41::t_cbfb10c398a7c8 18,21,24-25
+tests/contracts.test.ts
+  s_08f73032aa8e41::t_5535e1d7867fee 68,79-91
+  s_08f73032aa8e41::t_bbec407e2f4748 99-112
+.github/workflows/check.yml
+  s_08f73032aa8e41::t_c670b44cc5c2a1 22-24,36,39-43
+verification/native-isolate/quint/composition.qnt
+  s_08f73032aa8e41::t_52917c716e93b8 380
+  s_08f73032aa8e41::t_0ba687557d9154 375-377,387-389,434-436
+  s_08f73032aa8e41::t_bfe6d6522bbc14 385-386,432-433
+  s_08f73032aa8e41::t_ea117445efe563 60-64,73-77,189-209,217,226,231-234,250-252,254,260,264-275,281,285-296,302,304,307-319,325,327,329-340,346,348,350-361,381,384,393,396-410,413-414,419-425,669-670,675,677,679,681,683,687-688
+  s_08f73032aa8e41::t_68e29662504aed 426
+verification/README.md
+  s_08f73032aa8e41::t_c670b44cc5c2a1 10-12
+protocol/draft-2.0.0-1/schema.json
+  s_08f73032aa8e41::t_c8f2e7a99d2e20 20-32,274,321,358,471-472,474-475,477-488
+  s_08f73032aa8e41::t_245008d4d91f38 688-692,696-716,721-725,729-748
+  s_08f73032aa8e41::t_b002a79f0fc678 693-695,726-728
+  s_08f73032aa8e41::t_f37585ef65fa4e 473,476
+verification/native-isolate/README.md
+  s_08f73032aa8e41::t_c670b44cc5c2a1 4-6,29,35-38
+  s_08f73032aa8e41::t_e570c01bc44574 39
+scripts/smoke-container.ts
+  s_08f73032aa8e41::t_f9560456adae9e 109,112-113
+verification/native-isolate/quint/haip_agent_ui_profile.qnt
+  s_08f73032aa8e41::t_c2534f6759a888 44-49,98-99,106-113,115,117-138
+  s_08f73032aa8e41::t_bfe6d6522bbc14 140-147
+@types/src/generated.ts
+  s_08f73032aa8e41::t_98a005bc94da9b 46,98-101,146,154,161
+docs/protocol/openapi.json
+  s_08f73032aa8e41::t_f00de7934496d9 2198-2210,2452,2499,2536,2649-2666,2866-2894,2899-2926
+protocol/draft-2.0.0-1/openapi.json
+  s_08f73032aa8e41::t_2373fab473ad4c 2198-2210,2452,2499,2536,2649-2666,2866-2894,2899-2926
+verification/native-isolate/package-lock.json
+  s_08f73032aa8e41::t_0a92f9f771f63c 1-880
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
