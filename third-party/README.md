@@ -4,9 +4,9 @@ HAIP's original MIT licence and San Digital attribution remain unchanged. Review
 bundle registration never changes authorship or licensing.
 
 The native HAIP Agent UI Host/View path does not depend on MCP Apps or the MCP
-TypeScript SDK. The generated browser host, sandbox proxy and example View bundle no
-third-party code; they embed only the HAIP licence. The MCP ext-apps 1.7.4 and MCP SDK
-1.29.0 licences retained alongside this notice, including the upstream MIT/Apache-2.0
+TypeScript SDK. The generated browser host, sandbox proxy and example View bundle contain
+no third-party code; they embed only the HAIP licence. The MCP ext-apps 1.7.4 and MCP SDK
+1.29.0 licences are retained alongside this notice, including the upstream MIT/Apache-2.0
 transition wording, cover the historical copies of upstream sandbox source kept as
 research material and the earlier draft bundles that embedded those libraries.
 

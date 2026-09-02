@@ -15,6 +15,7 @@ type FrozenResponse = Readonly<{
   source: ProposalSource;
 }>;
 let frozenResponse: FrozenResponse | undefined,
+  preparingSource: ProposalSource | undefined,
   phase: 'ready' | 'preparing' | 'reviewing' | 'confirming' | 'dismissed' | 'complete' = 'ready',
   proposalAttempt = 0,
   pending = true,
@@ -114,6 +115,7 @@ async function propose(body: unknown, source: ProposalSource) {
     throw new Error('Use the trusted host to allow one new app proposal after dismissal.');
   // Reserve the slot before any asynchronous work so a second proposal cannot overtake it.
   const attempt = ++proposalAttempt;
+  preparingSource = source;
   phase = 'preparing';
   responseControls();
   try {
@@ -134,6 +136,7 @@ async function propose(body: unknown, source: ProposalSource) {
       digest,
       source: { ...source },
     });
+    preparingSource = undefined;
     write('exact', frozenResponse.candidate);
     write('candidate-digest', frozenResponse.digest);
     write(
@@ -148,6 +151,7 @@ async function propose(body: unknown, source: ProposalSource) {
     return { candidate_id: frozenResponse.candidateId, status: 'awaiting_human_confirmation' };
   } catch (error) {
     if (attempt === proposalAttempt && phase === 'preparing') {
+      preparingSource = undefined;
       phase = 'dismissed';
       responseControls();
     }
@@ -165,6 +169,7 @@ async function status() {
     pending = false;
     phase = 'complete';
     frozenResponse = undefined;
+    preparingSource = undefined;
     proposalAttempt++;
   }
   responseControls();
@@ -231,9 +236,12 @@ async function app(source: ProposalSource) {
   let closing = false;
   let closed = false;
   let proposals = 0;
+  let outerLoads = 0;
   // View-issued request ids only. Host-issued ids live in `pending` and never share this space.
   const outstanding = new Set<string | number>();
   const completed = new Set<string | number>();
+  const messageBytes = (message: unknown) =>
+    new TextEncoder().encode(JSON.stringify(message)).byteLength;
 
   function post(message: JsonRpc) {
     if (closed) return;
@@ -254,14 +262,36 @@ async function app(source: ProposalSource) {
   function fail(id: string | number, code: number, message: string) {
     post({ jsonrpc: '2.0', id, error: { code, message } });
   }
+  function selectFallback(reason: string) {
+    appAvailable = false;
+    if (
+      preparingSource?.kind === 'producer_app' ||
+      frozenResponse?.source.kind === 'producer_app'
+    ) {
+      proposalAttempt++;
+      preparingSource = undefined;
+      frozenResponse = undefined;
+      if (pending) phase = 'dismissed';
+      write('exact', '');
+      write('candidate-digest', '');
+      write('proposal-source', '');
+    }
+    write('app-state', `App unavailable (${reason}). Use the trusted host response form.`);
+    responseControls();
+  }
   // Any budget or policy violation destroys the View and selects the native fallback.
   function violation(reason: string) {
-    write('app-state', `App unavailable (${reason}). Use the trusted host response form.`);
-    void close();
+    if (closing || closed) return;
+    selectFallback(reason);
+    void close(false);
   }
   function track(id: string | number) {
     completed.add(id);
-    if (completed.size + outstanding.size > MAX_TRACKED_IDS) violation('request id budget exhausted');
+    if (completed.size + outstanding.size > MAX_TRACKED_IDS) {
+      violation('request id budget exhausted');
+      return false;
+    }
+    return true;
   }
 
   function receive(event: MessageEvent) {
@@ -275,7 +305,7 @@ async function app(source: ProposalSource) {
     const message = event.data as JsonRpc;
     if (message.jsonrpc !== '2.0') return;
     try {
-      if (JSON.stringify(event.data).length > MAX_MESSAGE_BYTES) {
+      if (messageBytes(event.data) > MAX_MESSAGE_BYTES) {
         violation('oversized message');
         return;
       }
@@ -299,23 +329,66 @@ async function app(source: ProposalSource) {
     const id = message.id;
 
     if (method === 'haip/ui.proxyReady') {
-      if (resourceSent) return;
+      if (resourceSent) {
+        violation('renderer reloaded');
+        return;
+      }
       resourceSent = true;
       notify('haip/ui.resourceReady', { html: stored.html, sandbox: 'allow-scripts' });
+      return;
+    }
+
+    if (method === 'haip/ui.viewFailed') {
+      const reason =
+        typeof (message.params as { reason?: unknown } | undefined)?.reason === 'string'
+          ? String((message.params as { reason: string }).reason).slice(0, 160)
+          : 'renderer failed';
+      violation(reason);
       return;
     }
 
     if (method === 'haip/ui.initialize') {
       if (id === undefined || completed.has(id) || outstanding.has(id)) return;
       if (typeof id !== 'string' && typeof id !== 'number') return;
-      track(id);
+      if (!track(id)) return;
       if (initialised) {
         fail(id, -32600, 'Already initialised');
         return;
       }
-      const params = message.params as { protocolVersion?: unknown } | undefined;
-      if (!params || params.protocolVersion !== 'org.haiprotocol.agent-ui/1') {
+      const params = message.params as
+        | {
+            protocolVersion?: unknown;
+            capabilities?: unknown;
+            viewInfo?: unknown;
+          }
+        | undefined;
+      const capabilities = params?.capabilities;
+      const viewInfo = params?.viewInfo;
+      const validViewInfo =
+        viewInfo === undefined ||
+        (!!viewInfo &&
+          typeof viewInfo === 'object' &&
+          !Array.isArray(viewInfo) &&
+          Object.keys(viewInfo).every((key) => ['name', 'version'].includes(key)) &&
+          typeof (viewInfo as { name?: unknown }).name === 'string' &&
+          (viewInfo as { name: string }).name.length <= 160 &&
+          typeof (viewInfo as { version?: unknown }).version === 'string' &&
+          (viewInfo as { version: string }).version.length <= 80);
+      if (
+        !params ||
+        Object.keys(params).some(
+          (key) => !['protocolVersion', 'capabilities', 'viewInfo'].includes(key),
+        ) ||
+        params.protocolVersion !== 'org.haiprotocol.agent-ui/1' ||
+        !capabilities ||
+        typeof capabilities !== 'object' ||
+        Array.isArray(capabilities) ||
+        Object.keys(capabilities).length !== 1 ||
+        (capabilities as { localProposal?: unknown }).localProposal !== true ||
+        !validViewInfo
+      ) {
         fail(id, -32602, 'Unsupported Agent UI profile');
+        queueMicrotask(() => violation('unsupported Agent UI profile'));
         return;
       }
       initialised = true;
@@ -334,6 +407,7 @@ async function app(source: ProposalSource) {
     if (method === 'haip/ui.initialized') {
       if (!initialised || id !== undefined || snapshotsSent) return;
       snapshotsSent = true;
+      window.clearTimeout(initialisationTimer);
       notify('haip/ui.input', stored.input);
       notify('haip/ui.result', stored.result);
       write(
@@ -377,11 +451,12 @@ async function app(source: ProposalSource) {
       fail(id, -32601, 'Forbidden host operation');
   }
 
-  async function close() {
+  async function close(graceful = true) {
     if (closing) return;
     closing = true;
+    window.clearTimeout(initialisationTimer);
     try {
-      if (snapshotsSent)
+      if (graceful && snapshotsSent)
         await Promise.race([
           request('haip/ui.teardown', {}),
           new Promise((_, reject) =>
@@ -395,10 +470,20 @@ async function app(source: ProposalSource) {
     window.removeEventListener('message', receive);
     for (const waiter of pending.values()) waiter.reject(new Error('Host closed'));
     pending.clear();
+    outstanding.clear();
+    completed.clear();
     frame.remove();
   }
 
   window.addEventListener('message', receive);
+  frame.addEventListener('load', () => {
+    if (++outerLoads > 1) violation('renderer reloaded');
+  });
+  frame.addEventListener('error', () => violation('renderer failed'));
+  const initialisationTimer = window.setTimeout(
+    () => violation('initialisation timed out'),
+    5000,
+  );
   window.addEventListener('pagehide', () => void close(), { once: true });
 }
 (async () => {
@@ -496,6 +581,7 @@ async function app(source: ProposalSource) {
   el('dismiss-response').onclick = (event) => {
     if (!trustedGesture(event) || phase !== 'reviewing') return;
     frozenResponse = undefined;
+    preparingSource = undefined;
     phase = 'dismissed';
     proposalAttempt++;
     write('exact', '');
@@ -546,7 +632,11 @@ async function app(source: ProposalSource) {
       publisher: r.review.bundle.publisher,
       bundle_id: r.review.bundle.id,
       bundle_digest: r.review.bundle.digest,
-    }).catch(() => write('app-state', 'App unavailable. Use the trusted host response form.'));
+    }).catch(() => {
+      appAvailable = false;
+      responseControls();
+      write('app-state', 'App unavailable. Use the trusted host response form.');
+    });
   }
 })().catch((error) => {
   if (error.message === 'unauthenticated')

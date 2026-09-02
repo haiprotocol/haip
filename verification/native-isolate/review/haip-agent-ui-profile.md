@@ -63,9 +63,12 @@ the trusted HAIP application origin.
 Every inbound browser message MUST match both the exact expected `WindowProxy` and the
 exact configured origin at the boundary where an origin exists. The inner opaque frame
 MUST be correlated through its exact `WindowProxy`; a textual `"null"` origin is never
-an identity. Wildcard targets and suffix, substring, registrable-domain, inherited, or
-last-seen-origin checks are forbidden. Unexpected sources, origins, methods, IDs, and
-oversized or malformed messages MUST be rejected without changing approval state.
+an identity. A wildcard target is permitted only when sending into that opaque inner
+frame, which has no targetable origin, and only when the sender also checks the exact
+`WindowProxy` on every reply. Wildcard targets at origin-bearing boundaries and suffix,
+substring, registrable-domain, inherited, or last-seen-origin checks are forbidden.
+Unexpected sources, origins, methods, IDs, and oversized or malformed messages MUST be
+rejected without changing approval state.
 
 ## 4. Native message set
 
@@ -82,13 +85,20 @@ accept only this native subset:
 | Host → View | `haip/ui.teardown` | request | Request graceful controlled teardown. |
 
 The View's `haip/ui.initialize` parameters MUST identify only this profile and its fixed
-View capabilities. The correlated Host response MUST identify the same profile,
-advertise only `localProposal: true`, and carry the envelope identity needed by the View
-to label the material. The Host MUST send no snapshot before the successful response and
-subsequent `haip/ui.initialized` notification. It MUST send input once, then result
-once. There are no streaming deltas, refreshes, subscriptions, or later mutation
-messages. A View that needs different data MUST be destroyed and recreated from a newly
-verified envelope.
+View capabilities. It MAY also include a `viewInfo` object containing only bounded
+display-name and version strings; these values are informative and confer no identity
+or authority. The correlated Host response MUST identify the same profile, advertise
+only `localProposal: true`, and carry the envelope identity needed by the View to label
+the material. The Host MUST send no snapshot before the successful response and
+subsequent `haip/ui.initialized` notification. It MUST send input once, then result once.
+There are no streaming deltas, refreshes, subscriptions, or later mutation messages. A
+View that needs different data MUST be destroyed and recreated from a newly verified
+envelope.
+
+The trusted outer Proxy MAY use private `haip/ui.proxyReady`,
+`haip/ui.resourceReady`, and `haip/ui.viewFailed` notifications to bootstrap the opaque
+frame and report its failure to the Host. These messages never cross the View boundary,
+are not public View methods, and confer no capability.
 
 Each request MUST have a non-null JSON-RPC request ID unique for that View instance.
 The response MUST carry the identical ID. The Host MUST maintain outstanding and

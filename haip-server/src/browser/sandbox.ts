@@ -3,12 +3,45 @@ const hostOrigin = '__HAIP_HOST_ORIGIN__';
 let inner: HTMLIFrameElement | undefined,
   initialiseId: string | number | undefined,
   initialiseAccepted = false,
-  notified = false;
+  notified = false,
+  failed = false;
+const MAX_MESSAGE_BYTES = 1_048_576;
+const MAX_HOST_MESSAGE_BYTES = 6 * 1_048_576;
 const pendingHostRequests = new Set<string | number>();
 const requestId = (value: unknown): value is string | number =>
   typeof value === 'string' || (typeof value === 'number' && Number.isSafeInteger(value));
 const envelope = (value: unknown): value is Record<string, any> =>
   !!value && typeof value === 'object' && !Array.isArray(value) && (value as any).jsonrpc === '2.0';
+const jsonValue = (value: unknown, depth = 0): boolean => {
+  if (depth > 64) return false;
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every((item) => jsonValue(item, depth + 1));
+  if (!value || typeof value !== 'object') return false;
+  const prototype = Object.getPrototypeOf(value);
+  return (
+    (prototype === Object.prototype || prototype === null) &&
+    Object.values(value).every((item) => jsonValue(item, depth + 1))
+  );
+};
+const boundedEnvelope = (
+  value: unknown,
+  maximum = MAX_MESSAGE_BYTES,
+): value is Record<string, any> => {
+  if (!envelope(value) || !jsonValue(value)) return false;
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength <= maximum;
+  } catch {
+    return false;
+  }
+};
+const encodedBytes = (value: unknown) => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+};
 function response(message: Record<string, any>) {
   if (
     !requestId(message.id) ||
@@ -19,10 +52,7 @@ function response(message: Record<string, any>) {
     error = Object.hasOwn(message, 'error');
   return (
     result !== error &&
-    ((result &&
-      message.result &&
-      typeof message.result === 'object' &&
-      !Array.isArray(message.result)) ||
+    ((result && jsonValue(message.result)) ||
       (message.error &&
         typeof message.error === 'object' &&
         !Array.isArray(message.error) &&
@@ -32,6 +62,21 @@ function response(message: Record<string, any>) {
 }
 function send(data: unknown) {
   parent.postMessage(data, hostOrigin);
+}
+function failView(reason: string) {
+  if (failed) return;
+  failed = true;
+  initialiseId = undefined;
+  initialiseAccepted = false;
+  notified = false;
+  pendingHostRequests.clear();
+  inner?.remove();
+  inner = undefined;
+  send({
+    jsonrpc: '2.0',
+    method: 'haip/ui.viewFailed',
+    params: { reason: reason.slice(0, 160) },
+  });
 }
 const VIEW_TO_HOST = new Set([
   'haip/ui.initialize',
@@ -47,31 +92,38 @@ const HOST_TO_VIEW = new Set([
 window.addEventListener('message', (event) => {
   if (event.source === parent && event.origin === hostOrigin) {
     const message = event.data;
-    if (!envelope(message)) return;
+    if (!boundedEnvelope(message, MAX_HOST_MESSAGE_BYTES)) {
+      if (inner) failView('invalid host message');
+      return;
+    }
     if (message?.method === 'haip/ui.resourceReady') {
-      if (inner || typeof message.params?.html !== 'string') return;
+      if (inner || failed || typeof message.params?.html !== 'string') return;
       inner = document.createElement('iframe');
       inner.setAttribute('sandbox', 'allow-scripts');
       inner.setAttribute('referrerpolicy', 'no-referrer');
+      let loads = 0;
+      inner.addEventListener('load', () => {
+        if (++loads > 1) failView('renderer navigated or reloaded');
+      });
+      inner.addEventListener('error', () => failView('renderer failed'));
       inner.srcdoc = message.params.html;
       document.body.appendChild(inner);
       return;
     }
     if (!inner) return;
-    if (typeof message.method === 'string' && requestId(message.id))
-      pendingHostRequests.add(message.id);
     if (response(message) && message.id === initialiseId)
       initialiseAccepted = Object.hasOwn(message, 'result');
     // Only forward normative host→view methods and JSON-RPC responses.
     if (message.method !== undefined && !HOST_TO_VIEW.has(message.method) && !response(message))
       return;
+    if (typeof message.method === 'string' && requestId(message.id))
+      pendingHostRequests.add(message.id);
     inner.contentWindow?.postMessage(message, '*');
   } else if (inner && event.source === inner.contentWindow && event.origin === 'null') {
     const message = event.data;
-    if (!envelope(message)) return;
-    try {
-      if (JSON.stringify(message).length > 1_048_576) return;
-    } catch {
+    if (!envelope(message) || !jsonValue(message)) return;
+    if (encodedBytes(message) > MAX_MESSAGE_BYTES) {
+      failView('oversized renderer message');
       return;
     }
     if (!Object.hasOwn(message, 'method')) {

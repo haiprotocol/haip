@@ -57,6 +57,11 @@ module composition {
     "proposalSource" -> SOURCE_NONE,
     "proposalAccepted" -> ZERO,
     "proposalRejected" -> ZERO,
+    "rejectedAttempt" -> ZERO,
+    "ignoredAfterAcceptance" -> ZERO,
+    "rejectedMethod" -> METHOD_NONE,
+    "rejectedSource" -> SOURCE_NONE,
+    "rejectedOrigin" -> ORIGIN_NONE,
     "resultOrigin" -> ORIGIN_NONE,
     "forbiddenOperation" -> ZERO,
     "policy" -> POLICY_DENY_ALL,
@@ -65,6 +70,11 @@ module composition {
     "fallbackTrusted" -> ZERO,
     "fallbackUsed" -> ZERO,
     "controlledTeardown" -> ZERO,
+    "teardownRequestId" -> ZERO,
+    "teardownResponseId" -> ZERO,
+    "teardownConsumedRequestId" -> ZERO,
+    "teardownRejected" -> ZERO,
+    "teardownReplay" -> ZERO,
     "crash" -> ZERO,
     "appTransition" -> ZERO,
     "appCreatedAuthority" -> ZERO,
@@ -176,6 +186,27 @@ module composition {
     st' = st
       .set("duplicateSnapshot", ONE)
       .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("appTransition", ONE),
+  }
+
+  // Native haip/ui.result — a distinct one-shot immutable result snapshot.
+  // It follows input and must complete before the View can propose.
+  action captureResultSnapshot = all {
+    uiReady(st),
+    st.get("inputSnapshotCount") == ONE,
+    st.get("resultSnapshotCount") == ZERO,
+    st.get("proposalRequestId") == ZERO,
+    st' = st.set("resultSnapshotCount", ONE).set("appTransition", ONE),
+  }
+
+  action rejectPreInputResultSnapshot = all {
+    uiReady(st),
+    st.get("inputSnapshotCount") == ZERO,
+    st.get("resultSnapshotCount") == ZERO,
+    st' = st
+      .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
       .set("appTransition", ONE),
   }
 
@@ -183,6 +214,7 @@ module composition {
   action requestPropose = all {
     uiReady(st),
     st.get("inputSnapshotCount") == ONE,
+    st.get("resultSnapshotCount") == ONE,
     st.get("proposalRequestId") == ZERO,
     st' = st
       .set("proposalRequestId", ONE)
@@ -191,17 +223,19 @@ module composition {
       .set("appTransition", ONE),
   }
 
-  // Correlated haip/ui.propose success plus one-shot haip/ui.result snapshot.
+  // Correlated haip/ui.propose success after both immutable snapshots.
   action returnCorrelatedProposal = all {
     st.get("proposalRequestId") == ONE,
     st.get("proposalMethod") == METHOD_PROPOSE,
     st.get("proposalSource") == SOURCE_EXACT,
-    st.get("resultSnapshotCount") == ZERO,
+    st.get("resultSnapshotCount") == ONE,
+    st.get("proposalResponseId") == ZERO,
+    st.get("proposalConsumedRequestId") == ZERO,
+    st.get("proposalAccepted") == ZERO,
     st' = st
       .set("proposalResponseId", ONE)
       .set("proposalConsumedRequestId", ONE)
       .set("resultOrigin", ORIGIN_EXACT)
-      .set("resultSnapshotCount", ONE)
       .set("proposalAccepted", ONE)
       .set("appTransition", ONE),
   }
@@ -213,56 +247,118 @@ module composition {
     st.get("proposalAccepted") == ZERO,
     st.get("proposalConsumedRequestId") == ZERO,
     st' = st
+      .set("proposalResponseId", st.get("proposalRequestId"))
+      .set("proposalConsumedRequestId", st.get("proposalRequestId"))
+      .set("resultOrigin", ORIGIN_EXACT)
       .set("proposalRejected", ONE)
-      .set("proposalAccepted", ZERO)
+      .set("rejectedAttempt", ONE)
       .set("appTransition", ONE),
   }
 
   action rejectProposalReplay = all {
     st.get("proposalConsumedRequestId") != ZERO,
+    st.get("proposalAccepted") == ZERO,
     st' = st
       .set("proposalReplay", ONE)
-      .set("proposalAccepted", ZERO)
       .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("appTransition", ONE),
+  }
+
+  action ignoreProposalReplayAfterAcceptance = all {
+    st.get("proposalConsumedRequestId") != ZERO,
+    st.get("proposalAccepted") == ONE,
+    st' = st
+      .set("proposalReplay", ONE)
+      .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("ignoredAfterAcceptance", ONE)
       .set("appTransition", ONE),
   }
 
   action rejectDuplicateResultSnapshot = all {
     st.get("resultSnapshotCount") == ONE,
+    st.get("proposalAccepted") == ZERO,
     st' = st
       .set("duplicateSnapshot", ONE)
-      .set("proposalReplay", ONE)
-      .set("proposalAccepted", ZERO)
       .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("appTransition", ONE),
+  }
+
+  action ignoreDuplicateResultSnapshotAfterAcceptance = all {
+    st.get("resultSnapshotCount") == ONE,
+    st.get("proposalAccepted") == ONE,
+    st' = st
+      .set("duplicateSnapshot", ONE)
+      .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("ignoredAfterAcceptance", ONE)
       .set("appTransition", ONE),
   }
 
   action rejectForbiddenMethod = all {
     st.get("uiInitialized") == ONE,
-    st.get("proposalMethod") == METHOD_NONE,
+    st.get("proposalAccepted") == ZERO,
     st' = st
-      .set("proposalMethod", METHOD_FORBIDDEN)
+      .set("rejectedMethod", METHOD_FORBIDDEN)
       .set("forbiddenOperation", ONE)
       .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("appTransition", ONE),
+  }
+
+  action ignoreForbiddenMethodAfterAcceptance = all {
+    st.get("uiInitialized") == ONE,
+    st.get("proposalAccepted") == ONE,
+    st' = st
+      .set("rejectedMethod", METHOD_FORBIDDEN)
+      .set("forbiddenOperation", ONE)
+      .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("ignoredAfterAcceptance", ONE)
       .set("appTransition", ONE),
   }
 
   action rejectWrongSource = all {
     st.get("uiInitialized") == ONE,
+    st.get("proposalAccepted") == ZERO,
     st' = st
-      .set("proposalSource", SOURCE_WRONG)
+      .set("rejectedSource", SOURCE_WRONG)
       .set("proposalRejected", ONE)
-      .set("proposalAccepted", ZERO)
+      .set("rejectedAttempt", ONE)
+      .set("appTransition", ONE),
+  }
+
+  action ignoreWrongSourceAfterAcceptance = all {
+    st.get("uiInitialized") == ONE,
+    st.get("proposalAccepted") == ONE,
+    st' = st
+      .set("rejectedSource", SOURCE_WRONG)
+      .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("ignoredAfterAcceptance", ONE)
       .set("appTransition", ONE),
   }
 
   action rejectWrongOrigin = all {
     st.get("proposalRequestId") != ZERO,
+    st.get("proposalAccepted") == ZERO,
     st' = st
-      .set("proposalResponseId", st.get("proposalRequestId"))
-      .set("resultOrigin", ORIGIN_WRONG)
+      .set("rejectedOrigin", ORIGIN_WRONG)
       .set("proposalRejected", ONE)
-      .set("proposalAccepted", ZERO)
+      .set("rejectedAttempt", ONE)
+      .set("appTransition", ONE),
+  }
+
+  action ignoreWrongOriginAfterAcceptance = all {
+    st.get("proposalRequestId") != ZERO,
+    st.get("proposalAccepted") == ONE,
+    st' = st
+      .set("rejectedOrigin", ORIGIN_WRONG)
+      .set("proposalRejected", ONE)
+      .set("rejectedAttempt", ONE)
+      .set("ignoredAfterAcceptance", ONE)
       .set("appTransition", ONE),
   }
 
@@ -276,21 +372,55 @@ module composition {
       .set("appTransition", ONE),
   }
 
+  pure def hasUnconfirmedCandidate(s: str -> int): bool =
+    s.get("candidate") == C_PROPOSED or s.get("candidate") == C_FROZEN
+
   // Native haip/ui.teardown request (controlled).
   action beginControlledTeardown = all {
-    st.get("host") == HOST_READY,
+    uiReady(st),
+    st.get("teardownRequestId") == ZERO,
     st' = st
       .set("host", HOST_STOPPING)
-      .set("view", VIEW_STOPPED)
+      .set("teardownRequestId", ONE)
+      .set("proposalAccepted", if (st.get("candidate") == C_CONFIRMED) st.get("proposalAccepted") else ZERO)
+      .set("appProposal", if (st.get("candidate") == C_CONFIRMED) st.get("appProposal") else ZERO)
+      .set("candidate", if (hasUnconfirmedCandidate(st)) C_DISMISSED else st.get("candidate"))
+      .set("candidateDigest", if (hasUnconfirmedCandidate(st)) ZERO else st.get("candidateDigest"))
+      .set("displayedDigest", if (hasUnconfirmedCandidate(st)) ZERO else st.get("displayedDigest"))
       .set("appTransition", ONE),
   }
 
-  // Native haip/ui.teardown completion.
+  // Native haip/ui.teardown completion with exact request-ID correlation.
   action finishControlledTeardown = all {
     st.get("host") == HOST_STOPPING,
+    st.get("teardownRequestId") != ZERO,
+    st.get("teardownResponseId") == ZERO,
     st' = st
       .set("host", HOST_STOPPED)
+      .set("view", VIEW_STOPPED)
+      .set("teardownResponseId", st.get("teardownRequestId"))
+      .set("teardownConsumedRequestId", st.get("teardownRequestId"))
       .set("controlledTeardown", ONE)
+      .set("appTransition", ONE),
+  }
+
+  // A timeout, malformed acknowledgement, or rejection still destroys the View.
+  action finishControlledTeardownAfterFailure = all {
+    st.get("host") == HOST_STOPPING,
+    st.get("teardownRequestId") != ZERO,
+    st' = st
+      .set("host", HOST_STOPPED)
+      .set("view", VIEW_STOPPED)
+      .set("teardownRejected", ONE)
+      .set("controlledTeardown", ONE)
+      .set("appTransition", ONE),
+  }
+
+  action rejectTeardownReplay = all {
+    st.get("teardownConsumedRequestId") != ZERO,
+    st' = st
+      .set("teardownReplay", ONE)
+      .set("teardownRejected", ONE)
       .set("appTransition", ONE),
   }
 
@@ -299,6 +429,11 @@ module composition {
     st' = st
       .set("host", HOST_CRASHED)
       .set("view", VIEW_STOPPED)
+      .set("proposalAccepted", if (st.get("candidate") == C_CONFIRMED) st.get("proposalAccepted") else ZERO)
+      .set("appProposal", if (st.get("candidate") == C_CONFIRMED) st.get("appProposal") else ZERO)
+      .set("candidate", if (hasUnconfirmedCandidate(st)) C_DISMISSED else st.get("candidate"))
+      .set("candidateDigest", if (hasUnconfirmedCandidate(st)) ZERO else st.get("candidateDigest"))
+      .set("displayedDigest", if (hasUnconfirmedCandidate(st)) ZERO else st.get("displayedDigest"))
       .set("crash", ONE)
       .set("appTransition", ONE),
   }
@@ -531,17 +666,26 @@ module composition {
     rejectPreInitInput,
     captureInputSnapshot,
     rejectDuplicateInputSnapshot,
+    captureResultSnapshot,
+    rejectPreInputResultSnapshot,
     requestPropose,
     returnCorrelatedProposal,
     rejectPropose,
     rejectProposalReplay,
+    ignoreProposalReplayAfterAcceptance,
     rejectDuplicateResultSnapshot,
+    ignoreDuplicateResultSnapshotAfterAcceptance,
     rejectForbiddenMethod,
+    ignoreForbiddenMethodAfterAcceptance,
     rejectWrongSource,
+    ignoreWrongSourceAfterAcceptance,
     rejectWrongOrigin,
+    ignoreWrongOriginAfterAcceptance,
     activateTrustedFallback,
     beginControlledTeardown,
     finishControlledTeardown,
+    finishControlledTeardownAfterFailure,
+    rejectTeardownReplay,
     crashHost,
     proposeCandidate,
     proposeExecutionCandidate,

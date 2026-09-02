@@ -19,6 +19,7 @@ module scenarios {
   action validProposalFlow =
     nativeUiFlow
       .then(captureInputSnapshot)
+      .then(captureResultSnapshot)
       .then(requestPropose)
       .then(returnCorrelatedProposal)
 
@@ -73,14 +74,17 @@ module scenarios {
     init
       .then(nativeUiFlow)
       .then(captureInputSnapshot)
+      .then(captureResultSnapshot)
       .then(requestPropose)
       .then(rejectPropose)
       .expect(all {
         haipSafety,
         st.get("proposalAccepted") == ZERO,
         st.get("proposalRejected") == ONE,
+        st.get("proposalResponseId") == st.get("proposalRequestId"),
+        st.get("proposalConsumedRequestId") == st.get("proposalRequestId"),
         st.get("proposalMethod") == METHOD_PROPOSE,
-        st.get("resultSnapshotCount") == ZERO,
+        st.get("resultSnapshotCount") == ONE,
       })
 
   run nativeValidEnvelopeTest =
@@ -137,25 +141,67 @@ module scenarios {
         haipSafety,
       })
 
+  run resultBeforeInputRejectedTest =
+    init
+      .then(nativeUiFlow)
+      .then(rejectPreInputResultSnapshot)
+      .expect(all {
+        st.get("inputSnapshotCount") == ZERO,
+        st.get("resultSnapshotCount") == ZERO,
+        st.get("rejectedAttempt") == ONE,
+        st.get("proposalRejected") == ONE,
+        haipSafety,
+      })
+
+  run orderedSnapshotsBeforeProposalTest =
+    init
+      .then(nativeUiFlow)
+      .then(captureInputSnapshot)
+      .then(captureResultSnapshot)
+      .then(requestPropose)
+      .expect(all {
+        st.get("inputSnapshotCount") == ONE,
+        st.get("resultSnapshotCount") == ONE,
+        st.get("proposalRequestId") == ONE,
+        st.get("proposalAccepted") == ZERO,
+        haipSafety,
+      })
+
   run replayedProposalResultTest =
     init
       .then(validProposalFlow)
-      .then(rejectProposalReplay)
+      .then(ignoreProposalReplayAfterAcceptance)
       .expect(all {
         st.get("proposalReplay") == ONE,
-        st.get("proposalAccepted") == ZERO,
+        st.get("proposalAccepted") == ONE,
         st.get("proposalRejected") == ONE,
+        st.get("ignoredAfterAcceptance") == ONE,
         haipSafety,
       })
 
   run duplicateResultSnapshotTest =
     init
-      .then(validProposalFlow)
+      .then(nativeUiFlow)
+      .then(captureInputSnapshot)
+      .then(captureResultSnapshot)
       .then(rejectDuplicateResultSnapshot)
       .expect(all {
         st.get("resultSnapshotCount") == ONE,
         st.get("duplicateSnapshot") == ONE,
         st.get("proposalAccepted") == ZERO,
+        st.get("rejectedAttempt") == ONE,
+        haipSafety,
+      })
+
+  run duplicateResultAfterAcceptanceTest =
+    init
+      .then(validProposalFlow)
+      .then(ignoreDuplicateResultSnapshotAfterAcceptance)
+      .expect(all {
+        st.get("resultSnapshotCount") == ONE,
+        st.get("duplicateSnapshot") == ONE,
+        st.get("proposalAccepted") == ONE,
+        st.get("ignoredAfterAcceptance") == ONE,
         haipSafety,
       })
 
@@ -164,9 +210,22 @@ module scenarios {
       .then(nativeUiFlow)
       .then(rejectForbiddenMethod)
       .expect(all {
-        st.get("proposalMethod") == METHOD_FORBIDDEN,
+        st.get("proposalMethod") == METHOD_NONE,
+        st.get("rejectedMethod") == METHOD_FORBIDDEN,
         st.get("forbiddenOperation") == ONE,
         st.get("proposalRejected") == ONE,
+        haipSafety,
+      })
+
+  run forbiddenMethodAfterAcceptanceTest =
+    init
+      .then(validProposalFlow)
+      .then(ignoreForbiddenMethodAfterAcceptance)
+      .expect(all {
+        st.get("proposalMethod") == METHOD_PROPOSE,
+        st.get("rejectedMethod") == METHOD_FORBIDDEN,
+        st.get("proposalAccepted") == ONE,
+        st.get("ignoredAfterAcceptance") == ONE,
         haipSafety,
       })
 
@@ -175,7 +234,8 @@ module scenarios {
       .then(nativeUiFlow)
       .then(rejectWrongSource)
       .expect(all {
-        st.get("proposalSource") == SOURCE_WRONG,
+        st.get("proposalSource") == SOURCE_NONE,
+        st.get("rejectedSource") == SOURCE_WRONG,
         st.get("proposalAccepted") == ZERO,
         st.get("proposalRejected") == ONE,
         haipSafety,
@@ -185,10 +245,12 @@ module scenarios {
     init
       .then(nativeUiFlow)
       .then(captureInputSnapshot)
+      .then(captureResultSnapshot)
       .then(requestPropose)
       .then(rejectWrongOrigin)
       .expect(all {
-        st.get("resultOrigin") == ORIGIN_WRONG,
+        st.get("resultOrigin") == ORIGIN_NONE,
+        st.get("rejectedOrigin") == ORIGIN_WRONG,
         st.get("proposalAccepted") == ZERO,
         st.get("proposalRejected") == ONE,
         haipSafety,
@@ -215,6 +277,45 @@ module scenarios {
         haipSafety,
       })
 
+  run crashDiscardsUnconfirmedAppProposalTest =
+    init
+      .then(validProposalFlow)
+      .then(proposeCandidate)
+      .then(freezeCandidate)
+      .then(crashHost)
+      .expect(all {
+        st.get("host") == HOST_CRASHED,
+        st.get("view") == VIEW_STOPPED,
+        st.get("proposalAccepted") == ZERO,
+        st.get("appProposal") == ZERO,
+        st.get("candidate") == C_DISMISSED,
+        st.get("candidateDigest") == ZERO,
+        st.get("displayedDigest") == ZERO,
+        not(validHumanConfirmation(st)),
+        st.get("humanConfirmation") == ZERO,
+        haipSafety,
+      })
+
+  run teardownDiscardsUnconfirmedAppProposalTest =
+    init
+      .then(validProposalFlow)
+      .then(proposeCandidate)
+      .then(freezeCandidate)
+      .then(beginControlledTeardown)
+      .then(finishControlledTeardown)
+      .expect(all {
+        st.get("host") == HOST_STOPPED,
+        st.get("view") == VIEW_STOPPED,
+        st.get("proposalAccepted") == ZERO,
+        st.get("appProposal") == ZERO,
+        st.get("candidate") == C_DISMISSED,
+        st.get("candidateDigest") == ZERO,
+        st.get("displayedDigest") == ZERO,
+        not(validHumanConfirmation(st)),
+        st.get("humanConfirmation") == ZERO,
+        haipSafety,
+      })
+
   run gracefulControlledTeardownTest =
     init
       .then(nativeUiFlow)
@@ -224,6 +325,40 @@ module scenarios {
         st.get("host") == HOST_STOPPED,
         st.get("view") == VIEW_STOPPED,
         st.get("controlledTeardown") == ONE,
+        teardownCorrelationValid(st),
+        st.get("teardownRejected") == ZERO,
+        haipSafety,
+      })
+
+  run failedControlledTeardownDestroysViewTest =
+    init
+      .then(nativeUiFlow)
+      .then(beginControlledTeardown)
+      .then(finishControlledTeardownAfterFailure)
+      .expect(all {
+        st.get("host") == HOST_STOPPED,
+        st.get("view") == VIEW_STOPPED,
+        st.get("controlledTeardown") == ONE,
+        st.get("teardownRejected") == ONE,
+        st.get("teardownResponseId") == ZERO,
+        haipSafety,
+      })
+
+  run teardownReplayDoesNotAlterProposalTest =
+    init
+      .then(validProposalFlow)
+      .then(proposeCandidate)
+      .then(freezeCandidate)
+      .then(authenticateEligibleHuman)
+      .then(confirmCandidate)
+      .then(beginControlledTeardown)
+      .then(finishControlledTeardown)
+      .then(rejectTeardownReplay)
+      .expect(all {
+        st.get("proposalAccepted") == ONE,
+        st.get("teardownReplay") == ONE,
+        st.get("teardownRejected") == ONE,
+        teardownCorrelationValid(st),
         haipSafety,
       })
 
@@ -430,35 +565,28 @@ module scenarios {
       .then(mutateFixedPolicy)
       .expect(mutablePolicyWitness and not(haipSafety))
 
-  // Regression: a wrong-source or wrong-origin rejection after an accepted proposal
-  // previously left `proposalAccepted` standing and violated haipSafety.
+  // Regression: later untrusted attempts must not mutate the accepted proposal.
   run wrongSourceAfterAcceptanceTest =
     init
-      .then(negotiateSupportedProfile)
-      .then(bindValidEnvelope)
-      .then(startHost)
-      .then(readyHost)
-      .then(createView)
-      .then(initializeUi)
-      .then(notifyUiInitialized)
-      .then(captureInputSnapshot)
-      .then(requestPropose)
-      .then(returnCorrelatedProposal)
-      .then(rejectWrongSource)
-      .expect(all { haipSafety, st.get("proposalAccepted") == ZERO })
+      .then(validProposalFlow)
+      .then(ignoreWrongSourceAfterAcceptance)
+      .expect(all {
+        haipSafety,
+        st.get("proposalAccepted") == ONE,
+        st.get("proposalSource") == SOURCE_EXACT,
+        st.get("rejectedSource") == SOURCE_WRONG,
+        st.get("ignoredAfterAcceptance") == ONE,
+      })
 
   run wrongOriginAfterAcceptanceTest =
     init
-      .then(negotiateSupportedProfile)
-      .then(bindValidEnvelope)
-      .then(startHost)
-      .then(readyHost)
-      .then(createView)
-      .then(initializeUi)
-      .then(notifyUiInitialized)
-      .then(captureInputSnapshot)
-      .then(requestPropose)
-      .then(returnCorrelatedProposal)
-      .then(rejectWrongOrigin)
-      .expect(all { haipSafety, st.get("proposalAccepted") == ZERO })
+      .then(validProposalFlow)
+      .then(ignoreWrongOriginAfterAcceptance)
+      .expect(all {
+        haipSafety,
+        st.get("proposalAccepted") == ONE,
+        st.get("resultOrigin") == ORIGIN_EXACT,
+        st.get("rejectedOrigin") == ORIGIN_WRONG,
+        st.get("ignoredAfterAcceptance") == ONE,
+      })
 }

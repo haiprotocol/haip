@@ -77,6 +77,14 @@ module invariants {
       and st.get("proposalSource") <= SOURCE_WRONG,
     bit(st.get("proposalAccepted")),
     bit(st.get("proposalRejected")),
+    bit(st.get("rejectedAttempt")),
+    bit(st.get("ignoredAfterAcceptance")),
+    st.get("rejectedMethod") >= METHOD_NONE
+      and st.get("rejectedMethod") <= METHOD_FORBIDDEN,
+    st.get("rejectedSource") >= SOURCE_NONE
+      and st.get("rejectedSource") <= SOURCE_WRONG,
+    st.get("rejectedOrigin") >= ORIGIN_NONE
+      and st.get("rejectedOrigin") <= ORIGIN_WRONG,
     st.get("resultOrigin") >= ORIGIN_NONE
       and st.get("resultOrigin") <= ORIGIN_WRONG,
     bit(st.get("forbiddenOperation")),
@@ -86,6 +94,14 @@ module invariants {
     bit(st.get("fallbackTrusted")),
     bit(st.get("fallbackUsed")),
     bit(st.get("controlledTeardown")),
+    st.get("teardownRequestId") >= ZERO
+      and st.get("teardownRequestId") <= TWO,
+    st.get("teardownResponseId") >= ZERO
+      and st.get("teardownResponseId") <= TWO,
+    st.get("teardownConsumedRequestId") >= ZERO
+      and st.get("teardownConsumedRequestId") <= TWO,
+    bit(st.get("teardownRejected")),
+    bit(st.get("teardownReplay")),
     bit(st.get("crash")),
     bit(st.get("appTransition")),
     bit(st.get("appCreatedAuthority")),

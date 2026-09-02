@@ -1,8 +1,9 @@
 # HAIP Agent UI + approval spine verification
 
 Standalone Quint model for the **native HAIP Agent UI** extension and the HAIP 2
-approval→effect safety spine reviewed against
-[HAIP PR #5](https://github.com/haiprotocol/haip/pull/5).
+approval→effect safety spine proposed in
+[HAIP PR #6](https://github.com/haiprotocol/haip/pull/6), against the HAIP 2 base from
+[PR #5](https://github.com/haiprotocol/haip/pull/5).
 
 This is a **new HAIP protocol extension**. It is not an MCP adapter, MCP Apps
 profile, or compatibility layer. There is no MCP↔HAIP bridge to preserve.
@@ -25,12 +26,16 @@ profile, or compatibility layer. There is no MCP↔HAIP bridge to preserve.
 ## Commands
 
 ```sh
-npm install
+npm ci
 npm run check
 npm test
 npm run simulate
-npm run verify
 ```
+
+`npm run verify:smoke` is an optional, slow Apalache toolchain smoke through two
+transitions. That depth cannot reach Host/View state and is not a symbolic proof of the
+profile. The deterministic traces and seeded simulation are the routine reproducible
+checks.
 
 Normative UI contract: [`review/haip-agent-ui-profile.md`](review/haip-agent-ui-profile.md).
 Model-check record: [`review/model-check-results.md`](review/model-check-results.md).

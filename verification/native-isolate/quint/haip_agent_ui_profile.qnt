@@ -36,10 +36,15 @@ module haip_agent_ui_profile {
     s.get("proposalRequestId") != ZERO,
     s.get("proposalResponseId") == s.get("proposalRequestId"),
     s.get("proposalConsumedRequestId") == s.get("proposalRequestId"),
-    s.get("proposalReplay") == ZERO,
     s.get("proposalMethod") == METHOD_PROPOSE,
     s.get("proposalSource") == SOURCE_EXACT,
     s.get("resultOrigin") == ORIGIN_EXACT,
+  }
+
+  pure def teardownCorrelationValid(s: str -> int): bool = all {
+    s.get("teardownRequestId") != ZERO,
+    s.get("teardownResponseId") == s.get("teardownRequestId"),
+    s.get("teardownConsumedRequestId") == s.get("teardownRequestId"),
   }
 
   pure def fixedDenyAll(s: str -> int): bool =
@@ -90,22 +95,56 @@ module haip_agent_ui_profile {
     (s.get("inputSnapshotCount") == ONE).implies(uiWasInitialized(s)),
     (s.get("resultSnapshotCount") == ONE).implies(
       s.get("inputSnapshotCount") == ONE),
+    (s.get("proposalRequestId") != ZERO).implies(
+      s.get("resultSnapshotCount") == ONE),
     (s.get("proposalAccepted") == ONE).implies(all {
       uiWasInitialized(s),
       proposalCorrelationValid(s),
       s.get("inputSnapshotCount") == ONE,
       s.get("resultSnapshotCount") == ONE,
-      s.get("forbiddenOperation") == ZERO,
     }),
-    (s.get("forbiddenOperation") == ONE).implies(all {
-      s.get("proposalRejected") == ONE,
-      s.get("proposalAccepted") == ZERO,
-    }),
-    (s.get("proposalReplay") == ONE).implies(
+    (s.get("rejectedAttempt") == ONE).implies(
       s.get("proposalRejected") == ONE),
-    (s.get("host") == HOST_STOPPED).implies(
-      s.get("controlledTeardown") == ONE),
+    (s.get("ignoredAfterAcceptance") == ONE).implies(all {
+      s.get("proposalAccepted") == ONE,
+      s.get("rejectedAttempt") == ONE,
+    }),
+    (s.get("rejectedMethod") == METHOD_FORBIDDEN).implies(all {
+      s.get("forbiddenOperation") == ONE,
+      s.get("proposalRejected") == ONE,
+      s.get("rejectedAttempt") == ONE,
+    }),
+    (s.get("rejectedSource") == SOURCE_WRONG).implies(
+      s.get("rejectedAttempt") == ONE),
+    (s.get("rejectedOrigin") == ORIGIN_WRONG).implies(
+      s.get("rejectedAttempt") == ONE),
+    (s.get("proposalReplay") == ONE).implies(all {
+      s.get("proposalRejected") == ONE,
+      s.get("rejectedAttempt") == ONE,
+    }),
+    (s.get("host") == HOST_STOPPING).implies(all {
+      s.get("teardownRequestId") != ZERO,
+      uiWasInitialized(s),
+    }),
+    (s.get("teardownResponseId") != ZERO).implies(
+      teardownCorrelationValid(s)),
+    (s.get("host") == HOST_STOPPED).implies(all {
+      s.get("controlledTeardown") == ONE,
+      s.get("view") == VIEW_STOPPED,
+      s.get("teardownRequestId") != ZERO,
+      teardownCorrelationValid(s) or s.get("teardownRejected") == ONE,
+    }),
+    (s.get("teardownReplay") == ONE).implies(
+      s.get("teardownRejected") == ONE),
     (s.get("host") == HOST_CRASHED).implies(s.get("crash") == ONE),
+    ((s.get("host") == HOST_STOPPING
+      or s.get("host") == HOST_STOPPED
+      or s.get("host") == HOST_CRASHED)
+      and s.get("humanConfirmation") == ZERO).implies(all {
+        s.get("proposalAccepted") == ZERO,
+        s.get("candidate") != C_PROPOSED,
+        s.get("candidate") != C_FROZEN,
+      }),
     (s.get("fallbackUsed") == ONE).implies(all {
       s.get("fallbackTrusted") == ONE,
       s.get("profileRevision") == PROFILE_UNSUPPORTED

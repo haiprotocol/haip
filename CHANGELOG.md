@@ -5,6 +5,8 @@
 - Cut the review Host/View wire over to the native `haip/ui.*` Agent UI profile.
   MCP Apps `ext-apps` / SDK are removed from the browser path; bundle compatibility is
   `agent_ui: "1"` and the request profile is `haip.agent-ui: "1"`.
+- Retain offline verification of authority records carrying the earlier
+  `haip.mcp-app: "1-draft.1"` profile. Existing records are not reinterpreted as Agent UI.
 
 
 ## 2.0.0-draft.1 — unreleased
@@ -13,14 +15,14 @@ HAIP is being repurposed as an independent human-review and execution-authorisat
 protocol. This is a breaking major with no HAIP 1 compatibility. Existing streaming,
 chat, audio and transport APIs are archived under `archive/v1` and `docs/archive/v1`.
 
-The active `@haip` packages now expose immutable review requests, explicit trusted
+The original `draft.1` baseline exposed immutable review requests, explicit trusted
 human confirmation, signed receipts, producer isolation, exclusive claims, fresh
 admission, outcomes and audit exports. The reference server uses Node 24, Express 5
-and PostgreSQL with OIDC and a native browser inbox. The MCP App can propose only.
+and PostgreSQL with OIDC and a native browser inbox. Its MCP App could propose only.
 
 Response JSON rejects duplicates, malformed Unicode and precision loss while supporting
-ordinary decimals through RFC 8785. Exact renderer pairing is ext-apps 1.7.4/MCP SDK
-1.29.0. Included keys are not implicit trust roots. No notification can approve or run.
+ordinary decimals through RFC 8785. The original renderer pairing was ext-apps 1.7.4/MCP
+SDK 1.29.0. Included keys are not implicit trust roots. No notification can approve or run.
 
 Development and production limits are explicit. Production execution admission is
 fenced pending safe restore recovery. The filesystem anchor and counter are test

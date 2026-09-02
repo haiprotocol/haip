@@ -17,6 +17,19 @@
       "type": "object",
       "additionalProperties": true
     },
+    "AgentUiCompatibility": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "agent_ui": {
+          "const": "1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_ui"
+      ]
+    },
     "Limits": {
       "type": "object",
       "additionalProperties": false,
@@ -258,7 +271,7 @@
               "pattern": "^sha256:[a-f0-9]{64}$"
             },
             "compatibility": {
-              "$ref": "#/$defs/Metadata"
+              "$ref": "#/$defs/AgentUiCompatibility"
             }
           },
           "required": [
@@ -305,7 +318,7 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         },
         "compatibility": {
-          "$ref": "#/$defs/Metadata"
+          "$ref": "#/$defs/AgentUiCompatibility"
         },
         "author": {
           "type": "string",
@@ -342,7 +355,7 @@
           "minLength": 1
         },
         "compatibility": {
-          "$ref": "#/$defs/Metadata"
+          "$ref": "#/$defs/AgentUiCompatibility"
         },
         "author": {
           "type": "string",
@@ -455,6 +468,24 @@
         "response_schema",
         "review_document"
       ],
+      "dependentSchemas": {
+        "bundle_id": {
+          "type": "object",
+          "properties": {
+            "profiles": {
+              "type": "object",
+              "properties": {
+                "haip.agent-ui": {
+                  "const": "1"
+                }
+              },
+              "required": [
+                "haip.agent-ui"
+              ]
+            }
+          }
+        }
+      },
       "if": {
         "properties": {
           "purpose": {
@@ -654,11 +685,67 @@
         "required": [
           "execution",
           "profiles"
-        ]
+        ],
+        "if": {
+          "properties": {
+            "review": {
+              "type": "object",
+              "properties": {
+                "bundle": {}
+              },
+              "required": [
+                "bundle"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "profiles": {
+              "type": "object",
+              "properties": {
+                "haip.agent-ui": {
+                  "const": "1"
+                }
+              },
+              "required": [
+                "haip.agent-ui"
+              ]
+            }
+          }
+        }
       },
       "else": {
         "properties": {
           "execution": false
+        },
+        "if": {
+          "properties": {
+            "review": {
+              "type": "object",
+              "properties": {
+                "bundle": {}
+              },
+              "required": [
+                "bundle"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "profiles": {
+              "type": "object",
+              "properties": {
+                "haip.agent-ui": {
+                  "const": "1"
+                }
+              },
+              "required": [
+                "haip.agent-ui"
+              ]
+            }
+          }
         }
       }
     },

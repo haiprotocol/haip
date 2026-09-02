@@ -1040,10 +1040,34 @@ export class ReviewService {
       );
     });
   }
+  private requireStoredIntegrity(row: RequestRow) {
+    let valid = false;
+    try {
+      validate('DecisionRequest', row.data.request);
+      const request = row.data.request;
+      valid =
+        request.id === row.id &&
+        request.tenant === row.tenant &&
+        request.producer === row.producer &&
+        request.route === row.route &&
+        digest(request) === row.data.request_digest;
+      if (valid && row.material)
+        valid =
+          typeof row.material.review_document === 'string' &&
+          digestBytes(canonicalise(row.material.payload)) === request.review.payload_digest &&
+          digestBytes(canonicalise(row.material.response_schema)) ===
+            request.review.response_schema_digest &&
+          digestBytes(row.material.review_document) === request.review.document_digest;
+    } catch {
+      valid = false;
+    }
+    requireThat(valid, 409, 'material_integrity_mismatch');
+  }
   async material(p: Principal, id: string) {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       this.project(row, now);
       requireThat(row.material, 410, 'material_deleted');
       return {
@@ -1055,6 +1079,7 @@ export class ReviewService {
     });
   }
   async eligible(tx: Tx, p: Principal, row: RequestRow): Promise<void> {
+    this.requireStoredIntegrity(row);
     requireThat(p.kind === 'human', 403, 'human_required');
     const route = await this.route(tx, p, row.route);
     requireThat(p.config.identity_certain !== false, 503, 'identity_uncertain');
@@ -1305,6 +1330,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const old = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(old);
       return this.idempotent(
         tx,
         p,
@@ -1330,6 +1356,7 @@ export class ReviewService {
     });
   }
   async authority(tx: Tx, p: Principal, row: RequestRow, now: Date, existingClaim = false) {
+    this.requireStoredIntegrity(row);
     const d = row.data;
     const r = d.request;
     requireThat(
@@ -1383,6 +1410,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       if (this.recovery)
         await this.recovery.check(tx, p.tenant, row.data.request.authority_namespace);
       return this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
@@ -1516,6 +1544,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === (reconcile ? 'operator' : 'producer'), 403, 'forbidden');
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       return this.idempotent(
         tx,
         p,
@@ -1606,6 +1635,7 @@ export class ReviewService {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       this.project(row, now);
       const audit = (
         await tx.query(

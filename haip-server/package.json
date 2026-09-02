@@ -16,7 +16,6 @@
     "LICENSE",
     "migrations",
     "schema",
-    "third-party",
     "public"
   ],
   "scripts": {

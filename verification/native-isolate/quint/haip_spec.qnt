@@ -6,6 +6,7 @@ module haip_spec {
       and s.get("candidateDigest") == s.get("displayedDigest")
 
   pure def validHumanConfirmation(s: str -> int): bool = all {
+    s.get("host") == HOST_READY,
     s.get("candidate") == C_FROZEN,
     candidateMatchesDisplay(s),
     s.get("authenticated") == ONE,

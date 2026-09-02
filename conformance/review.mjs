@@ -70,7 +70,12 @@ export async function exerciseReviewFixture({
     metadata: { fixture_id: randomUUID(), future_optional: { meaning: 'non-authorising' } },
   };
   assert.equal(
-    (await call('/v2/requests', { ...input, profiles: { unsupported: 'unknown' } })).status,
+    (
+      await call('/v2/requests', {
+        ...input,
+        profiles: { 'haip.agent-ui': '1', unsupported: 'unknown' },
+      })
+    ).status,
     422,
   );
   const key = randomUUID(),

@@ -198,8 +198,11 @@ export function createApp(service: ReviewService) {
     ).rows[0];
     requireBoundBundle(found, req.principal.tenant, bundle);
     const scope = bundleScope(req.principal.tenant, bundle);
-    const inline =
-      Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes;
+    requireThat(
+      Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes,
+      413,
+      'app_snapshot_too_large',
+    );
     res.json({
       html: found.html,
       origin: service.config.sandboxOrigin(scope),
@@ -210,12 +213,10 @@ export function createApp(service: ReviewService) {
         content: [
           {
             type: 'text',
-            text: inline
-              ? 'Stored review payload'
-              : 'Payload exceeds the inline limit; use the searchable trusted host view.',
+            text: 'Stored review payload',
           },
         ],
-        ...(inline ? { structuredContent: { payload: data.payload } } : {}),
+        structuredContent: { payload: data.payload },
       },
     });
   });

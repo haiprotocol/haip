@@ -16,7 +16,6 @@ COPY haip-sdk ./haip-sdk
 COPY haip-server ./haip-server
 COPY haip-cli ./haip-cli
 COPY protocol ./protocol
-COPY third-party ./third-party
 COPY scripts/generate.mjs scripts/openapi.mjs scripts/build-browser.mjs ./scripts/
 RUN mkdir -p docs/protocol && npm run build
 
@@ -39,7 +38,6 @@ COPY --from=build /app/haip-server/dist ./haip-server/dist
 COPY --from=build /app/haip-server/migrations ./haip-server/migrations
 COPY --from=build /app/haip-server/schema ./haip-server/schema
 COPY --from=build /app/haip-server/public ./haip-server/public
-COPY --from=build /app/haip-server/third-party ./haip-server/third-party
 USER node
 EXPOSE 8080 8081
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \

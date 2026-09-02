@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            verification/native-isolate/package-lock.json
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
@@ -30,8 +33,14 @@ jobs:
           rustc --version
           pg_config --version
       - run: npm ci
+      - run: npm ci --prefix verification/native-isolate --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - run: npm run check
+      - name: Check the native-isolate model
+        run: |
+          npm run check --prefix verification/native-isolate
+          npm test --prefix verification/native-isolate
+          npm run simulate --prefix verification/native-isolate
       - run: python3 -m venv .local/primitive-python && .local/primitive-python/bin/pip install -r research/haip2-2026-08-30/runners/requirements.txt
       - run: npm run test:cross-language
       - run: npm audit --omit=dev && npm run pack:check

@@ -24,7 +24,7 @@ async function signIn(page: any, url: string) {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL(env.origin + url);
 }
-test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted confirmation', async () => {
+test('browser OIDC, app replay, restricted message bridge, escaped text and trusted confirmation', async () => {
   const built = await build({
     stdin: {
       contents: await readFile(new URL('../examples/http/choice-app.js', import.meta.url), 'utf8'),
@@ -98,6 +98,20 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
   assert.equal(probe.inputs, 1);
   assert.equal(probe.results, 1);
   // Wrong-source direct messages and repeated handshakes cannot propose or replay stored input.
+  const proxy = frame.parentFrame()!;
+  await proxy.evaluate(() => {
+    window.haipTestRendererMessages = 0;
+    const renderer = document.querySelector<HTMLIFrameElement>('iframe')!;
+    window.addEventListener('message', (event) => {
+      if (event.source === renderer.contentWindow) window.haipTestRendererMessages++;
+    });
+  });
+  await page.evaluate(() => {
+    window.haipTestDirectMessages = [];
+    window.addEventListener('message', (event) => {
+      if (event.data?.id === 9001) window.haipTestDirectMessages.push(event.data);
+    });
+  });
   await frame.evaluate(() => {
     top!.postMessage(
       {
@@ -111,12 +125,8 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
     parent.postMessage({ jsonrpc: '2.0', method: 'haip/ui.initialized' }, '*');
     parent.postMessage({ jsonrpc: '2.0', id: 9002, method: 'haip/ui.initialize', params: {} }, '*');
   });
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      ),
-  );
+  await proxy.waitForFunction(() => window.haipTestRendererMessages === 2);
+  await page.waitForFunction(() => window.haipTestDirectMessages.length === 1);
   assert.equal(
     (await env.api(`/v2/requests/${created.body.request.id}/material`)).body.candidate,
     null,
@@ -222,16 +232,18 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
   await frame.evaluate((url) => {
     location.href = url;
   }, sinkURL);
-  await page.waitForTimeout(200);
+  await page.waitForLoadState('networkidle');
   assert.equal(outbound, 0, 'Sandbox navigation must not reach a network destination');
   await new Promise<void>((resolve) => sink.close(() => resolve()));
   await context.close();
 });
 
+let hostileBundle: any;
 async function hostileReview() {
-  const built = await build({
-    stdin: {
-      contents: `
+  if (!hostileBundle) {
+    const built = await build({
+      stdin: {
+        contents: `
         document.body.innerHTML = '<h1>Adversarial proposal fixture</h1><p>Stored app; proposals cannot confirm.</p>';
         window.attacks = { inputs: 0, results: 0, hostRequests: [] };
         let nextId = 1;
@@ -281,31 +293,33 @@ async function hostileReview() {
         if (!init?.capabilities?.localProposal) throw new Error('missing localProposal');
         post({ jsonrpc: '2.0', method: 'haip/ui.initialized' });
       `,
-      resolveDir: process.cwd(),
-      loader: 'js',
-    },
-    bundle: true,
-    write: false,
-    format: 'esm',
-    platform: 'browser',
-  });
-  const bundle = await env.api(
-    '/v2/bundles',
-    {
-      html:
-        '<!doctype html><body><script type="module">' +
-        built.outputFiles[0]!.text.replaceAll('</script', '<\\/script') +
-        '</script></body>',
-      compatibility: { agent_ui: '1' },
-      author: 'Adversarial browser fixture',
-      licence: 'MIT',
-    },
-    env.credentials.publisher,
-  );
-  assert.equal(bundle.status, 201);
+        resolveDir: process.cwd(),
+        loader: 'js',
+      },
+      bundle: true,
+      write: false,
+      format: 'esm',
+      platform: 'browser',
+    });
+    const registered = await env.api(
+      '/v2/bundles',
+      {
+        html:
+          '<!doctype html><body><script type="module">' +
+          built.outputFiles[0]!.text.replaceAll('</script', '<\\/script') +
+          '</script></body>',
+        compatibility: { agent_ui: '1' },
+        author: 'Adversarial browser fixture',
+        licence: 'MIT',
+      },
+      env.credentials.publisher,
+    );
+    assert.equal(registered.status, 201);
+    hostileBundle = registered.body;
+  }
   const created = await env.api(
     '/v2/requests',
-    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '1' } }),
+    env.request(false, { bundle_id: hostileBundle.id, profiles: { 'haip.agent-ui': '1' } }),
   );
   assert.equal(created.status, 201);
   const context = await browser.newContext(),
@@ -322,14 +336,196 @@ async function hostileReview() {
   await page.frameLocator('#app > iframe').frameLocator('iframe').getByRole('heading').waitFor();
   const frame = page.frames().find((f) => f.url() === 'about:srcdoc')!;
   await frame.waitForFunction(() => window.attacks?.inputs === 1 && window.attacks?.results === 1);
+  const proxy = frame.parentFrame()!;
+  await proxy.evaluate(() => {
+    window.haipTestRendererMessages = 0;
+    const renderer = document.querySelector<HTMLIFrameElement>('iframe')!;
+    window.addEventListener('message', (event) => {
+      if (event.source === renderer.contentWindow) window.haipTestRendererMessages++;
+    });
+  });
   return {
     context,
     page,
     frame,
+    proxy,
     id: created.body.request.id,
     bundle: created.body.request.review.bundle,
   };
 }
+
+test('View failure discards its frozen proposal and restores the trusted form', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  try {
+    assert.equal((await frame.evaluate(() => window.attacks.propose(1))).ok, true);
+    await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
+    await frame.evaluate(() => {
+      for (let index = 0; index < 32; index++)
+        parent.postMessage(
+          {
+            jsonrpc: '2.0',
+            id: 10_000 + index,
+            method: 'haip/ui.propose',
+            params: {
+              decision: 'answer',
+              response: { choice: 'accept', score: 100 + index },
+            },
+          },
+          '*',
+        );
+    });
+    await page.waitForFunction(() =>
+      document.querySelector('#app-state')?.textContent?.includes('App unavailable'),
+    );
+    assert.equal(await page.locator('#app > iframe').count(), 0);
+    assert.equal(await page.locator('#confirmation').isVisible(), false);
+    assert.equal(await page.locator('#exact').textContent(), '');
+    assert.equal(await page.locator('#candidate-digest').textContent(), '');
+    assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
+    assert.match((await page.locator('#app-state').textContent()) ?? '', /App unavailable/);
+    assert.equal((await env.api('/v2/requests/' + id)).body.decision_state, 'pending');
+    await page.getByLabel('Response (JSON)').fill('{"choice":"decline","score":200}');
+    await page.getByRole('button', { name: 'Review this response' }).click();
+    await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
+    assert.equal(
+      (await env.api(`/v2/requests/${id}/material`)).body.candidate.response.score,
+      200,
+    );
+    assert.equal(
+      await page.locator('#proposal-source').textContent(),
+      'Source: trusted host response form.',
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test('oversized UTF-8 renderer messages revoke an in-flight app proposal', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  const proposalReceived = Promise.withResolvers<void>();
+  const releaseProposal = Promise.withResolvers<void>();
+  let proposals = 0;
+  try {
+    await page.route(`**/v2/requests/${id}/candidates`, async (route) => {
+      proposals++;
+      const response = await route.fetch();
+      proposalReceived.resolve();
+      await releaseProposal.promise;
+      await route.fulfill({ response });
+    });
+    await frame.evaluate(() => {
+      window.attacks.first = window.attacks.propose(1);
+    });
+    await proposalReceived.promise;
+    await frame.evaluate(() => {
+      parent.postMessage(
+        {
+          jsonrpc: '2.0',
+          id: 20_000,
+          method: 'haip/ui.propose',
+          params: {
+            decision: 'answer',
+            response: { choice: 'accept', detail: '€'.repeat(400_000) },
+          },
+        },
+        '*',
+      );
+    });
+    await page.locator('#app > iframe').waitFor({ state: 'detached' });
+    releaseProposal.resolve();
+    await page.waitForLoadState('networkidle');
+    assert.equal(proposals, 1, 'oversized UTF-8 messages must not reach the candidate route');
+    assert.equal(await page.locator('#confirmation').isVisible(), false);
+    assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
+    assert.equal((await env.api('/v2/requests/' + id)).body.decision_state, 'pending');
+  } finally {
+    releaseProposal.resolve();
+    await context.close();
+  }
+});
+
+test('renderer reload discards a frozen app proposal and selects native fallback', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  try {
+    assert.equal((await frame.evaluate(() => window.attacks.propose(1))).ok, true);
+    await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
+    await page.evaluate(() => {
+      const proxy = document.querySelector<HTMLIFrameElement>('#app > iframe')!;
+      proxy.src = proxy.src;
+    });
+    await page.locator('#app > iframe').waitFor({ state: 'detached' });
+    assert.equal(await page.locator('#confirmation').isVisible(), false);
+    assert.equal(await page.locator('#exact').textContent(), '');
+    assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
+    assert.equal((await env.api('/v2/requests/' + id)).body.decision_state, 'pending');
+  } finally {
+    await context.close();
+  }
+});
+
+test('unsupported View capabilities fail closed to the native renderer', async () => {
+  const html = `<!doctype html><script>
+    parent.postMessage({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'haip/ui.initialize',
+      params: {
+        protocolVersion: 'org.haiprotocol.agent-ui/1',
+        capabilities: { localProposal: false }
+      }
+    }, '*');
+  </script>`;
+  const bundle = await env.api(
+    '/v2/bundles',
+    {
+      html,
+      compatibility: { agent_ui: '1' },
+      author: 'Invalid capability fixture',
+      licence: 'MIT',
+    },
+    env.credentials.publisher,
+  );
+  assert.equal(bundle.status, 201);
+  const created = await env.api(
+    '/v2/requests',
+    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '1' } }),
+  );
+  assert.equal(created.status, 201);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await signIn(page, '/review/' + created.body.request.id);
+    await page.getByText('Producer review app (isolated)', { exact: true }).click();
+    await page.waitForFunction(() =>
+      document.querySelector('#app-state')?.textContent?.includes('App unavailable'),
+    );
+    assert.equal(await page.locator('#app > iframe').count(), 0);
+    assert.match((await page.locator('#app-state').textContent()) ?? '', /unsupported Agent UI/);
+    assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
+    assert.equal(
+      (await env.api(`/v2/requests/${created.body.request.id}/material`)).body.candidate,
+      null,
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test('controlled Host teardown accepts a correlated null JSON-RPC result', async () => {
+  const { context, page, frame } = await hostileReview();
+  try {
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await frame.waitForFunction(() => window.attacks.hostRequests.length === 1);
+    const teardown = await frame.evaluate(() => window.attacks.hostRequests[0]);
+    assert.equal(teardown.method, 'haip/ui.teardown');
+    await frame.evaluate((id) => {
+      parent.postMessage({ jsonrpc: '2.0', id, result: null }, '*');
+    }, teardown.id);
+    await page.locator('#app > iframe').waitFor({ state: 'detached' });
+  } finally {
+    await context.close();
+  }
+});
 
 test('hostile proposals cannot overtake a pending candidate, replace frozen review or race confirmation', async () => {
   const { context, page, frame, id, bundle } = await hostileReview();
@@ -494,19 +690,15 @@ test('dismissal requires a new trusted gesture and every candidate field remains
 });
 
 test('sandbox accepts only one exact correlated response and rejects method-less spoofing', async () => {
-  const { context, page, frame } = await hostileReview();
+  const { context, page, frame, proxy } = await hostileReview();
   const send = async (messages: unknown[]) => {
-    await frame.evaluate(async (messages) => {
+    const previous = await proxy.evaluate(() => window.haipTestRendererMessages);
+    await frame.evaluate((messages) => {
       for (const message of messages) parent.postMessage(message, '*');
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
     }, messages);
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
+    await proxy.waitForFunction(
+      (expected) => window.haipTestRendererMessages === expected,
+      previous + messages.length,
     );
   };
   const received = (id: string | number) =>
@@ -538,7 +730,6 @@ test('sandbox accepts only one exact correlated response and rejects method-less
       { jsonrpc: '2.0', id: 'fixture:one', result: {}, error: { code: -32603, message: 'both' } },
       { jsonrpc: '2.0', id: 'fixture:one', error: { code: 'invalid', message: 'wrong type' } },
       { jsonrpc: '2.0', id: 'fixture:one', method: undefined, result: {} },
-      { jsonrpc: '2.0', id: 'fixture:one', result: null },
       { jsonrpc: '2.0', id: 'fixture:one', result: {}, params: { spoof: true } },
     ]);
     assert.deepEqual(
@@ -546,8 +737,12 @@ test('sandbox accepts only one exact correlated response and rejects method-less
       [],
       'invalid replies cannot consume or satisfy a pending host request',
     );
-    const accepted = { jsonrpc: '2.0', id: 'fixture:one', result: { accepted: true } };
+    const accepted = { jsonrpc: '2.0', id: 'fixture:one', result: null };
     await send([accepted, accepted]);
+    await page.waitForFunction(
+      (id) => window.proxyMessages.filter((message) => message.id === id).length === 1,
+      'fixture:one',
+    );
     assert.deepEqual(
       await received('fixture:one'),
       [accepted],
@@ -558,6 +753,10 @@ test('sandbox accepts only one exact correlated response and rejects method-less
     assert.deepEqual(await received('9007'), [], 'request ID types cannot be substituted');
     const error = { jsonrpc: '2.0', id: 9007, error: { code: -32603, message: 'test response' } };
     await send([error, error]);
+    await page.waitForFunction(
+      (id) => window.proxyMessages.filter((message) => message.id === id).length === 1,
+      9007,
+    );
     assert.deepEqual(await received(9007), [error]);
     assert.deepEqual(
       await frame.evaluate(() => ({

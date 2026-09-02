@@ -43,6 +43,7 @@ export type HitlStatus =
 export interface ProtocolTypes {
   Profiles?: Profiles;
   Metadata?: Metadata;
+  AgentUiCompatibility?: AgentUiCompatibility;
   Limits?: Limits;
   ExecutionBinding?: ExecutionBinding;
   ReviewBinding?: ReviewBinding;
@@ -94,6 +95,10 @@ export interface Profiles {
 export interface Metadata {
   [k: string]: unknown;
 }
+export interface AgentUiCompatibility {
+  agent_ui: '1';
+  [k: string]: unknown;
+}
 export interface Limits {
   bundle_bytes: number;
   payload_bytes: number;
@@ -138,7 +143,7 @@ export interface ReviewBinding {
     id: string;
     publisher: string;
     digest: string;
-    compatibility: Metadata;
+    compatibility: AgentUiCompatibility;
   };
 }
 export interface ReviewBundle {
@@ -146,14 +151,14 @@ export interface ReviewBundle {
   tenant: string;
   publisher: string;
   digest: string;
-  compatibility: Metadata;
+  compatibility: AgentUiCompatibility;
   author: string;
   licence: string;
   created_at: string;
 }
 export interface BundleRegistration {
   html: string;
-  compatibility: Metadata;
+  compatibility: AgentUiCompatibility;
   author: string;
   licence: string;
 }
