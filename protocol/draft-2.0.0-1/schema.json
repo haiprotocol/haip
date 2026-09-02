@@ -26,9 +26,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "agent_ui"
-      ]
+      "required": ["agent_ui"]
     },
     "Limits": {
       "type": "object",
@@ -149,19 +147,11 @@
               "pattern": "^sha256:[a-f0-9]{64}$"
             }
           },
-          "required": [
-            "source",
-            "revision",
-            "digest"
-          ]
+          "required": ["source", "revision", "digest"]
         },
         "mode": {
           "type": "string",
-          "enum": [
-            "live_window",
-            "durable",
-            "fixed_mock"
-          ]
+          "enum": ["live_window", "durable", "fixed_mock"]
         },
         "valid_until": {
           "type": "string",
@@ -192,11 +182,7 @@
               "$ref": "#/$defs/Metadata"
             }
           },
-          "required": [
-            "profile",
-            "version",
-            "references"
-          ]
+          "required": ["profile", "version", "references"]
         },
         "recovery_of": {
           "type": "string",
@@ -274,12 +260,7 @@
               "$ref": "#/$defs/AgentUiCompatibility"
             }
           },
-          "required": [
-            "id",
-            "publisher",
-            "digest",
-            "compatibility"
-          ]
+          "required": ["id", "publisher", "digest", "compatibility"]
         }
       },
       "required": [
@@ -368,12 +349,7 @@
           "maxLength": 160
         }
       },
-      "required": [
-        "html",
-        "compatibility",
-        "author",
-        "licence"
-      ]
+      "required": ["html", "compatibility", "author", "licence"]
     },
     "RequestInput": {
       "type": "object",
@@ -385,10 +361,7 @@
         },
         "purpose": {
           "type": "string",
-          "enum": [
-            "review",
-            "authorise_execution"
-          ]
+          "enum": ["review", "authorise_execution"]
         },
         "profiles": {
           "$ref": "#/$defs/Profiles"
@@ -425,11 +398,7 @@
               "pattern": "^[a-zA-Z0-9_.:@/-]+$"
             }
           },
-          "required": [
-            "digest",
-            "representation",
-            "digest_rules"
-          ]
+          "required": ["digest", "representation", "digest_rules"]
         },
         "payload": {},
         "response_schema": {
@@ -479,9 +448,7 @@
                   "const": "1"
                 }
               },
-              "required": [
-                "haip.agent-ui"
-              ]
+              "required": ["haip.agent-ui"]
             }
           }
         }
@@ -492,9 +459,7 @@
             "const": "authorise_execution"
           }
         },
-        "required": [
-          "purpose"
-        ]
+        "required": ["purpose"]
       },
       "then": {
         "properties": {
@@ -508,15 +473,10 @@
                 "const": "1-draft.1"
               }
             },
-            "required": [
-              "haip.execution"
-            ]
+            "required": ["haip.execution"]
           }
         },
-        "required": [
-          "execution",
-          "profiles"
-        ]
+        "required": ["execution", "profiles"]
       },
       "else": {
         "properties": {
@@ -540,10 +500,7 @@
         },
         "purpose": {
           "type": "string",
-          "enum": [
-            "review",
-            "authorise_execution"
-          ]
+          "enum": ["review", "authorise_execution"]
         },
         "profiles": {
           "$ref": "#/$defs/Profiles"
@@ -577,10 +534,7 @@
               "pattern": "^[a-zA-Z0-9_.:@/-]+$"
             }
           },
-          "required": [
-            "subject",
-            "source"
-          ]
+          "required": ["subject", "source"]
         },
         "route": {
           "type": "string",
@@ -661,9 +615,7 @@
             "const": "authorise_execution"
           }
         },
-        "required": [
-          "purpose"
-        ]
+        "required": ["purpose"]
       },
       "then": {
         "properties": {
@@ -677,15 +629,10 @@
                 "const": "1-draft.1"
               }
             },
-            "required": [
-              "haip.execution"
-            ]
+            "required": ["haip.execution"]
           }
         },
-        "required": [
-          "execution",
-          "profiles"
-        ],
+        "required": ["execution", "profiles"],
         "if": {
           "properties": {
             "review": {
@@ -693,9 +640,7 @@
               "properties": {
                 "bundle": {}
               },
-              "required": [
-                "bundle"
-              ]
+              "required": ["bundle"]
             }
           }
         },
@@ -708,9 +653,7 @@
                   "const": "1"
                 }
               },
-              "required": [
-                "haip.agent-ui"
-              ]
+              "required": ["haip.agent-ui"]
             }
           }
         }
@@ -726,9 +669,7 @@
               "properties": {
                 "bundle": {}
               },
-              "required": [
-                "bundle"
-              ]
+              "required": ["bundle"]
             }
           }
         },
@@ -741,9 +682,7 @@
                   "const": "1"
                 }
               },
-              "required": [
-                "haip.agent-ui"
-              ]
+              "required": ["haip.agent-ui"]
             }
           }
         }
@@ -756,19 +695,10 @@
         "response": {},
         "decision": {
           "type": "string",
-          "enum": [
-            "answer",
-            "approve",
-            "reject",
-            "authorise",
-            "refuse"
-          ]
+          "enum": ["answer", "approve", "reject", "authorise", "refuse"]
         }
       },
-      "required": [
-        "response",
-        "decision"
-      ]
+      "required": ["response", "decision"]
     },
     "DecisionCandidate": {
       "type": "object",
@@ -811,13 +741,7 @@
         },
         "decision": {
           "type": "string",
-          "enum": [
-            "answer",
-            "approve",
-            "reject",
-            "authorise",
-            "refuse"
-          ]
+          "enum": ["answer", "approve", "reject", "authorise", "refuse"]
         },
         "created_at": {
           "type": "string",
@@ -843,10 +767,7 @@
       "properties": {
         "purpose": {
           "type": "string",
-          "enum": [
-            "review",
-            "authorise_execution"
-          ]
+          "enum": ["review", "authorise_execution"]
         },
         "request_id": {
           "type": "string",
@@ -886,13 +807,7 @@
         },
         "decision": {
           "type": "string",
-          "enum": [
-            "answer",
-            "approve",
-            "reject",
-            "authorise",
-            "refuse"
-          ]
+          "enum": ["answer", "approve", "reject", "authorise", "refuse"]
         },
         "confirmed_at": {
           "type": "string",
@@ -921,35 +836,24 @@
             "const": "authorise_execution"
           }
         },
-        "required": [
-          "purpose"
-        ]
+        "required": ["purpose"]
       },
       "then": {
         "properties": {
           "decision": {
-            "enum": [
-              "authorise",
-              "refuse"
-            ]
+            "enum": ["authorise", "refuse"]
           },
           "grant_deadline": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": [
-          "grant_deadline"
-        ]
+        "required": ["grant_deadline"]
       },
       "else": {
         "properties": {
           "decision": {
-            "enum": [
-              "answer",
-              "approve",
-              "reject"
-            ]
+            "enum": ["answer", "approve", "reject"]
           },
           "grant_deadline": false
         }
@@ -982,12 +886,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "request_id",
-        "reviewer",
-        "expires_at"
-      ]
+      "required": ["id", "request_id", "reviewer", "expires_at"]
     },
     "ExecutionClaim": {
       "type": "object",
@@ -1071,10 +970,7 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
       },
-      "required": [
-        "execution_identity",
-        "execution_binding_digest"
-      ]
+      "required": ["execution_identity", "execution_binding_digest"]
     },
     "AdmissionStatus": {
       "type": "object",
@@ -1166,11 +1062,7 @@
           "$ref": "#/$defs/Metadata"
         }
       },
-      "required": [
-        "execution_identity",
-        "status",
-        "details"
-      ]
+      "required": ["execution_identity", "status", "details"]
     },
     "RequestChangedEvent": {
       "type": "object",
@@ -1238,22 +1130,11 @@
         },
         "decision_state": {
           "type": "string",
-          "enum": [
-            "pending",
-            "confirmed",
-            "cancelled",
-            "superseded",
-            "expired"
-          ]
+          "enum": ["pending", "confirmed", "cancelled", "superseded", "expired"]
         },
         "audit_state": {
           "type": "string",
-          "enum": [
-            "unanchored",
-            "pending",
-            "anchored",
-            "conflict"
-          ]
+          "enum": ["unanchored", "pending", "anchored", "conflict"]
         },
         "grant_state": {
           "type": "string",
@@ -1401,23 +1282,13 @@
                 "format": "date-time"
               }
             },
-            "required": [
-              "key_id",
-              "algorithm",
-              "public_key",
-              "not_before",
-              "not_after"
-            ]
+            "required": ["key_id", "algorithm", "public_key", "not_before", "not_after"]
           },
           "minItems": 1,
           "maxItems": 128
         }
       },
-      "required": [
-        "issuer",
-        "protocol_revision",
-        "keys"
-      ]
+      "required": ["issuer", "protocol_revision", "keys"]
     },
     "SignedRecord": {
       "type": "object",
@@ -1441,11 +1312,7 @@
             },
             "purpose": {
               "type": "string",
-              "enum": [
-                "review",
-                "authorise_execution",
-                "service"
-              ]
+              "enum": ["review", "authorise_execution", "service"]
             },
             "profiles": {
               "$ref": "#/$defs/Profiles"
@@ -1490,11 +1357,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "protected",
-        "payload",
-        "signature"
-      ]
+      "required": ["protected", "payload", "signature"]
     },
     "AuditExport": {
       "type": "object",
@@ -1595,10 +1458,7 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
       },
-      "required": [
-        "candidate_id",
-        "candidate_digest"
-      ]
+      "required": ["candidate_id", "candidate_digest"]
     },
     "AdmissionInput": {
       "type": "object",
@@ -1618,11 +1478,7 @@
           "maxLength": 160
         }
       },
-      "required": [
-        "claim_id",
-        "nonce",
-        "execution_identity"
-      ]
+      "required": ["claim_id", "nonce", "execution_identity"]
     },
     "Discovery": {
       "type": "object",
@@ -1648,15 +1504,10 @@
               "type": "string"
             }
           },
-          "required": [
-            "agent_ui"
-          ]
+          "required": ["agent_ui"]
         },
         "mode": {
-          "enum": [
-            "development",
-            "production"
-          ]
+          "enum": ["development", "production"]
         },
         "release_ready": {
           "type": "boolean"
@@ -1665,10 +1516,7 @@
           "type": "string"
         },
         "notifications": {
-          "enum": [
-            "smtp",
-            "polling-only"
-          ]
+          "enum": ["smtp", "polling-only"]
         }
       },
       "required": [
@@ -1700,11 +1548,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "reviewer",
-        "expires_at"
-      ]
+      "required": ["id", "reviewer", "expires_at"]
     },
     "RequestList": {
       "type": "object",
@@ -1729,22 +1573,11 @@
               },
               "decision": {
                 "type": "string",
-                "enum": [
-                  "pending",
-                  "confirmed",
-                  "cancelled",
-                  "superseded",
-                  "expired"
-                ]
+                "enum": ["pending", "confirmed", "cancelled", "superseded", "expired"]
               },
               "audit": {
                 "type": "string",
-                "enum": [
-                  "unanchored",
-                  "pending",
-                  "anchored",
-                  "conflict"
-                ]
+                "enum": ["unanchored", "pending", "anchored", "conflict"]
               },
               "grant": {
                 "type": "string",
@@ -1811,10 +1644,7 @@
           "description": "Next page offset, or null when no further page is available within the offset limit."
         }
       },
-      "required": [
-        "items",
-        "next_offset"
-      ],
+      "required": ["items", "next_offset"],
       "description": "A page of visible request summaries, without an exact total count."
     },
     "Material": {
@@ -1877,16 +1707,10 @@
               "format": "uuid"
             },
             "purpose": {
-              "enum": [
-                "review",
-                "authorise_execution"
-              ]
+              "enum": ["review", "authorise_execution"]
             }
           },
-          "required": [
-            "request_id",
-            "purpose"
-          ]
+          "required": ["request_id", "purpose"]
         },
         "result": {
           "type": "object",
@@ -1905,10 +1729,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "type",
-                  "text"
-                ]
+                "required": ["type", "text"]
               }
             },
             "structuredContent": {
@@ -1917,24 +1738,13 @@
               "properties": {
                 "payload": {}
               },
-              "required": [
-                "payload"
-              ]
+              "required": ["payload"]
             }
           },
-          "required": [
-            "content"
-          ]
+          "required": ["content"]
         }
       },
-      "required": [
-        "html",
-        "origin",
-        "scope",
-        "request_digest",
-        "input",
-        "result"
-      ]
+      "required": ["html", "origin", "scope", "request_digest", "input", "result"]
     },
     "ReminderResult": {
       "type": "object",
@@ -1945,16 +1755,10 @@
           "format": "uuid"
         },
         "notification": {
-          "enum": [
-            "queued",
-            "polling-only"
-          ]
+          "enum": ["queued", "polling-only"]
         }
       },
-      "required": [
-        "request_id",
-        "notification"
-      ]
+      "required": ["request_id", "notification"]
     },
     "EventPage": {
       "type": "object",
@@ -1972,10 +1776,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "items",
-        "next"
-      ]
+      "required": ["items", "next"]
     },
     "DeliveryStatus": {
       "type": "object",
@@ -1986,19 +1787,10 @@
           "format": "uuid"
         },
         "kind": {
-          "enum": [
-            "smtp",
-            "webhook",
-            "checkpoint"
-          ]
+          "enum": ["smtp", "webhook", "checkpoint"]
         },
         "state": {
-          "enum": [
-            "pending",
-            "accepted",
-            "failed",
-            "expired"
-          ]
+          "enum": ["pending", "accepted", "failed", "expired"]
         },
         "attempts": {
           "type": "integer",
@@ -2016,13 +1808,7 @@
           ]
         }
       },
-      "required": [
-        "id",
-        "kind",
-        "state",
-        "attempts",
-        "error"
-      ]
+      "required": ["id", "kind", "state", "attempts", "error"]
     },
     "AnchorAcceptance": {
       "type": "object",
@@ -2045,13 +1831,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "backend",
-        "key",
-        "version_id",
-        "digest",
-        "retained_until"
-      ]
+      "required": ["backend", "key", "version_id", "digest", "retained_until"]
     },
     "AnchorProof": {
       "type": "object",
@@ -2084,20 +1864,11 @@
                 "type": "string"
               }
             },
-            "required": [
-              "sequence",
-              "previous_head",
-              "record_digest",
-              "head"
-            ]
+            "required": ["sequence", "previous_head", "record_digest", "head"]
           }
         }
       },
-      "required": [
-        "checkpoint",
-        "acceptance",
-        "proof"
-      ]
+      "required": ["checkpoint", "acceptance", "proof"]
     },
     "WebhookDelivery": {
       "type": "object",
@@ -2119,12 +1890,7 @@
           "$ref": "#/$defs/SignedRecord"
         }
       },
-      "required": [
-        "delivery_id",
-        "event_id",
-        "timestamp",
-        "event"
-      ]
+      "required": ["delivery_id", "event_id", "timestamp", "event"]
     },
     "PrincipalInput": {
       "type": "object",
@@ -2136,11 +1902,7 @@
           "maxLength": 160
         },
         "kind": {
-          "enum": [
-            "producer",
-            "publisher",
-            "human"
-          ]
+          "enum": ["producer", "publisher", "human"]
         },
         "token": {
           "type": "string",
@@ -2189,17 +1951,11 @@
               "type": "string"
             }
           },
-          "required": [
-            "enabled"
-          ],
+          "required": ["enabled"],
           "additionalProperties": true
         }
       },
-      "required": [
-        "id",
-        "kind",
-        "config"
-      ]
+      "required": ["id", "kind", "config"]
     },
     "PrincipalResult": {
       "type": "object",
@@ -2211,17 +1967,10 @@
           "maxLength": 160
         },
         "kind": {
-          "enum": [
-            "producer",
-            "publisher",
-            "human"
-          ]
+          "enum": ["producer", "publisher", "human"]
         }
       },
-      "required": [
-        "id",
-        "kind"
-      ]
+      "required": ["id", "kind"]
     },
     "RouteInput": {
       "type": "object",
@@ -2288,11 +2037,7 @@
           "$ref": "#/$defs/RouteInput"
         }
       },
-      "required": [
-        "id",
-        "revision",
-        "config"
-      ]
+      "required": ["id", "revision", "config"]
     },
     "LedgerEntry": {
       "type": "object",
@@ -2370,11 +2115,7 @@
               "format": "uuid"
             },
             "status": {
-              "enum": [
-                "pending",
-                "cancelled",
-                "expired"
-              ]
+              "enum": ["pending", "cancelled", "expired"]
             },
             "created_at": {
               "type": "string",
@@ -2385,12 +2126,7 @@
               "format": "date-time"
             }
           },
-          "required": [
-            "case_id",
-            "status",
-            "created_at",
-            "expires_at"
-          ]
+          "required": ["case_id", "status", "created_at", "expires_at"]
         },
         {
           "type": "object",
@@ -2429,26 +2165,13 @@
                       "type": "boolean"
                     }
                   },
-                  "required": [
-                    "response",
-                    "haip_receipt",
-                    "audit_state",
-                    "material_available"
-                  ]
+                  "required": ["response", "haip_receipt", "audit_state", "material_available"]
                 }
               },
-              "required": [
-                "action",
-                "data"
-              ]
+              "required": ["action", "data"]
             }
           },
-          "required": [
-            "case_id",
-            "status",
-            "completed_at",
-            "result"
-          ]
+          "required": ["case_id", "status", "completed_at", "result"]
         }
       ]
     },
@@ -2516,10 +2239,7 @@
               ]
             }
           },
-          "required": [
-            "status",
-            "hitl"
-          ]
+          "required": ["status", "hitl"]
         }
       ]
     },
@@ -2572,12 +2292,7 @@
                 "type": "number"
               }
             },
-            "required": [
-              "kind",
-              "state",
-              "count",
-              "oldest_seconds"
-            ]
+            "required": ["kind", "state", "count", "oldest_seconds"]
           }
         },
         "incidents": {
@@ -2597,11 +2312,7 @@
                 "format": "date-time"
               }
             },
-            "required": [
-              "id",
-              "code",
-              "created_at"
-            ]
+            "required": ["id", "code", "created_at"]
           }
         },
         "operations": {
@@ -2636,11 +2347,7 @@
                 ]
               }
             },
-            "required": [
-              "name",
-              "succeeded_at",
-              "failed_at"
-            ]
+            "required": ["name", "succeeded_at", "failed_at"]
           }
         },
         "http_since_process_start": {
@@ -2663,11 +2370,7 @@
               "maximum": 9007199254740991
             }
           },
-          "required": [
-            "total",
-            "failures",
-            "conflicts"
-          ]
+          "required": ["total", "failures", "conflicts"]
         },
         "policy_and_executor_evidence": {
           "type": "string"

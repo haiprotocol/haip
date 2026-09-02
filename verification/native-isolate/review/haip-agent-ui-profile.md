@@ -1,6 +1,6 @@
 # HAIP Agent UI profile
 
-Status: normative profile for the reviewed HAIP 2 architecture.
+Status: draft proposal in HAIP PR #6. It is not an accepted HAIP profile while the renderer architecture, immutable version identity and complete machine-readable contract remain open.
 
 ## 1. Identity and boundary
 
@@ -48,7 +48,7 @@ MUST be complete frozen values, not mutable references.
 
 The Host MUST verify the request digest, request revision, bundle digest, bundle
 revision, producer, agent system, tenant, and configured origin as one binding before
-execution. A mismatch, missing value, mutable lookup result, or unsupported profile
+creating a View. A mismatch, missing value, mutable lookup result, or unsupported profile
 MUST fail closed to the native renderer. Re-registration MUST create a new bundle
 revision and digest; it MUST NOT alter an envelope already offered for approval.
 
@@ -75,14 +75,14 @@ rejected without changing approval state.
 All View↔Host messages use JSON-RPC 2.0 as a generic envelope. The Host and View MUST
 accept only this native subset:
 
-| Direction | Method | Kind | HAIP use |
-|---|---|---|---|
-| View → Host | `haip/ui.initialize` | request | Offer the fixed View profile and request Host initialization. |
-| View → Host | `haip/ui.initialized` | notification | Declare that initialization completed. |
-| Host → View | `haip/ui.input` | notification | Deliver the complete immutable input snapshot exactly once. |
-| Host → View | `haip/ui.result` | notification | Deliver the complete immutable result snapshot exactly once, after input. |
-| View → Host | `haip/ui.propose` | request | Submit a schema-valid candidate bound to the immutable envelope. |
-| Host → View | `haip/ui.teardown` | request | Request graceful controlled teardown. |
+| Direction   | Method                | Kind         | HAIP use                                                                  |
+| ----------- | --------------------- | ------------ | ------------------------------------------------------------------------- |
+| View → Host | `haip/ui.initialize`  | request      | Offer the fixed View profile and request Host initialization.             |
+| View → Host | `haip/ui.initialized` | notification | Declare that initialization completed.                                    |
+| Host → View | `haip/ui.input`       | notification | Deliver the complete immutable input snapshot exactly once.               |
+| Host → View | `haip/ui.result`      | notification | Deliver the complete immutable result snapshot exactly once, after input. |
+| View → Host | `haip/ui.propose`     | request      | Submit a schema-valid candidate bound to the immutable envelope.          |
+| Host → View | `haip/ui.teardown`    | request      | Request graceful controlled teardown.                                     |
 
 The View's `haip/ui.initialize` parameters MUST identify only this profile and its fixed
 View capabilities. It MAY also include a `viewInfo` object containing only bounded

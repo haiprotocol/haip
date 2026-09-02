@@ -387,10 +387,7 @@ test('View failure discards its frozen proposal and restores the trusted form', 
     await page.getByLabel('Response (JSON)').fill('{"choice":"decline","score":200}');
     await page.getByRole('button', { name: 'Review this response' }).click();
     await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
-    assert.equal(
-      (await env.api(`/v2/requests/${id}/material`)).body.candidate.response.score,
-      200,
-    );
+    assert.equal((await env.api(`/v2/requests/${id}/material`)).body.candidate.response.score, 200);
     assert.equal(
       await page.locator('#proposal-source').textContent(),
       'Source: trusted host response form.',
@@ -458,6 +455,38 @@ test('renderer reload discards a frozen app proposal and selects native fallback
     assert.equal(await page.locator('#exact').textContent(), '');
     assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
     assert.equal((await env.api('/v2/requests/' + id)).body.decision_state, 'pending');
+  } finally {
+    await context.close();
+  }
+});
+
+test('inner opaque renderer reload destroys the View and selects native fallback', async () => {
+  const { context, page, frame, proxy, id } = await hostileReview();
+  try {
+    assert.equal(frame.url(), 'about:srcdoc');
+    assert.equal((await frame.evaluate(() => window.attacks.propose(1))).ok, true);
+    await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
+    await frame.evaluate(() => location.reload());
+    await page.locator('#app > iframe').waitFor({ state: 'detached' });
+    assert.equal(frame.isDetached(), true);
+    assert.equal(proxy.isDetached(), true);
+    assert.equal(await page.locator('#confirmation').isVisible(), false);
+    assert.equal(await page.locator('#exact').textContent(), '');
+    assert.equal(await page.locator('#candidate-digest').textContent(), '');
+    assert.match(
+      (await page.locator('#app-state').textContent()) ?? '',
+      /App unavailable \(renderer navigated or reloaded\)/,
+    );
+    assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
+    assert.equal((await env.api('/v2/requests/' + id)).body.decision_state, 'pending');
+    await page.getByLabel('Response (JSON)').fill('{"choice":"decline","score":200}');
+    await page.getByRole('button', { name: 'Review this response' }).click();
+    await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
+    assert.equal((await env.api(`/v2/requests/${id}/material`)).body.candidate.response.score, 200);
+    assert.equal(
+      await page.locator('#proposal-source').textContent(),
+      'Source: trusted host response form.',
+    );
   } finally {
     await context.close();
   }
