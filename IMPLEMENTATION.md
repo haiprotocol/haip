@@ -28,7 +28,7 @@ while completing the HAIP-owned work. HAIP does not vendor its engine or rendere
   state/nonce/PKCE, server sessions, CSRF and separate trusted confirmation. OAuth
   metadata discovery and Basic client authentication support Clerk-style setup.
 - Native inbox, assignments, deadlines, delivery failures, searchable escaped host
-  views, response form and isolated MCP App bridge. Exact renderer pins, source
+  views, response form and isolated Agent UI View bridge. Renderer compatibility, source
   validation, handshake replay rejection and one stored input/result delivery.
 - Signed candidates/receipts, separate purpose/state dimensions, captured quotas,
   targeted invalidation, idempotency, cancellation, supersession and permanent

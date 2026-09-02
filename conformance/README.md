@@ -8,7 +8,7 @@ producer and a foreign-tenant producer. This is a reusable draft fixture, not a
 complete certification programme.
 
 Pass the exact service origin, independently trusted manifest, scoped credentials,
-tenant/producer/route IDs and HTML for your independently authored MCP App. The
+tenant/producer/route IDs and HTML for your independently authored Agent UI View. The
 `confirm(reviewLink, requestId)` callback must wait for a human to use the real trusted
 host and choose a valid response. It must not mint a receipt or call a privileged
 confirmation shortcut. Credentials are never written by the runner.

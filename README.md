@@ -1,7 +1,7 @@
 # HAIP — Human-Agent Interaction Protocol
 
 HAIP 2 is an independent protocol for authenticated human review and verifiable
-execution authorisation. A producer submits immutable material, an optional MCP App
+execution authorisation. A producer submits immutable material, an optional Agent UI View
 and a response schema. A human reviews it in the trusted host and explicitly confirms
 an exact response. Execution requests additionally require an exclusive claim and
 fresh, signed admission.
@@ -47,8 +47,8 @@ npm run check
 
 Set `HAIP_TEST_PG_BIN` if the PostgreSQL binaries are not found by `pg_config`.
 The browser test uses headless Chromium; `HAIP_TEST_CHROMIUM` optionally selects a
-local executable. It exercises an independently authored MCP App against exactly
-native Agent UI and no MCP SDK, including forbidden operations and a near-10-MiB
+local executable. It exercises an independently authored Agent UI View against exactly
+the native Agent UI profile with no MCP SDK, including forbidden operations and a near-10-MiB
 payload containing 1,000 steps.
 
 Cross-language primitive checks also require Rust and Python:

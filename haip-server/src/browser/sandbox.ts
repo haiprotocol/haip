@@ -69,6 +69,11 @@ window.addEventListener('message', (event) => {
   } else if (inner && event.source === inner.contentWindow && event.origin === 'null') {
     const message = event.data;
     if (!envelope(message)) return;
+    try {
+      if (JSON.stringify(message).length > 1_048_576) return;
+    } catch {
+      return;
+    }
     if (!Object.hasOwn(message, 'method')) {
       // JSON-RPC responses have no method. Only a matching, still-outstanding host request
       // permits one response; unsolicited, malformed and replayed replies never reach the host.

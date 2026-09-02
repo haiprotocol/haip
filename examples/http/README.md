@@ -17,7 +17,7 @@ Never expose this fixture publicly or reuse its credentials for deployment.
 `HAIP_IDEMPOTENCY_KEY`, then run `node examples/http/review.mjs` to submit it. Configure
 the producer, publisher, human owner and review route first. Follow the review link,
 sign in through OIDC, propose a structured choice and confirm it in the trusted host.
-Poll status and events. The browser test builds an independently authored MCP App,
+Poll status and events. The browser test builds an independently authored Agent UI View,
 registers it with its own publisher credential and completes the same workflow.
 
 `counter.ts` exports `runCounter`. It accepts only the fixed `counter.increment` action

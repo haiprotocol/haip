@@ -168,4 +168,3 @@ These methods and ordering rules are native HAIP. They are not an adopted Apps s
 Anything not explicitly listed in the native message set is forbidden. Adding a method
 or capability requires a new HAIP profile revision and a fresh immutable envelope
 binding; implementation package versions do not change or negotiate this wire profile.
-

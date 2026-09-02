@@ -429,4 +429,36 @@ module scenarios {
       .then(selectImplementation)
       .then(mutateFixedPolicy)
       .expect(mutablePolicyWitness and not(haipSafety))
+
+  // Regression: a wrong-source or wrong-origin rejection after an accepted proposal
+  // previously left `proposalAccepted` standing and violated haipSafety.
+  run wrongSourceAfterAcceptanceTest =
+    init
+      .then(negotiateSupportedProfile)
+      .then(bindValidEnvelope)
+      .then(startHost)
+      .then(readyHost)
+      .then(createView)
+      .then(initializeUi)
+      .then(notifyUiInitialized)
+      .then(captureInputSnapshot)
+      .then(requestPropose)
+      .then(returnCorrelatedProposal)
+      .then(rejectWrongSource)
+      .expect(all { haipSafety, st.get("proposalAccepted") == ZERO })
+
+  run wrongOriginAfterAcceptanceTest =
+    init
+      .then(negotiateSupportedProfile)
+      .then(bindValidEnvelope)
+      .then(startHost)
+      .then(readyHost)
+      .then(createView)
+      .then(initializeUi)
+      .then(notifyUiInitialized)
+      .then(captureInputSnapshot)
+      .then(requestPropose)
+      .then(returnCorrelatedProposal)
+      .then(rejectWrongOrigin)
+      .expect(all { haipSafety, st.get("proposalAccepted") == ZERO })
 }

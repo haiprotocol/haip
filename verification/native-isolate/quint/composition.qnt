@@ -252,6 +252,7 @@ module composition {
     st' = st
       .set("proposalSource", SOURCE_WRONG)
       .set("proposalRejected", ONE)
+      .set("proposalAccepted", ZERO)
       .set("appTransition", ONE),
   }
 
@@ -261,6 +262,7 @@ module composition {
       .set("proposalResponseId", st.get("proposalRequestId"))
       .set("resultOrigin", ORIGIN_WRONG)
       .set("proposalRejected", ONE)
+      .set("proposalAccepted", ZERO)
       .set("appTransition", ONE),
   }
 

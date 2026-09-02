@@ -222,9 +222,16 @@ async function app(source: ProposalSource) {
     string | number,
     { resolve: (v: unknown) => void; reject: (e: Error) => void }
   >();
+  const MAX_MESSAGE_BYTES = 1_048_576;
+  const MAX_TRACKED_IDS = 512;
+  const MAX_PROPOSALS = 32;
   let snapshotsSent = false;
   let resourceSent = false;
+  let initialised = false;
+  let closing = false;
   let closed = false;
+  let proposals = 0;
+  // View-issued request ids only. Host-issued ids live in `pending` and never share this space.
   const outstanding = new Set<string | number>();
   const completed = new Set<string | number>();
 
@@ -234,7 +241,6 @@ async function app(source: ProposalSource) {
   }
   function request(method: string, params: unknown) {
     const id = nextId++;
-    outstanding.add(id);
     const wait = new Promise<unknown>((resolve, reject) => pending.set(id, { resolve, reject }));
     post({ jsonrpc: '2.0', id, method, params });
     return wait;
@@ -248,6 +254,15 @@ async function app(source: ProposalSource) {
   function fail(id: string | number, code: number, message: string) {
     post({ jsonrpc: '2.0', id, error: { code, message } });
   }
+  // Any budget or policy violation destroys the View and selects the native fallback.
+  function violation(reason: string) {
+    write('app-state', `App unavailable (${reason}). Use the trusted host response form.`);
+    void close();
+  }
+  function track(id: string | number) {
+    completed.add(id);
+    if (completed.size + outstanding.size > MAX_TRACKED_IDS) violation('request id budget exhausted');
+  }
 
   function receive(event: MessageEvent) {
     if (
@@ -259,13 +274,22 @@ async function app(source: ProposalSource) {
       return;
     const message = event.data as JsonRpc;
     if (message.jsonrpc !== '2.0') return;
+    try {
+      if (JSON.stringify(event.data).length > MAX_MESSAGE_BYTES) {
+        violation('oversized message');
+        return;
+      }
+    } catch {
+      violation('unserialisable message');
+      return;
+    }
+    // While closing, only the teardown response is accepted.
+    if (closing && message.method !== undefined) return;
 
     if (!('method' in message) || message.method === undefined) {
       if (message.id === undefined || !pending.has(message.id)) return;
       const waiter = pending.get(message.id)!;
       pending.delete(message.id);
-      outstanding.delete(message.id);
-      completed.add(message.id);
       if (message.error) waiter.reject(new Error(message.error.message));
       else waiter.resolve(message.result);
       return;
@@ -284,7 +308,17 @@ async function app(source: ProposalSource) {
     if (method === 'haip/ui.initialize') {
       if (id === undefined || completed.has(id) || outstanding.has(id)) return;
       if (typeof id !== 'string' && typeof id !== 'number') return;
-      outstanding.add(id);
+      track(id);
+      if (initialised) {
+        fail(id, -32600, 'Already initialised');
+        return;
+      }
+      const params = message.params as { protocolVersion?: unknown } | undefined;
+      if (!params || params.protocolVersion !== 'org.haiprotocol.agent-ui/1') {
+        fail(id, -32602, 'Unsupported Agent UI profile');
+        return;
+      }
+      initialised = true;
       reply(id, {
         protocolVersion: 'org.haiprotocol.agent-ui/1',
         capabilities: { localProposal: true },
@@ -294,13 +328,11 @@ async function app(source: ProposalSource) {
           requestDigest: stored.request_digest,
         },
       });
-      outstanding.delete(id);
-      completed.add(id);
       return;
     }
 
     if (method === 'haip/ui.initialized') {
-      if (id !== undefined || snapshotsSent) return;
+      if (!initialised || id !== undefined || snapshotsSent) return;
       snapshotsSent = true;
       notify('haip/ui.input', stored.input);
       notify('haip/ui.result', stored.result);
@@ -318,7 +350,16 @@ async function app(source: ProposalSource) {
         fail(id, -32600, 'Replay or duplicate request id');
         return;
       }
+      if (++proposals > MAX_PROPOSALS) {
+        fail(id, -32000, 'Proposal budget exhausted');
+        violation('proposal budget exhausted');
+        return;
+      }
       outstanding.add(id);
+      if (outstanding.size + completed.size > MAX_TRACKED_IDS) {
+        violation('request id budget exhausted');
+        return;
+      }
       void Promise.resolve()
         .then(() => propose(message.params, source))
         .then((result) => reply(id, result))
@@ -337,8 +378,8 @@ async function app(source: ProposalSource) {
   }
 
   async function close() {
-    if (closed) return;
-    closed = true;
+    if (closing) return;
+    closing = true;
     try {
       if (snapshotsSent)
         await Promise.race([
@@ -350,6 +391,7 @@ async function app(source: ProposalSource) {
     } catch {
       // Abrupt teardown remains permitted after a best-effort graceful request.
     }
+    closed = true;
     window.removeEventListener('message', receive);
     for (const waiter of pending.values()) waiter.reject(new Error('Host closed'));
     pending.clear();

@@ -79,7 +79,7 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
     const reordered = {
       ...manifest,
       compatibility: {
-        
+
         agent_ui: manifest.compatibility.agent_ui,
       },
     };

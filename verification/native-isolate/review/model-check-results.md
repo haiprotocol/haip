@@ -18,10 +18,10 @@ These results apply to the native isolate messaging cutover on verifier commit
 | Check | Exact command | Result |
 |---|---|---|
 | Parse and typecheck | `npm run check` | Pass |
-| Deterministic traces | `npm test` | Pass: 36/36 |
+| Deterministic traces | `npm test` | Pass: 38/38 |
 | Bounded simulation | `npm run simulate` | Pass: 500 samples, at most 30 transitions, seed `0x5eed2026`; no `haipSafety` or `boundedState` violation |
 | Symbolic safety | `npm run verify` | Pass: no `haipSafety` violation through two transitions |
-| Evidence role structure | `node -e` JSON parse, source-array, role, and unique-ID assertions | Pass: 20 unique sources |
+| Evidence role structure | `node -e` JSON parse, source-array, role, and unique-ID assertions | Pass: 9 unique sources |
 
 The deterministic suite includes the complete normative review-to-effect path and native
 agent-UI traces for:
@@ -30,6 +30,8 @@ agent-UI traces for:
 - pre-initialization data and duplicate snapshots;
 - native `haip/ui.propose` success and failure;
 - forbidden method, wrong source/origin, and replayed proposal IDs;
+- wrong-source/origin rejection after an accepted proposal (regression for a previously
+  reachable `haipSafety` violation);
 - capability truthfulness (`localProposal` only);
 - crash/fallback and controlled `haip/ui.teardown`;
 - wrong candidate digest, ineligible humans, duplicate confirmation;
@@ -38,8 +40,7 @@ agent-UI traces for:
 
 It also proves reachability of each preserved reference-implementation discrepancy:
 outcome without admission, repeated admissions, proposal filtering, extra proposal
-methods, uncontrolled teardown, mutable envelope/policy, and the comparison-only HITL
-action/default mismatch.
+methods, uncontrolled teardown and mutable envelope/policy.
 
 The normative happy path contains only native HAIP Agent UI and approval/effect state.
 
