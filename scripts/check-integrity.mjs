@@ -7,14 +7,15 @@ for (const [path, item] of Object.entries(lock.packages)) {
     !path.includes('node_modules/@aws-sdk/') || item.dev === true,
     'Amazon SDKs are excluded from production dependencies',
   );
-  if (path.endsWith('node_modules/@modelcontextprotocol/sdk'))
-    assert.equal(item.version, '1.29.0', path);
-  if (path.endsWith('node_modules/@modelcontextprotocol/ext-apps'))
-    assert.equal(item.version, '1.7.4', path);
+  assert(
+    !path.includes('node_modules/@modelcontextprotocol/'),
+    'MCP packages must not appear in the lockfile after the native Agent UI cutover: ' + path,
+  );
 }
 const server = await json('haip-server/package.json');
-assert.equal(server.dependencies['@modelcontextprotocol/ext-apps'], '1.7.4');
-assert.equal(server.dependencies['@modelcontextprotocol/sdk'], '1.29.0');
+assert.equal(server.dependencies['@modelcontextprotocol/ext-apps'], undefined);
+assert.equal(server.dependencies['@modelcontextprotocol/sdk'], undefined);
+assert.equal(server.dependencies['@haip/protocol'] !== undefined, true);
 const index = await json('docs/versions.json');
 assert.equal(index.current.release_ready, false);
 const rules = await json('evaluation/integrity-v1.json');

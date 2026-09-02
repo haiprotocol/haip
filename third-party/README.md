@@ -1,3 +1,5 @@
+The native HAIP Agent UI Host/View path no longer depends on MCP Apps or the MCP TypeScript SDK.
+
 # Third-party notices
 
 HAIP's original MIT licence and San Digital attribution remain unchanged. Review

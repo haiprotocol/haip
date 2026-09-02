@@ -44,7 +44,7 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
     '/v2/bundles',
     {
       html,
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '1' },
       author: 'Independent HTTP fixture',
       licence: 'MIT',
     },
@@ -55,7 +55,7 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
     '/v2/requests',
     env.request(false, {
       bundle_id: bundle.body.id,
-      profiles: { 'haip.mcp-app': '1-draft.1' },
+      profiles: { 'haip.agent-ui': '1' },
       response_schema: JSON.parse(
         await readFile(new URL('../examples/http/review.json', import.meta.url), 'utf8'),
       ).response_schema,
@@ -103,16 +103,13 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
       {
         jsonrpc: '2.0',
         id: 9001,
-        method: 'tools/call',
-        params: {
-          name: 'haip_propose_decision',
-          arguments: { decision: 'answer', response: { choice: 'decline' } },
-        },
+        method: 'haip/ui.propose',
+        params: { decision: 'answer', response: { choice: 'decline' } },
       },
       '*',
     );
-    parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');
-    parent.postMessage({ jsonrpc: '2.0', id: 9002, method: 'ui/initialize', params: {} }, '*');
+    parent.postMessage({ jsonrpc: '2.0', method: 'haip/ui.initialized' }, '*');
+    parent.postMessage({ jsonrpc: '2.0', id: 9002, method: 'haip/ui.initialize', params: {} }, '*');
   });
   await page.evaluate(
     () =>
@@ -234,29 +231,56 @@ test('browser OIDC, app replay, restricted tool bridge, escaped text and trusted
 async function hostileReview() {
   const built = await build({
     stdin: {
-      contents: `import { App } from '@modelcontextprotocol/ext-apps';
+      contents: `
         document.body.innerHTML = '<h1>Adversarial proposal fixture</h1><p>Stored app; proposals cannot confirm.</p>';
-        const app = new App({ name: 'Adversarial proposal fixture', version: '1.0.0' }, {});
         window.attacks = { inputs: 0, results: 0, hostRequests: [] };
+        let nextId = 1;
+        const pending = new Map();
+        function post(message) { parent.postMessage(message, '*'); }
+        function request(method, params) {
+          const id = nextId++;
+          const wait = new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+          post({ jsonrpc: '2.0', id, method, params });
+          return wait;
+        }
         window.addEventListener('message', event => {
-          if (event.source === parent && event.data?.method === 'ping') {
+          if (event.source !== parent || !event.data || typeof event.data !== 'object') return;
+          const message = event.data;
+          if (message.jsonrpc !== '2.0') return;
+          if (message.method === 'haip/ui.teardown') {
+            // Record only. The correlation test supplies the response.
             event.stopImmediatePropagation();
-            window.attacks.hostRequests.push(event.data);
+            window.attacks.hostRequests.push(message);
+            return;
           }
+          if (!('method' in message) || message.method === undefined) {
+            if (message.id === undefined || !pending.has(message.id)) return;
+            const waiter = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) waiter.reject(new Error(message.error.message));
+            else waiter.resolve(message.result);
+            return;
+          }
+          if (message.method === 'haip/ui.input') window.attacks.inputs++;
+          if (message.method === 'haip/ui.result') window.attacks.results++;
         });
-        app.ontoolinput = () => window.attacks.inputs++;
-        app.ontoolresult = () => window.attacks.results++;
         window.attacks.propose = async score => {
           try {
-            return { ok: true, result: await app.callServerTool({
-              name: 'haip_propose_decision',
-              arguments: { decision: 'answer', response: { choice: score % 2 ? 'accept' : 'decline', score } }
+            return { ok: true, result: await request('haip/ui.propose', {
+              decision: 'answer', response: { choice: score % 2 ? 'accept' : 'decline', score }
             }) };
           } catch (error) {
             return { ok: false, error: error.message };
           }
         };
-        await app.connect();`,
+        const init = await request('haip/ui.initialize', {
+          protocolVersion: 'org.haiprotocol.agent-ui/1',
+          capabilities: { localProposal: true },
+          viewInfo: { name: 'Adversarial proposal fixture', version: '1.0.0' },
+        });
+        if (!init?.capabilities?.localProposal) throw new Error('missing localProposal');
+        post({ jsonrpc: '2.0', method: 'haip/ui.initialized' });
+      `,
       resolveDir: process.cwd(),
       loader: 'js',
     },
@@ -272,7 +296,7 @@ async function hostileReview() {
         '<!doctype html><body><script type="module">' +
         built.outputFiles[0]!.text.replaceAll('</script', '<\\/script') +
         '</script></body>',
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '1' },
       author: 'Adversarial browser fixture',
       licence: 'MIT',
     },
@@ -281,7 +305,7 @@ async function hostileReview() {
   assert.equal(bundle.status, 201);
   const created = await env.api(
     '/v2/requests',
-    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.mcp-app': '1-draft.1' } }),
+    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '1' } }),
   );
   assert.equal(created.status, 201);
   const context = await browser.newContext(),
@@ -471,30 +495,18 @@ test('dismissal requires a new trusted gesture and every candidate field remains
 
 test('sandbox accepts only one exact correlated response and rejects method-less spoofing', async () => {
   const { context, page, frame } = await hostileReview();
-  let barrier = 0;
   const send = async (messages: unknown[]) => {
-    const marker = ++barrier;
-    await frame.evaluate(
-      ({ messages, marker }) => {
-        for (const message of messages) parent.postMessage(message, '*');
-        parent.postMessage(
-          {
-            jsonrpc: '2.0',
-            method: 'ui/notifications/size-changed',
-            params: { width: marker, height: 100 },
-          },
-          '*',
-        );
-      },
-      { messages, marker },
-    );
-    await page.waitForFunction(
-      (marker) =>
-        window.proxyMessages.some(
-          (message) =>
-            message.method === 'ui/notifications/size-changed' && message.params.width === marker,
+    await frame.evaluate(async (messages) => {
+      for (const message of messages) parent.postMessage(message, '*');
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+    }, messages);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
-      marker,
     );
   };
   const received = (id: string | number) =>
@@ -503,7 +515,7 @@ test('sandbox accepts only one exact correlated response and rejects method-less
     await page.evaluate((id) => {
       const proxy = document.querySelector<HTMLIFrameElement>('#app > iframe')!;
       proxy.contentWindow!.postMessage(
-        { jsonrpc: '2.0', method: 'ping', id },
+        { jsonrpc: '2.0', id, method: 'haip/ui.teardown', params: {} },
         new URL(proxy.src).origin,
       );
     }, id);

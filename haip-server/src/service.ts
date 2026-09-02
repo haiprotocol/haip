@@ -88,7 +88,7 @@ export class ReviewService {
     return {
       name: 'HAIP — Human-Agent Interaction Protocol',
       revisions: [PROTOCOL_REVISION],
-      profiles: { [EXECUTION_PROFILE]: EXECUTION_VERSION, 'haip.mcp-app': '1-draft.1' },
+      profiles: { [EXECUTION_PROFILE]: EXECUTION_VERSION, 'haip.agent-ui': '1' },
       renderer: RENDERER,
       mode: this.config.mode,
       release_ready: false,
@@ -704,8 +704,7 @@ export class ReviewService {
         'bundle_too_large',
       );
       requireThat(
-        input.compatibility.ext_apps === RENDERER.ext_apps &&
-          input.compatibility.mcp_sdk === RENDERER.mcp_sdk,
+        input.compatibility.agent_ui === RENDERER.agent_ui,
         422,
         'unsupported_renderer',
       );
@@ -915,7 +914,7 @@ export class ReviewService {
     }
     let bundle;
     if (input.bundle_id) {
-      requireThat(input.profiles['haip.mcp-app'] === '1-draft.1', 422, 'app_profile_required');
+      requireThat(input.profiles['haip.agent-ui'] === '1', 422, 'agent_ui_profile_required');
       if (!/^[a-f0-9-]{36}$/.test(input.bundle_id)) throw missing();
       const found = (
         await tx.query(

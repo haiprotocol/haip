@@ -10,13 +10,7 @@ const result = await build({
 await mkdir('output/examples', { recursive: true });
 const licences = Object.fromEntries(
   await Promise.all(
-    [
-      ['HAIP', 'LICENSE'],
-      ['MCP Apps 1.7.4', 'third-party/ext-apps-1.7.4-LICENSE'],
-      ['MCP SDK 1.29.0', 'third-party/mcp-sdk-1.29.0-LICENSE'],
-      ['Zod 4.5.4', 'third-party/zod-4.5.4-LICENSE'],
-      ['zod-to-json-schema 3.25.2', 'third-party/zod-to-json-schema-3.25.2-LICENSE'],
-    ].map(async ([name, path]) => [name, await readFile(path, 'utf8')]),
+    [['HAIP', 'LICENSE']].map(async ([name, path]) => [name, await readFile(path, 'utf8')]),
   ),
 );
 await writeFile(

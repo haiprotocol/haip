@@ -414,8 +414,7 @@ export interface Discovery {
   revisions: string[];
   profiles: Profiles;
   renderer: {
-    ext_apps: string;
-    mcp_sdk: string;
+    agent_ui: string;
   };
   mode: 'development' | 'production';
   release_ready: boolean;

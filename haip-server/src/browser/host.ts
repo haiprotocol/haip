@@ -1,6 +1,4 @@
 import { canonicalise, parseJson } from '@haip/protocol/json';
-import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 let csrf = '';
 const requestId = location.pathname.split('/')[2];
@@ -211,23 +209,46 @@ async function app(source: ProposalSource) {
   frame.src = stored.origin + '/sandbox/' + stored.scope + '?instance=' + crypto.randomUUID();
   el('app').append(frame);
   const origin = new URL(stored.origin).origin;
-  let started = false,
-    sent = false,
-    loaded = false;
-  const transport: Transport = {
-    start: async () => {
-      if (started) throw new Error('Bridge already started');
-      started = true;
-      window.addEventListener('message', receive);
-    },
-    send: async (message) => {
-      frame.contentWindow!.postMessage(message, origin);
-    },
-    close: async () => {
-      window.removeEventListener('message', receive);
-      frame.remove();
-    },
+  type JsonRpc = {
+    jsonrpc: '2.0';
+    id?: string | number;
+    method?: string;
+    params?: unknown;
+    result?: unknown;
+    error?: { code: number; message: string };
   };
+  let nextId = 1;
+  const pending = new Map<
+    string | number,
+    { resolve: (v: unknown) => void; reject: (e: Error) => void }
+  >();
+  let snapshotsSent = false;
+  let resourceSent = false;
+  let closed = false;
+  const outstanding = new Set<string | number>();
+  const completed = new Set<string | number>();
+
+  function post(message: JsonRpc) {
+    if (closed) return;
+    frame.contentWindow!.postMessage(message, origin);
+  }
+  function request(method: string, params: unknown) {
+    const id = nextId++;
+    outstanding.add(id);
+    const wait = new Promise<unknown>((resolve, reject) => pending.set(id, { resolve, reject }));
+    post({ jsonrpc: '2.0', id, method, params });
+    return wait;
+  }
+  function notify(method: string, params: unknown) {
+    post({ jsonrpc: '2.0', method, params });
+  }
+  function reply(id: string | number, result: unknown) {
+    post({ jsonrpc: '2.0', id, result });
+  }
+  function fail(id: string | number, code: number, message: string) {
+    post({ jsonrpc: '2.0', id, error: { code, message } });
+  }
+
   function receive(event: MessageEvent) {
     if (
       event.source !== frame.contentWindow ||
@@ -236,43 +257,107 @@ async function app(source: ProposalSource) {
       typeof event.data !== 'object'
     )
       return;
-    transport.onmessage?.(event.data);
+    const message = event.data as JsonRpc;
+    if (message.jsonrpc !== '2.0') return;
+
+    if (!('method' in message) || message.method === undefined) {
+      if (message.id === undefined || !pending.has(message.id)) return;
+      const waiter = pending.get(message.id)!;
+      pending.delete(message.id);
+      outstanding.delete(message.id);
+      completed.add(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message));
+      else waiter.resolve(message.result);
+      return;
+    }
+
+    const method = message.method;
+    const id = message.id;
+
+    if (method === 'haip/ui.proxyReady') {
+      if (resourceSent) return;
+      resourceSent = true;
+      notify('haip/ui.resourceReady', { html: stored.html, sandbox: 'allow-scripts' });
+      return;
+    }
+
+    if (method === 'haip/ui.initialize') {
+      if (id === undefined || completed.has(id) || outstanding.has(id)) return;
+      if (typeof id !== 'string' && typeof id !== 'number') return;
+      outstanding.add(id);
+      reply(id, {
+        protocolVersion: 'org.haiprotocol.agent-ui/1',
+        capabilities: { localProposal: true },
+        hostInfo: { name: 'HAIP review host', version: '2.0.0-draft.1' },
+        envelope: {
+          requestId,
+          requestDigest: stored.request_digest,
+        },
+      });
+      outstanding.delete(id);
+      completed.add(id);
+      return;
+    }
+
+    if (method === 'haip/ui.initialized') {
+      if (id !== undefined || snapshotsSent) return;
+      snapshotsSent = true;
+      notify('haip/ui.input', stored.input);
+      notify('haip/ui.result', stored.result);
+      write(
+        'app-state',
+        'Stored input and result delivered once. Use the trusted host below to confirm.',
+      );
+      return;
+    }
+
+    if (method === 'haip/ui.propose') {
+      if (!snapshotsSent || id === undefined) return;
+      if (typeof id !== 'string' && typeof id !== 'number') return;
+      if (completed.has(id) || outstanding.has(id)) {
+        fail(id, -32600, 'Replay or duplicate request id');
+        return;
+      }
+      outstanding.add(id);
+      void Promise.resolve()
+        .then(() => propose(message.params, source))
+        .then((result) => reply(id, result))
+        .catch((error) =>
+          fail(id, -32000, error instanceof Error ? error.message : String(error)),
+        )
+        .finally(() => {
+          outstanding.delete(id);
+          completed.add(id);
+        });
+      return;
+    }
+
+    if (id !== undefined && (typeof id === 'string' || typeof id === 'number'))
+      fail(id, -32601, 'Forbidden host operation');
   }
-  const bridge = new AppBridge(
-    null,
-    { name: 'HAIP review host', version: '2.0.0-draft.1' },
-    { serverTools: {} },
-  );
-  bridge.onsandboxready = async () => {
-    if (loaded) return;
-    loaded = true;
-    await bridge.sendSandboxResourceReady({ html: stored.html, sandbox: 'allow-scripts' });
-  };
-  bridge.oninitialized = async () => {
-    if (sent) throw new Error('Duplicate app initialisation');
-    sent = true;
-    await bridge.sendToolInput({ arguments: stored.input });
-    await bridge.sendToolResult(stored.result);
-    write(
-      'app-state',
-      'Stored input and result delivered once. Use the trusted host below to confirm.',
-    );
-  };
-  bridge.oncalltool = async (params) => {
-    if (params.name !== 'haip_propose_decision' || !sent)
-      throw new Error('Forbidden host operation');
-    const result = await propose(params.arguments, source);
-    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-  };
-  bridge.onreadresource = async () => {
-    throw new Error('No live resources');
-  };
-  bridge.onopenlink = async () => {
-    throw new Error('App navigation is forbidden');
-  };
-  bridge.onerror = () => write('app-state', 'App unavailable. Use the trusted host response form.');
-  await bridge.connect(transport);
-  window.addEventListener('pagehide', () => void bridge.close(), { once: true });
+
+  async function close() {
+    if (closed) return;
+    closed = true;
+    try {
+      if (snapshotsSent)
+        await Promise.race([
+          request('haip/ui.teardown', {}),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('teardown timeout')), 250),
+          ),
+        ]);
+    } catch {
+      // Abrupt teardown remains permitted after a best-effort graceful request.
+    }
+    window.removeEventListener('message', receive);
+    for (const waiter of pending.values()) waiter.reject(new Error('Host closed'));
+    pending.clear();
+    frame.remove();
+  }
+
+  window.addEventListener('message', receive);
+  window.addEventListener('pagehide', () => void close(), { once: true });
 }
 (async () => {
   const session = await api('/auth/session');

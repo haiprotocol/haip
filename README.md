@@ -48,7 +48,7 @@ npm run check
 Set `HAIP_TEST_PG_BIN` if the PostgreSQL binaries are not found by `pg_config`.
 The browser test uses headless Chromium; `HAIP_TEST_CHROMIUM` optionally selects a
 local executable. It exercises an independently authored MCP App against exactly
-ext-apps 1.7.4 and MCP SDK 1.29.0, including forbidden operations and a near-10-MiB
+native Agent UI and no MCP SDK, including forbidden operations and a near-10-MiB
 payload containing 1,000 steps.
 
 Cross-language primitive checks also require Rust and Python:

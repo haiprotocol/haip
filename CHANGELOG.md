@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Cut the review Host/View wire over to the native `haip/ui.*` Agent UI profile.
+  MCP Apps `ext-apps` / SDK are removed from the browser path; bundle compatibility is
+  `agent_ui: "1"` and the request profile is `haip.agent-ui: "1"`.
+
+
 ## 2.0.0-draft.1 — unreleased
 
 HAIP is being repurposed as an independent human-review and execution-authorisation

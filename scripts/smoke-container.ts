@@ -106,7 +106,7 @@ try {
       assert.notEqual(process.getuid(), 0);
       for (const path of ['haip-server/dist/main.js', 'haip-server/schema/schema.json',
         'haip-server/migrations/004_bounded_work.sql', 'haip-server/public/host.js',
-        'haip-server/public/sandbox.js', 'haip-server/third-party/ext-apps-1.7.4-LICENSE',
+        'haip-server/public/sandbox.js', 
         'haip-server/third-party/zod-4.5.4-LICENSE', '@types/contracts/schema.json'])
         assert(existsSync('/app/' + path), 'Missing runtime asset: ' + path);
       for (const path of ['.git', '.env', '.local', 'archive', 'research', 'evaluation', 'output',

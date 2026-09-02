@@ -33,11 +33,22 @@ function response(message: Record<string, any>) {
 function send(data: unknown) {
   parent.postMessage(data, hostOrigin);
 }
+const VIEW_TO_HOST = new Set([
+  'haip/ui.initialize',
+  'haip/ui.initialized',
+  'haip/ui.propose',
+]);
+const HOST_TO_VIEW = new Set([
+  'haip/ui.resourceReady',
+  'haip/ui.input',
+  'haip/ui.result',
+  'haip/ui.teardown',
+]);
 window.addEventListener('message', (event) => {
   if (event.source === parent && event.origin === hostOrigin) {
     const message = event.data;
     if (!envelope(message)) return;
-    if (message?.method === 'ui/notifications/sandbox-resource-ready') {
+    if (message?.method === 'haip/ui.resourceReady') {
       if (inner || typeof message.params?.html !== 'string') return;
       inner = document.createElement('iframe');
       inner.setAttribute('sandbox', 'allow-scripts');
@@ -51,6 +62,9 @@ window.addEventListener('message', (event) => {
       pendingHostRequests.add(message.id);
     if (response(message) && message.id === initialiseId)
       initialiseAccepted = Object.hasOwn(message, 'result');
+    // Only forward normative host→view methods and JSON-RPC responses.
+    if (message.method !== undefined && !HOST_TO_VIEW.has(message.method) && !response(message))
+      return;
     inner.contentWindow?.postMessage(message, '*');
   } else if (inner && event.source === inner.contentWindow && event.origin === 'null') {
     const message = event.data;
@@ -69,21 +83,21 @@ window.addEventListener('message', (event) => {
       Object.hasOwn(message, 'error')
     )
       return;
-    if (message.method === 'ui/initialize') {
+    if (message.method === 'haip/ui.initialize') {
       if (initialiseId !== undefined || !requestId(message.id)) return;
       initialiseId = message.id;
       send(message);
       return;
     }
     if (!initialiseAccepted) return;
-    if (message.method === 'ui/notifications/initialized') {
+    if (message.method === 'haip/ui.initialized') {
       if (notified || Object.hasOwn(message, 'id')) return;
       notified = true;
       send(message);
       return;
     }
     if (!notified) return;
-    if (!['ui/notifications/size-changed', 'tools/call'].includes(message.method)) {
+    if (!VIEW_TO_HOST.has(message.method)) {
       if (requestId(message.id))
         inner.contentWindow?.postMessage(
           {
@@ -95,20 +109,12 @@ window.addEventListener('message', (event) => {
         );
       return;
     }
-    if (message.method === 'ui/notifications/size-changed' && Object.hasOwn(message, 'id')) return;
-    if (message.method === 'tools/call' && !requestId(message.id)) return;
-    if (message.method === 'tools/call' && message.params?.name !== 'haip_propose_decision') {
-      inner.contentWindow?.postMessage(
-        { jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'Forbidden tool' } },
-        '*',
-      );
-      return;
-    }
+    if (message.method === 'haip/ui.propose' && !requestId(message.id)) return;
     send(message);
   }
 });
 window.addEventListener(
   'DOMContentLoaded',
-  () => send({ jsonrpc: '2.0', method: 'ui/notifications/sandbox-proxy-ready', params: {} }),
+  () => send({ jsonrpc: '2.0', method: 'haip/ui.proxyReady', params: {} }),
   { once: true },
 );

@@ -13,7 +13,7 @@ async function reviewWithBundle(env: Awaited<ReturnType<typeof environment>>) {
     '/v2/bundles',
     {
       html,
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '1' },
       author: 'Independent test fixture',
       licence: 'MIT',
     },
@@ -24,7 +24,7 @@ async function reviewWithBundle(env: Awaited<ReturnType<typeof environment>>) {
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.mcp-app': '1-draft.1' },
+      profiles: { 'haip.agent-ui': '1' },
     }),
   );
   assert.equal(created.status, 201);
@@ -55,7 +55,7 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
       {
         name: 'changed compatibility',
         html,
-        manifest: { ...manifest, compatibility: { ...manifest.compatibility, mcp_sdk: '1.0.0' } },
+        manifest: { ...manifest, compatibility: { ...manifest.compatibility, agent_ui: '0' } },
       },
       {
         name: 'new unbound compatibility field',
@@ -79,8 +79,8 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
     const reordered = {
       ...manifest,
       compatibility: {
-        mcp_sdk: manifest.compatibility.mcp_sdk,
-        ext_apps: manifest.compatibility.ext_apps,
+        
+        agent_ui: manifest.compatibility.agent_ui,
       },
     };
     await env.store.pool.query(

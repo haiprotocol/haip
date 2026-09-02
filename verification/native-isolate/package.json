@@ -1,0 +1,16 @@
+{
+  "name": "haip-agent-ui-quint-verification",
+  "version": "0.1.0",
+  "private": true,
+  "devDependencies": {
+    "@informalsystems/quint": "0.32.0"
+  },
+  "scripts": {
+    "check": "quint typecheck quint/scenarios.qnt",
+    "typecheck": "npm run check",
+    "test": "quint test quint/scenarios.qnt --main scenarios --match '.*Test'",
+    "simulate": "quint run quint/scenarios.qnt --main scenarios --invariants haipSafety boundedState --max-samples=500 --max-steps=30 --seed=0x5eed2026 --verbosity=0",
+    "run": "npm run simulate",
+    "verify": "quint verify quint/scenarios.qnt --main scenarios --invariant haipSafety --max-steps=2 --verbosity=0"
+  }
+}

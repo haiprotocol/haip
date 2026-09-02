@@ -26,9 +26,7 @@
     "demo": "node --import tsx scripts/demo.ts",
     "example:app": "node scripts/build-choice-app.mjs"
   },
-  "overrides": {
-    "@modelcontextprotocol/sdk": "1.29.0"
-  },
+  "overrides": {},
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@types/express": "5.0.3",

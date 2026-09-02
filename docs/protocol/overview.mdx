@@ -9,7 +9,7 @@ The current protocol revision is **2.0.0-draft.1**. Requests select that exact r
 | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Review contract     | `2.0.0-draft.1`: immutable review requests and authenticated structured responses.                                 |
 | Execution extension | `haip.execution=1-draft.1`: an explicit execution purpose, occurrence and commitments, claims and fresh admission. |
-| MCP App profile     | `haip.mcp-app=1-draft.1`: optional stored App presentation with separately trusted confirmation.                   |
+| Agent UI profile    | `haip.agent-ui=1`: optional stored View presentation with separately trusted confirmation.                         |
 | Plasm profile       | Draft integration requirements owned by Plasm; not advertised as completed runtime support.                        |
 
 A request binds the tenant, producer, operator-resolved requester, route revision, purpose, profiles, material digests, captured limits and absolute deadlines. Execution requests add the proposed action, context, policy and occurrence commitments. Producer metadata is retained in the commitment but does not acquire authorising meaning.

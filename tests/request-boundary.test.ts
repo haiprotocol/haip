@@ -113,7 +113,7 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     '/v2/bundles',
     {
       html,
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '1' },
       author: 'Test fixture',
       licence: 'MIT',
     },
@@ -124,7 +124,7 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.mcp-app': '1-draft.1' },
+      profiles: { 'haip.agent-ui': '1' },
     }),
   );
   assert.equal(created.status, 201, JSON.stringify(created.body));

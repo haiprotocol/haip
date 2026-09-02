@@ -11,7 +11,7 @@ The callback must retain the authenticated-cookie state that initiated login. A 
 
 Human mutations require the authenticated browser session, a session CSRF token and the exact trusted Origin. Review links only locate resources; possessing a link, digest or App registration does not grant payload access or confirmation rights.
 
-A person proposes a schema-valid response and separately confirms that candidate's exact ID and digest. Replacing the proposal invalidates the previous confirmation target. An App can propose through `haip_propose_decision`, but the host retains the confirmation step.
+A person proposes a schema-valid response and separately confirms that candidate's exact ID and digest. Replacing the proposal invalidates the previous confirmation target. A View can propose through `haip/ui.propose`, but the host retains the confirmation step.
 
 The trusted host and sandbox require HTTPS and separate registrable sites, except when both hosts are loopback in development. Different sibling subdomains alone do not provide that boundary. Each tenant/publisher/bundle receives its own sandbox origin, with a scripts-only opaque inner frame and no arbitrary host operations. Opener and embedder policies isolate the trusted page from cross-origin windows while allowing the explicitly permitted sandbox frame.
 

@@ -3735,16 +3735,12 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "ext_apps": {
-                "type": "string"
-              },
-              "mcp_sdk": {
+              "agent_ui": {
                 "type": "string"
               }
             },
             "required": [
-              "ext_apps",
-              "mcp_sdk"
+              "agent_ui"
             ]
           },
           "mode": {

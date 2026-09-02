@@ -155,7 +155,7 @@ export async function verifyExecutionAuthority(input: AuthorityInput) {
   );
   const supportedProfiles: Record<string, string> = {
     [EXECUTION_PROFILE]: EXECUTION_VERSION,
-    'haip.mcp-app': '1-draft.1',
+    'haip.agent-ui': '1',
   };
   for (const [name, version] of Object.entries(r.profiles))
     refuse(supportedProfiles[name] === version, 'Unsupported required profile');
