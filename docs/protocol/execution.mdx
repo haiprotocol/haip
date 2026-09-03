@@ -3,15 +3,15 @@ title: 'Execution claims and fresh admission'
 description: 'The extra checks required before a protected effect can begin.'
 ---
 
-Execution uses purpose `authorise_execution` and profile `haip.execution=1-draft.1`. A review-only answer, App message or notification cannot be converted into execution authority.
+Execution uses purpose `authorise_execution` and profile `haip.execution=1-draft.1`. A review-only answer, View message or notification cannot be converted into execution authority.
 
 The request binds a stable action occurrence, proposal and context digests, policy source/revision/digest, execution mode, provenance and an original validity deadline. A person explicitly authorises or refuses that exact request. Independent checkpoint acceptance must make the resulting grant usable before the producer can claim it.
 
 An executor then obtains one exclusive claim using a stable execution identity. Before dispatch it requests fresh admission with a nonce, verifies the original request, candidate, receipt, claim and admission, and checks independent checkpoint acceptance. Every identity and commitment must describe the same occurrence.
 
-The dispatch deadline is exclusive: reaching it means admission has expired. Status reads, retries, anchoring, notifications and reconciliation never move it. The 30-second clock-health tolerance is a reason to refuse an unhealthy clock, not additional validity.
+The dispatch deadline is exclusive: reaching it means admission has expired. Status reads, retries, anchoring, notifications and reconciliation never move it. Clock tolerance only detects unhealthy clocks and adds no validity.
 
-The executor must durably claim its local launch fence before the first covered mutation, and check admission again immediately before that mutation. Its one execution window includes initial reads and preparation after the fence. A lost result or uncertain external effect is not evidence that execution did not happen; do not relaunch it under another identity.
+The executor must durably claim its local launch fence before the first covered mutation, and check admission again immediately before that mutation. Its one execution window includes initial reads and preparation after the fence. A lost result or uncertain external effect is not evidence that execution did not happen. Do not relaunch it under another identity.
 
 Outcome reporting records success, failure or uncertainty. Retrying the report must reuse saved outcome evidence without repeating the effect. Revocation blocks new permits while preserving the bounded history of any permit already issued.
 

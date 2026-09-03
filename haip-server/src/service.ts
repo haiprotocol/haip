@@ -88,7 +88,7 @@ export class ReviewService {
     return {
       name: 'HAIP — Human-Agent Interaction Protocol',
       revisions: [PROTOCOL_REVISION],
-      profiles: { [EXECUTION_PROFILE]: EXECUTION_VERSION, 'haip.agent-ui': '1' },
+      profiles: { [EXECUTION_PROFILE]: EXECUTION_VERSION, 'haip.agent-ui': RENDERER.agent_ui },
       renderer: RENDERER,
       mode: this.config.mode,
       release_ready: false,
@@ -393,6 +393,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(['producer', 'operator'].includes(p.kind), 403, 'producer_required');
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       this.pending(row, now);
       return this.idempotent(tx, p, 'remind:' + id, key, {}, async () => {
         requireThat(
@@ -703,11 +704,7 @@ export class ReviewService {
         413,
         'bundle_too_large',
       );
-      requireThat(
-        input.compatibility.agent_ui === RENDERER.agent_ui,
-        422,
-        'unsupported_renderer',
-      );
+      requireThat(input.compatibility.agent_ui === RENDERER.agent_ui, 422, 'unsupported_renderer');
     }
     const contentDigest = replay ? '' : digestBytes(input.html),
       size = replay ? 0 : Buffer.byteLength(input.html);
@@ -914,7 +911,11 @@ export class ReviewService {
     }
     let bundle;
     if (input.bundle_id) {
-      requireThat(input.profiles['haip.agent-ui'] === '1', 422, 'agent_ui_profile_required');
+      requireThat(
+        input.profiles['haip.agent-ui'] === RENDERER.agent_ui,
+        422,
+        'agent_ui_profile_required',
+      );
       if (!/^[a-f0-9-]{36}$/.test(input.bundle_id)) throw missing();
       const found = (
         await tx.query(
@@ -928,6 +929,7 @@ export class ReviewService {
         publisher: found.manifest.publisher,
         digest: found.manifest.digest,
         compatibility: found.manifest.compatibility,
+        created_at: found.manifest.created_at,
       };
     }
     const request: DecisionRequest = {
@@ -1040,7 +1042,27 @@ export class ReviewService {
       );
     });
   }
+  private requireCurrentRequest(row: RequestRow) {
+    const request = row.data?.request as DecisionRequest | undefined;
+    requireThat(request?.protocol_revision === PROTOCOL_REVISION, 409, 'unsupported_revision');
+    const profiles = request.profiles as unknown;
+    requireThat(
+      !!profiles && typeof profiles === 'object' && !Array.isArray(profiles),
+      409,
+      'unsupported_profile',
+    );
+    const supported = this.discovery().profiles as Record<string, string>;
+    for (const [name, version] of Object.entries(profiles))
+      requireThat(supported[name] === version, 409, 'unsupported_profile');
+    if (request.review?.bundle)
+      requireThat(
+        request.profiles['haip.agent-ui'] === RENDERER.agent_ui,
+        409,
+        'agent_ui_profile_required',
+      );
+  }
   private requireStoredIntegrity(row: RequestRow) {
+    this.requireCurrentRequest(row);
     let valid = false;
     try {
       validate('DecisionRequest', row.data.request);
@@ -1112,6 +1134,7 @@ export class ReviewService {
       );
   }
   pending(row: RequestRow, now: Date) {
+    this.requireCurrentRequest(row);
     requireThat(
       row.data.decision_state === 'pending' &&
         now.getTime() < Date.parse(row.data.request.review_deadline) &&

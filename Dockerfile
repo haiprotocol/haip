@@ -4,6 +4,7 @@ FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY @types/package.json ./@types/package.json
+COPY haip-view/package.json ./haip-view/package.json
 COPY haip-sdk/package.json ./haip-sdk/package.json
 COPY haip-server/package.json ./haip-server/package.json
 COPY haip-cli/package.json ./haip-cli/package.json
@@ -12,6 +13,7 @@ FROM manifests AS build
 RUN npm ci --no-audit --no-fund
 COPY tsconfig.json ./
 COPY @types ./@types
+COPY haip-view ./haip-view
 COPY haip-sdk ./haip-sdk
 COPY haip-server ./haip-server
 COPY haip-cli ./haip-cli

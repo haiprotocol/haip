@@ -1,6 +1,6 @@
 {
   "name": "@haip/view",
-  "version": "2.0.0-draft.2",
+  "version": "2.0.0-draft.3",
   "description": "Dependency-free client for producer Views on the HAIP Agent UI wire (haip/ui.*)",
   "license": "MIT",
   "type": "module",
@@ -14,12 +14,10 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "sideEffects": false,
-  "engines": {
-    "node": ">=24 <25"
-  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist"

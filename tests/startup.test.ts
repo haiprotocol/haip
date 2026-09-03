@@ -46,6 +46,8 @@ test('production separates registrable sites, including private public-suffix en
     ['https://review.example.com', 'https://scope.{scope}-app.net'],
     ['https://review.example.com', 'https://prefix-{scope}.scope.example.net'],
     ['https://review.example.com/path', 'https://{scope}.example.net'],
+    ['https://review.example.com', 'https://{scope}.sandbox.example.'],
+    ['https://review.example.com', 'https://{scope}.foo_bar.example'],
   ])
     assert.throws(
       () => validateOrigins('production', host!, sandbox!),

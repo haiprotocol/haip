@@ -39,7 +39,7 @@ export async function exerciseReviewFixture({
     '/v2/bundles',
     {
       html: bundleHtml,
-      compatibility: { agent_ui: '1' },
+      compatibility: { agent_ui: '2' },
       author: 'HAIP HTTP fixture',
       licence: 'MIT',
     },
@@ -50,7 +50,7 @@ export async function exerciseReviewFixture({
   const input = {
     protocol_revision: PROTOCOL_REVISION,
     purpose: 'review',
-    profiles: { 'haip.agent-ui': '1' },
+    profiles: { 'haip.agent-ui': '2' },
     route,
     summary: 'Independent structured-choice fixture',
     bundle_id: bundle.body.id,
@@ -73,7 +73,7 @@ export async function exerciseReviewFixture({
     (
       await call('/v2/requests', {
         ...input,
-        profiles: { 'haip.agent-ui': '1', unsupported: 'unknown' },
+        profiles: { 'haip.agent-ui': '2', unsupported: 'unknown' },
       })
     ).status,
     422,

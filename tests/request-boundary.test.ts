@@ -113,7 +113,7 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     '/v2/bundles',
     {
       html,
-      compatibility: { agent_ui: '1' },
+      compatibility: { agent_ui: '2' },
       author: 'Test fixture',
       licence: 'MIT',
     },
@@ -124,7 +124,7 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.agent-ui': '1' },
+      profiles: { 'haip.agent-ui': '2' },
     }),
   );
   assert.equal(created.status, 201, JSON.stringify(created.body));
@@ -208,7 +208,7 @@ test('an App receives only a complete inline snapshot', async () => {
     '/v2/bundles',
     {
       html: '<!doctype html><p>Large payload fixture</p>',
-      compatibility: { agent_ui: '1' },
+      compatibility: { agent_ui: '2' },
       author: 'Test fixture',
       licence: 'MIT',
     },
@@ -219,7 +219,7 @@ test('an App receives only a complete inline snapshot', async () => {
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.agent-ui': '1' },
+      profiles: { 'haip.agent-ui': '2' },
       payload: { value: 'x'.repeat(2 * 1024 ** 2) },
     }),
   );

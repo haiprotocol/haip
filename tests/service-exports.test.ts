@@ -13,7 +13,7 @@ async function reviewWithBundle(env: Awaited<ReturnType<typeof environment>>) {
     '/v2/bundles',
     {
       html,
-      compatibility: { agent_ui: '1' },
+      compatibility: { agent_ui: '2' },
       author: 'Independent test fixture',
       licence: 'MIT',
     },
@@ -24,7 +24,7 @@ async function reviewWithBundle(env: Awaited<ReturnType<typeof environment>>) {
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.agent-ui': '1' },
+      profiles: { 'haip.agent-ui': '2' },
     }),
   );
   assert.equal(created.status, 201);
@@ -53,6 +53,11 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
       { name: 'wrong publisher', html, manifest: { ...manifest, publisher: 'other-publisher' } },
       { name: 'wrong digest', html, manifest: { ...manifest, digest: digest({ changed: true }) } },
       {
+        name: 'changed registration time',
+        html,
+        manifest: { ...manifest, created_at: '2026-01-01T00:00:00.000Z' },
+      },
+      {
         name: 'changed compatibility',
         html,
         manifest: { ...manifest, compatibility: { ...manifest.compatibility, agent_ui: '0' } },
@@ -79,7 +84,6 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
     const reordered = {
       ...manifest,
       compatibility: {
-
         agent_ui: manifest.compatibility.agent_ui,
       },
     };
@@ -122,10 +126,7 @@ test('delivery, proposals and confirmation recompute every stored material bindi
       ['request bytes', (data) => (data.request.summary = 'Changed after acceptance')],
       ['request digest', (data) => (data.request_digest = digest({ changed: true }))],
       ['payload', (_data, material) => (material.payload = { changed: true })],
-      [
-        'response schema',
-        (_data, material) => (material.response_schema = { type: 'boolean' }),
-      ],
+      ['response schema', (_data, material) => (material.response_schema = { type: 'boolean' })],
       ['review document', (_data, material) => (material.review_document = 'Changed document')],
     ];
     for (const [name, corrupt] of corruptions) {
@@ -155,12 +156,7 @@ test('delivery, proposals and confirmation recompute every stored material bindi
     }
     await env.store.pool.query(
       'UPDATE haip_requests SET data=$1,material=$2 WHERE tenant=$3 AND id=$4',
-      [
-        JSON.stringify(original.data),
-        JSON.stringify(original.material),
-        'test-tenant',
-        request.id,
-      ],
+      [JSON.stringify(original.data), JSON.stringify(original.material), 'test-tenant', request.id],
     );
     assert.equal((await human.call(`/v2/requests/${request.id}/material`)).status, 200);
     assert.equal((await human.call(`/v2/requests/${request.id}/app`)).status, 200);

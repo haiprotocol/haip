@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0-draft.2",
+  "version": "2.0.0-draft.3",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -35,7 +35,7 @@
   "dependencies": {
     "@azure/identity": "4.13.2",
     "@azure/storage-blob": "12.33.0",
-    "@haip/protocol": "2.0.0-draft.2",
+    "@haip/protocol": "2.0.0-draft.3",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "express": "5.2.1",

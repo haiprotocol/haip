@@ -44,7 +44,7 @@ test('browser OIDC, app replay, restricted message bridge, escaped text and trus
     '/v2/bundles',
     {
       html,
-      compatibility: { agent_ui: '1' },
+      compatibility: { agent_ui: '2' },
       author: 'Independent HTTP fixture',
       licence: 'MIT',
     },
@@ -55,7 +55,7 @@ test('browser OIDC, app replay, restricted message bridge, escaped text and trus
     '/v2/requests',
     env.request(false, {
       bundle_id: bundle.body.id,
-      profiles: { 'haip.agent-ui': '1' },
+      profiles: { 'haip.agent-ui': '2' },
       response_schema: JSON.parse(
         await readFile(new URL('../examples/http/review.json', import.meta.url), 'utf8'),
       ).response_schema,
@@ -122,8 +122,8 @@ test('browser OIDC, app replay, restricted message bridge, escaped text and trus
       },
       '*',
     );
-    parent.postMessage({ jsonrpc: '2.0', method: 'haip/ui.initialized' }, '*');
-    parent.postMessage({ jsonrpc: '2.0', id: 9002, method: 'haip/ui.initialize', params: {} }, '*');
+    parent.postMessage({ jsonrpc: '2.0', method: 'haip/ui.initialized', params: {} }, '*');
+    parent.postMessage({ jsonrpc: '2.0', id: 9002, method: 'tools/call', params: {} }, '*');
   });
   await proxy.waitForFunction(() => window.haipTestRendererMessages === 2);
   await page.waitForFunction(() => window.haipTestDirectMessages.length === 1);
@@ -238,6 +238,80 @@ test('browser OIDC, app replay, restricted message bridge, escaped text and trus
   await context.close();
 });
 
+test('an envelope mismatch prevents View creation and disables further app proposals', async () => {
+  const bundle = await env.api(
+    '/v2/bundles',
+    {
+      html: '<!doctype html><body><p>Envelope fixture</p></body>',
+      compatibility: { agent_ui: '2' },
+      author: 'Envelope fixture',
+      licence: 'MIT',
+    },
+    env.credentials.publisher,
+  );
+  assert.equal(bundle.status, 201);
+  const created = await env.api(
+    '/v2/requests',
+    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '2' } }),
+  );
+  assert.equal(created.status, 201);
+  const rebind = (body: any) => {
+    body.binding_digest = digest({
+      profile: body.profile,
+      protocol_revision: body.protocol_revision,
+      request: body.request,
+      bundle: body.bundle,
+      source: body.source,
+      snapshots: body.snapshots,
+    });
+  };
+  const mutations = [
+    (body: any) => {
+      body.request.digest = 'sha256:' + '0'.repeat(64);
+    },
+    (body: any) => {
+      body.protocol_revision = '2.0.0-draft.2';
+      rebind(body);
+    },
+    (body: any) => {
+      body.request.purpose = 'bogus';
+      body.input.purpose = 'bogus';
+      body.snapshots.input_digest = digest(body.input);
+      rebind(body);
+    },
+    (body: any) => {
+      body.html += '<p>mutated</p>';
+    },
+    (body: any) => {
+      body.origin += '/unexpected';
+    },
+    (body: any) => {
+      body.scope = '0'.repeat(64);
+    },
+  ];
+  for (const mutate of mutations) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+      await page.route(`**/v2/requests/${created.body.request.id}/app`, async (route) => {
+        const response = await route.fetch();
+        const body = await response.json();
+        mutate(body);
+        await route.fulfill({ response, json: body });
+      });
+      await signIn(page, '/review/' + created.body.request.id);
+      await page.waitForFunction(() =>
+        document.querySelector('#app-state')?.textContent?.includes('envelope binding mismatch'),
+      );
+      assert.equal(await page.locator('#app > iframe').count(), 0);
+      assert.equal(await page.locator('#allow-app-proposal').isHidden(), true);
+      assert.equal(await page.getByLabel('Response (JSON)').isEnabled(), true);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 let hostileBundle: any;
 async function hostileReview() {
   if (!hostileBundle) {
@@ -286,12 +360,12 @@ async function hostileReview() {
           }
         };
         const init = await request('haip/ui.initialize', {
-          protocolVersion: 'org.haiprotocol.agent-ui/1',
+          protocolVersion: 'org.haiprotocol.agent-ui/2',
           capabilities: { localProposal: true },
           viewInfo: { name: 'Adversarial proposal fixture', version: '1.0.0' },
         });
         if (!init?.capabilities?.localProposal) throw new Error('missing localProposal');
-        post({ jsonrpc: '2.0', method: 'haip/ui.initialized' });
+        post({ jsonrpc: '2.0', method: 'haip/ui.initialized', params: {} });
       `,
         resolveDir: process.cwd(),
         loader: 'js',
@@ -308,7 +382,7 @@ async function hostileReview() {
           '<!doctype html><body><script type="module">' +
           built.outputFiles[0]!.text.replaceAll('</script', '<\\/script') +
           '</script></body>',
-        compatibility: { agent_ui: '1' },
+        compatibility: { agent_ui: '2' },
         author: 'Adversarial browser fixture',
         licence: 'MIT',
       },
@@ -319,7 +393,7 @@ async function hostileReview() {
   }
   const created = await env.api(
     '/v2/requests',
-    env.request(false, { bundle_id: hostileBundle.id, profiles: { 'haip.agent-ui': '1' } }),
+    env.request(false, { bundle_id: hostileBundle.id, profiles: { 'haip.agent-ui': '2' } }),
   );
   assert.equal(created.status, 201);
   const context = await browser.newContext(),
@@ -353,6 +427,51 @@ async function hostileReview() {
     bundle: created.body.request.review.bundle,
   };
 }
+
+test('the Host rejects a candidate outside the verified request binding', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  const changedDigest = 'sha256:' + '0'.repeat(64);
+  try {
+    await page.route(`**/v2/requests/${id}/candidates`, async (route) => {
+      const response = await route.fetch();
+      const candidate = await response.json();
+      candidate.request_digest = changedDigest;
+      candidate.decision = 'approve';
+      await route.fulfill({ response, json: candidate });
+    });
+    const proposed = await frame.evaluate(() => window.attacks.propose(1));
+    assert.equal(proposed.ok, false);
+    assert.match(proposed.error, /does not match the verified request and proposal/);
+    assert.equal(await page.locator('#confirmation').isVisible(), false);
+    const material = (await env.api(`/v2/requests/${id}/material`)).body;
+    assert.notEqual(material.candidate.request_digest, changedDigest);
+    assert.equal(material.candidate.decision, 'answer');
+    assert.equal((await env.api(`/v2/requests/${id}`)).body.decision_state, 'pending');
+  } finally {
+    await context.close();
+  }
+});
+
+test('the Host accepts a schema-valid candidate timestamp with an offset', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  const createdAt = '2026-09-03T01:00:00+01:00';
+  try {
+    await page.route(`**/v2/requests/${id}/candidates`, async (route) => {
+      const response = await route.fetch();
+      const candidate = await response.json();
+      candidate.created_at = createdAt;
+      await route.fulfill({ response, json: candidate });
+    });
+    const proposed = await frame.evaluate(() => window.attacks.propose(1));
+    assert.equal(proposed.ok, true);
+    await page.getByRole('heading', { name: 'Trusted confirmation' }).waitFor();
+    const displayed = JSON.parse((await page.locator('#exact').textContent())!);
+    assert.equal(displayed.created_at, createdAt);
+    assert.equal((await env.api(`/v2/requests/${id}`)).body.decision_state, 'pending');
+  } finally {
+    await context.close();
+  }
+});
 
 test('View failure discards its frozen proposal and restores the trusted form', async () => {
   const { context, page, frame, id } = await hostileReview();
@@ -499,7 +618,7 @@ test('unsupported View capabilities fail closed to the native renderer', async (
       id: 1,
       method: 'haip/ui.initialize',
       params: {
-        protocolVersion: 'org.haiprotocol.agent-ui/1',
+        protocolVersion: 'org.haiprotocol.agent-ui/2',
         capabilities: { localProposal: false }
       }
     }, '*');
@@ -508,7 +627,7 @@ test('unsupported View capabilities fail closed to the native renderer', async (
     '/v2/bundles',
     {
       html,
-      compatibility: { agent_ui: '1' },
+      compatibility: { agent_ui: '2' },
       author: 'Invalid capability fixture',
       licence: 'MIT',
     },
@@ -517,7 +636,7 @@ test('unsupported View capabilities fail closed to the native renderer', async (
   assert.equal(bundle.status, 201);
   const created = await env.api(
     '/v2/requests',
-    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '1' } }),
+    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '2' } }),
   );
   assert.equal(created.status, 201);
   const context = await browser.newContext();
@@ -540,7 +659,74 @@ test('unsupported View capabilities fail closed to the native renderer', async (
   }
 });
 
-test('controlled Host teardown accepts a correlated null JSON-RPC result', async () => {
+test('sandbox consumes a proposal ID rejected before initialisation', async () => {
+  const html = `<!doctype html><script>
+    window.replies = [];
+    window.addEventListener('message', event => {
+      if (event.source !== parent || !event.data || typeof event.data !== 'object') return;
+      const message = event.data;
+      if (message.id === 7 && message.error) window.replies.push(message.error.code);
+      if (message.id === 1 && message.result)
+        parent.postMessage({ jsonrpc: '2.0', method: 'haip/ui.initialized', params: {} }, '*');
+      if (message.method === 'haip/ui.result')
+        parent.postMessage({
+          jsonrpc: '2.0',
+          id: 7,
+          method: 'haip/ui.propose',
+          params: { decision: 'answer', response: { choice: 'accept' } },
+        }, '*');
+    });
+    parent.postMessage({
+      jsonrpc: '2.0',
+      id: 7,
+      method: 'haip/ui.propose',
+      params: { decision: 'answer', response: { choice: 'accept' } },
+    }, '*');
+    parent.postMessage({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'haip/ui.initialize',
+      params: {
+        protocolVersion: 'org.haiprotocol.agent-ui/2',
+        capabilities: { localProposal: true },
+      },
+    }, '*');
+  </script>`;
+  const bundle = await env.api(
+    '/v2/bundles',
+    {
+      html,
+      compatibility: { agent_ui: '2' },
+      author: 'Initialisation race fixture',
+      licence: 'MIT',
+    },
+    env.credentials.publisher,
+  );
+  assert.equal(bundle.status, 201);
+  const created = await env.api(
+    '/v2/requests',
+    env.request(false, { bundle_id: bundle.body.id, profiles: { 'haip.agent-ui': '2' } }),
+  );
+  assert.equal(created.status, 201);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await signIn(page, '/review/' + created.body.request.id);
+    const inner = page.frameLocator('#app > iframe').frameLocator('iframe');
+    await inner.locator('body').waitFor({ state: 'attached' });
+    const frame = page.frames().find((candidate) => candidate.url() === 'about:srcdoc')!;
+    await frame.waitForFunction(() => window.replies?.length === 2);
+    assert.deepEqual(await frame.evaluate(() => window.replies), [-32600, -32600]);
+    assert.equal(
+      (await env.api(`/v2/requests/${created.body.request.id}/material`)).body.candidate,
+      null,
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test('controlled Host teardown destroys the View after a malformed null result', async () => {
   const { context, page, frame } = await hostileReview();
   try {
     await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
@@ -755,18 +941,7 @@ test('sandbox accepts only one exact correlated response and rejects method-less
     for (const id of ['unsolicited', 'empty-method', 'null-method'])
       assert.deepEqual(await received(id), []);
     await hostRequest('fixture:one');
-    await send([
-      { jsonrpc: '2.0', id: 'fixture:one', result: {}, error: { code: -32603, message: 'both' } },
-      { jsonrpc: '2.0', id: 'fixture:one', error: { code: 'invalid', message: 'wrong type' } },
-      { jsonrpc: '2.0', id: 'fixture:one', method: undefined, result: {} },
-      { jsonrpc: '2.0', id: 'fixture:one', result: {}, params: { spoof: true } },
-    ]);
-    assert.deepEqual(
-      await received('fixture:one'),
-      [],
-      'invalid replies cannot consume or satisfy a pending host request',
-    );
-    const accepted = { jsonrpc: '2.0', id: 'fixture:one', result: null };
+    const accepted = { jsonrpc: '2.0', id: 'fixture:one', result: { closed: true } };
     await send([accepted, accepted]);
     await page.waitForFunction(
       (id) => window.proxyMessages.filter((message) => message.id === id).length === 1,
@@ -780,7 +955,7 @@ test('sandbox accepts only one exact correlated response and rejects method-less
     await hostRequest(9007);
     await send([{ jsonrpc: '2.0', id: '9007', result: { spoof: true } }]);
     assert.deepEqual(await received('9007'), [], 'request ID types cannot be substituted');
-    const error = { jsonrpc: '2.0', id: 9007, error: { code: -32603, message: 'test response' } };
+    const error = { jsonrpc: '2.0', id: 9007, error: { code: -32000, message: 'test response' } };
     await send([error, error]);
     await page.waitForFunction(
       (id) => window.proxyMessages.filter((message) => message.id === id).length === 1,
@@ -794,10 +969,142 @@ test('sandbox accepts only one exact correlated response and rejects method-less
       })),
       { inputs: 1, results: 1 },
     );
+    await hostRequest('fixture:invalid');
+    await frame.evaluate(() => {
+      parent.postMessage({ jsonrpc: '2.0', id: 'fixture:invalid', result: { closed: false } }, '*');
+    });
+    await page.locator('#app > iframe').waitFor({ state: 'detached' });
+    assert.match(
+      (await page.locator('#app-state').textContent()) ?? '',
+      /invalid teardown acknowledgement/,
+    );
   } finally {
     await context.close();
   }
 });
+
+test('sandbox consumes rejected request IDs before any valid reuse', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  try {
+    const replies = await frame.evaluate(`
+      (async () => {
+        const exchange = (id, first) => new Promise((resolve, reject) => {
+          const responses = [];
+          const timer = setTimeout(() => reject(new Error('response timeout')), 2000);
+          const receive = event => {
+            if (event.source !== parent || event.data?.id !== id) return;
+            responses.push(event.data);
+            if (responses.length === 1) {
+              parent.postMessage({
+                jsonrpc: '2.0',
+                id,
+                method: 'haip/ui.propose',
+                params: { decision: 'answer', response: { choice: 'accept', score: 1 } },
+              }, '*');
+            } else {
+              clearTimeout(timer);
+              window.removeEventListener('message', receive);
+              resolve(responses);
+            }
+          };
+          window.addEventListener('message', receive);
+          parent.postMessage(first, '*');
+        });
+        return {
+          invalid: await exchange(50001, {
+            jsonrpc: '2.0',
+            id: 50001,
+            method: 'haip/ui.propose',
+            params: { decision: 'answer' },
+          }),
+          unknown: await exchange(50002, {
+            jsonrpc: '2.0',
+            id: 50002,
+            method: 'haip/ui.unknown',
+            params: {},
+          }),
+        };
+      })()
+    `);
+    assert.deepEqual(
+      replies.invalid.map((message: any) => message.error.code),
+      [-32602, -32600],
+    );
+    assert.deepEqual(
+      replies.unknown.map((message: any) => message.error.code),
+      [-32601, -32600],
+    );
+    assert.equal((await env.api(`/v2/requests/${id}/material`)).body.candidate, null);
+  } finally {
+    await context.close();
+  }
+});
+
+test('sandbox destroys a View that sends cyclic structured-clone data', async () => {
+  const { context, page, frame, id } = await hostileReview();
+  try {
+    await frame.evaluate(() => {
+      const response: any = {};
+      response.self = response;
+      parent.postMessage(
+        {
+          jsonrpc: '2.0',
+          id: 50_003,
+          method: 'haip/ui.propose',
+          params: { decision: 'answer', response },
+        },
+        '*',
+      );
+    });
+    await page.locator('#app > iframe').waitFor({ state: 'detached' });
+    assert.match(
+      (await page.locator('#app-state').textContent()) ?? '',
+      /invalid renderer message/,
+    );
+    assert.equal((await env.api(`/v2/requests/${id}/material`)).body.candidate, null);
+  } finally {
+    await context.close();
+  }
+});
+
+test('sandbox rejects values that cannot cross the strict JSON boundary', async () => {
+  for (const kind of ['surrogate-value', 'surrogate-key', 'unsafe-integer', 'sparse', 'extended']) {
+    const { context, page, frame, id } = await hostileReview();
+    try {
+      await frame.evaluate((kind) => {
+        let response: any;
+        if (kind === 'surrogate-value') response = String.fromCharCode(0xd800);
+        else if (kind === 'surrogate-key') response = { [String.fromCharCode(0xd800)]: true };
+        else if (kind === 'unsafe-integer') response = Number.MAX_SAFE_INTEGER + 1;
+        else if (kind === 'sparse') {
+          response = [];
+          response.length = 1;
+        } else {
+          response = [];
+          response.extra = true;
+        }
+        parent.postMessage(
+          {
+            jsonrpc: '2.0',
+            id: 50_004,
+            method: 'haip/ui.propose',
+            params: { decision: 'answer', response },
+          },
+          '*',
+        );
+      }, kind);
+      await page.locator('#app > iframe').waitFor({ state: 'detached' });
+      assert.match(
+        (await page.locator('#app-state').textContent()) ?? '',
+        /invalid renderer message/,
+      );
+      assert.equal((await env.api(`/v2/requests/${id}/material`)).body.candidate, null);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 test('near-10-MiB payload remains searchable through the last of 1,000 steps', async () => {
   const payload = {
     steps: Array.from({ length: 1000 }, (_, i) => ({

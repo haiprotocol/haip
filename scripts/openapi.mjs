@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, cpSync } from 'node:fs';
-const draft = JSON.parse(readFileSync('protocol/draft-2.0.0-2/schema.json'));
+import { format } from 'prettier';
+const draft = JSON.parse(readFileSync('protocol/draft-2.0.0-3/schema.json'));
 const schema = Object.fromEntries(
   Object.entries(draft.$defs).map(([name, value]) => [
     name,
@@ -264,7 +265,7 @@ const spec = {
   openapi: '3.1.0',
   info: {
     title: 'HAIP — Human-Agent Interaction Protocol',
-    version: '2.0.0-draft.2',
+    version: '2.0.0-draft.3',
     description:
       'Draft portable review contract and execution extension. No HAIP 1 compatibility. Implementation ledger lists incomplete release gates.',
     license: { name: 'MIT', identifier: 'MIT' },
@@ -288,6 +289,11 @@ const spec = {
     },
   },
 };
-writeFileSync('protocol/draft-2.0.0-2/openapi.json', JSON.stringify(spec, null, 2) + '\n');
-writeFileSync('docs/protocol/openapi.json', JSON.stringify(spec, null, 2) + '\n');
-cpSync('protocol/draft-2.0.0-2', '@types/contracts', { recursive: true });
+const output = await format(JSON.stringify(spec), {
+  parser: 'json',
+  singleQuote: true,
+  printWidth: 100,
+});
+writeFileSync('protocol/draft-2.0.0-3/openapi.json', output);
+writeFileSync('docs/protocol/openapi.json', output);
+cpSync('protocol/draft-2.0.0-3', '@types/contracts', { recursive: true });

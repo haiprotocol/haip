@@ -5,6 +5,7 @@ import express, {
   type RequestHandler,
 } from 'express';
 import { readFileSync } from 'node:fs';
+import { AGENT_UI_PROFILE } from '@haip/protocol';
 import { digest, parseJson } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
 import { hitlStatus, hitlPoll } from './hitl.js';
@@ -212,7 +213,7 @@ export function createApp(service: ReviewService) {
     // The identity below is what the host verifies and the View is shown. Every value is
     // bound by binding_digest; the snapshots are committed by their own digests.
     const identity = {
-      profile: 'org.haiprotocol.agent-ui/1',
+      profile: AGENT_UI_PROFILE,
       protocol_revision: data.request.protocol_revision,
       request: {
         id: data.request.id,

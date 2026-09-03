@@ -1,6 +1,6 @@
 ---
 title: 'Self-hosting and recovery boundaries'
-description: 'Configure the real runtime explicitly; fixtures and archived containers are not production deployment.'
+description: 'Configure the real runtime explicitly. Fixtures and archived containers are not production deployment.'
 ---
 
 The supported source entry point is `haip-server/dist/main.js`, built with Node.js 24:
@@ -11,25 +11,25 @@ npm run build
 node haip-server/dist/main.js
 ```
 
-That command requires the [explicit configuration](/server/configuration); it is not a zero-configuration deployment. Use a non-root service account, encrypted storage and a restricted PostgreSQL role. Run controlled migrations and recovery separately from routine traffic. The uninstalled service example is `deployment/haip.service`.
+That command requires the [explicit configuration](/server/configuration). It is not a zero-configuration deployment. Use a non-root service account, encrypted storage and a restricted PostgreSQL role. Run controlled migrations and recovery separately from routine traffic. The uninstalled service example is `deployment/haip.service`.
 
-Production startup validates HTTPS origins on separate registrable sites, verified PostgreSQL TLS, the current Ed25519 key's match to independently configured trust, and an explicit Azure account/container with independent-administration acknowledgement. These checks run before database setup and also apply to bootstrap. Supply `HAIP_DATABASE_CA_FILE` only when the database certificate needs an additional trusted CA; never disable certificate verification.
+Production startup validates HTTPS origins on separate registrable sites, verified PostgreSQL TLS, the current Ed25519 key's match to independently configured trust, and an explicit Azure account and container with independent-administration acknowledgement. These checks run before database setup and also apply to bootstrap. Supply `HAIP_DATABASE_CA_FILE` only when the database certificate needs an additional trusted CA. Never disable certificate verification.
 
-Both application listeners bind to loopback by default. Route the exact trusted origin to port 8080 and the wildcard sandbox site to port 8081 through a TLS reverse proxy, preserving Host. An isolated container may set `HAIP_LISTEN_HOST=0.0.0.0` with ports published only on the host's loopback interface; this does not remove the origin or production checks. The sandbox template contains `{scope}` exactly once. Do not place cookies or shared storage on sandbox origins.
+Both application listeners bind to loopback by default. Route the exact trusted origin to port 8080 and the wildcard sandbox site to port 8081 through a TLS reverse proxy, preserving Host. An isolated container may set `HAIP_LISTEN_HOST=0.0.0.0` with ports published only on the host's loopback interface. This does not remove the origin or production checks. The sandbox template contains `{scope}` exactly once. Do not place cookies or shared storage on sandbox origins.
 
-The Azure container needs versioning, locked retention and permanent legal holds for safety records, with restricted writers and a separately administered control plane. `HAIP_ANCHOR_INDEPENDENT_ADMIN=true` records an assertion, not proof of RBAC or WORM behaviour. The provider, identity and restore checks in `deployment/acceptance.md` remain required before production use. Free tiers come first; no Amazon service is required.
+The Azure container needs versioning, locked retention and permanent legal holds for safety records, with restricted writers and a separately administered control plane. `HAIP_ANCHOR_INDEPENDENT_ADMIN=true` records an assertion rather than proof of RBAC or WORM behaviour. The provider, identity and restore checks in `deployment/acceptance.md` remain required before production use. Free tiers come first.
 
-Bootstrap a new tenant offline with `node haip-server/dist/main.js --bootstrap` and explicit bootstrap credentials. Provision directory entries and routes through the operator API, then remove bootstrap credentials from routine configuration. Migration 003 temporarily blocks new requests for an existing earlier-draft tenant until the next UTC day; existing reviews remain resolvable.
+Bootstrap a new tenant offline with `node haip-server/dist/main.js --bootstrap` and explicit bootstrap credentials. Provision directory entries and routes through the operator API, then remove bootstrap credentials from routine configuration. Migration 003 temporarily blocks new requests for an existing tenant until the next UTC day. Requests stored under an earlier protocol revision remain visible and safely cancellable or revocable, while review and authority require recreation under the current revision.
 
 Every restart of an activated production generation requires offline recovery. Stop listeners and covered executors, preserve launch fences, and use `--recover` with a recovery tenant, operator and fresh token. Recovery independently retires the old generation before changing the database, clears restored private material, disables old credentials and revokes old grants. Start the new generation, reprovision identities/routes and obtain fresh review for new occurrences.
 
-Encrypted backup creation, empty-target restore and pruning use `scripts/backup.mjs` with a separate 32-byte key file. Prune at least daily to keep backups for no more than 30 days. Restored admission remains fenced. A matching checkpoint prefix does not prove that a missing tail was complete; never erase occurrence fences or rewrite historical signatures.
+Encrypted backup creation, empty-target restore and pruning use `scripts/backup.mjs` with a separate 32-byte key file. Prune at least daily to keep backups for no more than 30 days. Restored admission remains fenced. A matching checkpoint prefix does not prove that a missing tail was complete. Never erase occurrence fences or rewrite historical signatures.
 
 ## Container status
 
 The root `Dockerfile` and `deployment/compose.dev.yml` package the current service for development. They use pinned official Node 24/PostgreSQL 17 images, a non-root service, explicit key/trust/OIDC configuration and loopback-published ports. The repository guide `deployment/development.md` covers configuration and one-off bootstrap. No registry image is published and no identity account is provisioned.
 
-Linux CI builds the image and exercises its packaged service against disposable PostgreSQL and the local OIDC fixture. Compose configuration is checked separately; runtime smoke tests use Linux host networking with loopback listeners. These checks do not establish production deployment acceptance.
+Linux CI builds the image and exercises its packaged service against disposable PostgreSQL and the local OIDC fixture. Compose configuration is checked separately. Runtime container checks use Linux host networking with loopback listeners. These checks do not establish production deployment acceptance.
 
 The Dockerfile and Compose file in `archive/v1` belong to the unsupported streaming server and must not be copied into a HAIP 2 deployment. The development container has no independent anchor and cannot admit execution. Production still requires verified identity/database connections, independent storage and the offline recovery procedure.
 

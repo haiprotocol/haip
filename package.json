@@ -1,6 +1,6 @@
 {
   "name": "haip-workspace",
-  "version": "2.0.0-draft.2",
+  "version": "2.0.0-draft.3",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,7 +22,7 @@
     "test:browser": "node --import tsx --test tests/browser.test.ts",
     "dev": "node --import tsx haip-server/src/main.ts",
     "test:cross-language": "node research/haip2-2026-08-30/runners/run.mjs",
-    "format": "prettier --write \"@types/src/**/*.ts\" \"haip-{sdk,server,cli}/src/**/*.ts\" \"tests/**/*.ts\" \"examples/http/*.{ts,mjs,json}\" \"scripts/*.mjs\" \"protocol/**/*.json\" \"*.{json,md}\" \"haip-server/public/*.{html,css}\"",
+    "format": "prettier --write \"@types/src/**/*.ts\" \"haip-{view,sdk,server,cli}/src/**/*.ts\" \"tests/**/*.ts\" \"examples/http/*.{js,ts,mjs,json}\" \"scripts/*.mjs\" \"protocol/**/*.json\" \"*.{json,md}\" \"haip-server/public/*.{html,css}\"",
     "pack:check": "npm pack --workspaces --dry-run --json",
     "demo": "node --import tsx scripts/demo.ts",
     "example:app": "node scripts/build-choice-app.mjs"

@@ -65,7 +65,12 @@ if (probe) {
     };
     window.addEventListener('message', onMessage);
     parent.postMessage(
-      { jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unavailable_tool', arguments: {} } },
+      {
+        jsonrpc: '2.0',
+        id,
+        method: 'tools/call',
+        params: { name: 'unavailable_tool', arguments: {} },
+      },
       '*',
     );
     setTimeout(() => resolve(false), 5000);

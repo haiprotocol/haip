@@ -5,6 +5,9 @@
   "devDependencies": {
     "@informalsystems/quint": "0.32.0"
   },
+  "overrides": {
+    "adm-zip": "0.6.0"
+  },
   "scripts": {
     "check": "quint typecheck quint/scenarios.qnt",
     "typecheck": "npm run check",

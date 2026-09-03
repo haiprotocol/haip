@@ -147,16 +147,17 @@ test('offline authority rejects tampering, stale nonces, clock skew and missing 
       'a valid signature cannot conceal a missing or contradictory receipt purpose',
     );
   }
-  await assert.rejects(
-    verifyExecutionAuthority({
-      ...input,
-      request: {
-        ...input.request,
-        profiles: { ...input.request.profiles, 'unknown.required': '1' },
-      },
-    }),
-    /Unsupported required profile/,
-  );
+  for (const unsupported of [{ 'unknown.required': '1' }, { 'haip.mcp-app': '1-draft.1' }])
+    await assert.rejects(
+      verifyExecutionAuthority({
+        ...input,
+        request: {
+          ...input.request,
+          profiles: { ...input.request.profiles, ...unsupported },
+        },
+      }),
+      /Unsupported required profile/,
+    );
   for (const altered of [
     { ...input, request: { ...input.request, purpose: 'review' } },
     { ...input, executionBindingDigest: digest({}) },
