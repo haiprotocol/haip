@@ -178,3 +178,32 @@ These methods and ordering rules are native HAIP. They are not an adopted Apps s
 Anything not explicitly listed in the native message set is forbidden. Adding a method
 or capability requires a new HAIP profile revision and a fresh immutable envelope
 binding; implementation package versions do not change or negotiate this wire profile.
+
+## 8. Concrete HAIP schema mapping
+
+The reference contract (`protocol/draft-2.0.0-2/schema.json`) realises the envelope of §2
+with these names. All values are bound by `binding_digest`, the SHA-256 of the RFC 8785
+canonical form of the identity object (`profile`, `protocol_revision`, `request`,
+`bundle`, `source`, `snapshots`); the host recomputes it before creating a View and the
+View receives it in the `haip/ui.initialize` result.
+
+| Profile field       | Schema (`StoredApp` / `AgentUiEnvelope`)                        |
+| ------------------- | --------------------------------------------------------------- |
+| `profile`           | `profile` (`org.haiprotocol.agent-ui/1`)                        |
+| `requestId`         | `request.id`                                                    |
+| `requestRevision`   | `protocol_revision` + `request.authorisation_revision`          |
+| `requestDigest`     | `request.digest`                                                |
+| `bundleId`          | `bundle.id`                                                     |
+| `bundleRevision`    | `bundle.created_at` (bundles are immutable; re-registration is a new id and digest) |
+| `bundleDigest`      | `bundle.digest`                                                 |
+| `source.producerId` | `source.producer`                                               |
+| `source.agentSystemId` | `source.requester` (`subject`, `source`)                     |
+| `source.tenantId`   | `source.tenant`                                                 |
+| `source.origin`     | `source.origin` (configured sandbox origin)                     |
+| `inputSnapshot`     | `input`, committed by `snapshots.input_digest`                  |
+| `resultSnapshot`    | `result`, committed by `snapshots.result_digest`                |
+
+Messages are defined as `AgentUiRequest`, `AgentUiNotification`, `AgentUiSuccess`,
+`AgentUiError` (union `AgentUiMessage`), with `AgentUiInitializeParams`,
+`AgentUiInitializeResult`, `AgentUiProposeParams`, `AgentUiProposeResult`,
+`AgentUiTeardownResult`, `AgentUiViewFailedParams` and `AgentUiErrorCode`.

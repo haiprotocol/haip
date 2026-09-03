@@ -208,6 +208,29 @@ async function inbox() {
 }
 async function app(source: ProposalSource) {
   const stored = await api(`/v2/requests/${requestId}/app`);
+  // Verify the complete envelope binding before any producer code is loaded. A mismatch
+  // fails closed to the trusted native controls.
+  const identity = {
+    profile: stored.profile,
+    protocol_revision: stored.protocol_revision,
+    request: stored.request,
+    bundle: stored.bundle,
+    source: stored.source,
+    snapshots: stored.snapshots,
+  };
+  if (
+    stored.profile !== 'org.haiprotocol.agent-ui/1' ||
+    stored.request?.id !== requestId ||
+    typeof stored.binding_digest !== 'string' ||
+    (await hash(identity)) !== stored.binding_digest ||
+    (await hash(stored.input)) !== stored.snapshots?.input_digest ||
+    (await hash(stored.result)) !== stored.snapshots?.result_digest ||
+    new URL(stored.origin).origin !== stored.source?.origin
+  ) {
+    write('app-state', 'App unavailable (envelope binding mismatch). Use the trusted host response form.');
+    return;
+  }
+  const envelope = freeze({ ...identity, binding_digest: stored.binding_digest });
   const frame = document.createElement('iframe');
   frame.title = 'Producer app — cannot confirm decisions';
   frame.sandbox.add('allow-scripts', 'allow-same-origin');
@@ -395,11 +418,8 @@ async function app(source: ProposalSource) {
       reply(id, {
         protocolVersion: 'org.haiprotocol.agent-ui/1',
         capabilities: { localProposal: true },
-        hostInfo: { name: 'HAIP review host', version: '2.0.0-draft.1' },
-        envelope: {
-          requestId,
-          requestDigest: stored.request_digest,
-        },
+        hostInfo: { name: 'HAIP review host', version: '2.0.0-draft.2' },
+        envelope,
       });
       return;
     }

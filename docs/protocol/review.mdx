@@ -24,3 +24,7 @@ Duplicate JSON keys, invalid Unicode and lossy numeric inputs are rejected. Vali
 Cancellation and supersession are explicit state changes, not edits to signed history. Supersession creates a new request and invalidates old candidates and unused authority. Retention can remove private material while leaving original signatures and commitments available for audit.
 
 For a complete local flow, use the [HTTP review example](/examples/review). The [authentication guide](/server/authentication) explains why possession of a review link never grants access or confirmation rights.
+
+## Agent UI profile
+
+A request may reference a registered bundle with compatibility `agent_ui: "1"` and select `haip.agent-ui: "1"`. The reviewer's host serves `StoredApp`: the exact bundle bytes, the sandbox origin and scope, complete `input` and `result` snapshots, and an `AgentUiEnvelope` identity (request, bundle, source and snapshot digests) committed by `binding_digest`. The host verifies that binding before creating a View and returns the envelope in the `haip/ui.initialize` result; the View may only propose a `DecisionProposal`. Message shapes are the `AgentUi*` schema definitions; a dependency-free client is published as [`@haip/view`](/sdk/view).

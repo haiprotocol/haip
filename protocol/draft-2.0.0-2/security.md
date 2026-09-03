@@ -1,6 +1,6 @@
-# Reference security profile — 2.0.0-draft.1
+# Reference security profile — 2.0.0-draft.2
 
-Status: draft. Protocol and document revision: `2.0.0-draft.1`. This document
+Status: draft. Protocol and document revision: `2.0.0-draft.2`. This document
 belongs to the same labelled revision as `review.md`, `schema.json` and `openapi.json`.
 Published draft revisions are immutable; later changes require a newly labelled revision.
 
@@ -16,8 +16,8 @@ private public-suffix boundaries. Sibling subdomains are insufficient. The app h
 uses an origin derived from tenant, authorised publisher and bundle digest, with a
 scripts-only opaque inner frame. Exact source windows and
 origins are checked in both bridge directions. The app receives one stored tool input
-and one stored result, without a live MCP connection. Its only callable tool is
-`haip_propose_decision`; confirmation, arbitrary tools, resource reads and external
+and one stored result, without a live tool bridge. Its only View→Host proposal method is
+`haip/ui.propose`; confirmation, residual tool calls, resource reads and external
 navigation are rejected. CSP, permissions policy and iframe sandbox restrict network,
 storage, forms, popups and navigation. Always retain the host view and response form.
 

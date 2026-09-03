@@ -6,7 +6,7 @@ and a response schema. A human reviews it in the trusted host and explicitly con
 an exact response. Execution requests additionally require an exclusive claim and
 fresh, signed admission.
 
-**Status: `2.0.0-draft.1`, under development. Not a production or Plasm release.**
+**Status: `2.0.0-draft.2`, under development. Not a production or Plasm release.**
 The standalone review service and bounded HTTP counter fixture run locally. Plasm
 live-window approval, durable continuations and approval-bound evidence are not
 implemented here. Safe namespace recovery, encrypted backups and independent storage
@@ -24,8 +24,9 @@ to it are separate proposals subject to its maintainers' acceptance.
 
 | Path                           | Responsibility                                                          |
 | ------------------------------ | ----------------------------------------------------------------------- |
-| `protocol/draft-2.0.0-1`       | Draft review contract, execution extension, JSON Schema and OpenAPI 3.1 |
+| `protocol/draft-2.0.0-2`       | Draft review contract, execution extension, JSON Schema and OpenAPI 3.1 |
 | `@types` / `@haip/protocol`    | Generated TypeScript types, strict JSON and signature primitives        |
+| `haip-view` / `@haip/view`     | Dependency-free View client for the Agent UI wire (`haip/ui.*`)          |
 | `haip-server` / `@haip/server` | Node 24, Express 5, PostgreSQL, OIDC, inbox and isolated app host       |
 | `haip-sdk` / `@haip/sdk`       | Producer client and authority verification; no machine confirmation     |
 | `haip-cli` / `@haip/cli`       | Create, inspect, cancel and export requests; verify signed records      |

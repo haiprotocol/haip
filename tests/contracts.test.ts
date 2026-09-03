@@ -9,7 +9,7 @@ import { digest } from '@haip/protocol/crypto';
 test('public discovery, directory, review, assignment, events and metrics match the published schema', async () => {
   const env = await environment();
   try {
-    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-1/schema.json', 'utf8'));
+    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-2/schema.json', 'utf8'));
     const ajv = new Ajv2020({ strict: true });
     (addFormats as any)(ajv);
     ajv.addSchema(schema);
@@ -55,7 +55,7 @@ test('public discovery, directory, review, assignment, events and metrics match 
       (await env.api('/v2/admin/ledger', undefined, env.credentials.operator)).body,
     );
     check('HitlPoll', (await env.api(`/v2/hitl/${id}/poll`)).body);
-    const spec = JSON.parse(await readFile('protocol/draft-2.0.0-1/openapi.json', 'utf8'));
+    const spec = JSON.parse(await readFile('protocol/draft-2.0.0-2/openapi.json', 'utf8'));
     for (const path of Object.values(spec.paths) as any[])
       for (const operation of Object.values(path) as any[]) {
         assert.ok(operation.responses['200']?.content || operation.responses['201']?.content);
@@ -68,7 +68,7 @@ test('public discovery, directory, review, assignment, events and metrics match 
 test('the public schema binds execution purpose and App bundles to their profiles', async () => {
   const env = await environment();
   try {
-    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-1/schema.json', 'utf8'));
+    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-2/schema.json', 'utf8'));
     const ajv = new Ajv2020({ strict: true });
     (addFormats as any)(ajv);
     ajv.addSchema(schema);

@@ -1,6 +1,6 @@
 {
   "current": {
-    "protocol": "2.0.0-draft.1",
+    "protocol": "2.0.0-draft.2",
     "status": "draft",
     "release_ready": false,
     "openapi": "/protocol/openapi.json",
@@ -13,6 +13,17 @@
       "supported": false,
       "openapi": "/archive/v1/protocol/openapi.json",
       "source": "archive/v1"
+    }
+  ],
+  "retired": [
+    {
+      "protocol": "2.0.0-draft.1",
+      "status": "superseded",
+      "reason": "Superseded by 2.0.0-draft.2 before any deployment accepted a request; its documents remain immutable under protocol/draft-2.0.0-1.",
+      "profiles": {
+        "haip.mcp-app": "1-draft.1"
+      },
+      "source": "protocol/draft-2.0.0-1"
     }
   ]
 }

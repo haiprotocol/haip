@@ -2,7 +2,7 @@
 
 Producer HTTP client and offline authority verification. No machine confirmation API.
 
-Version **2.0.0-draft.1** is under development. It breaks HAIP 1 compatibility and
+Version **2.0.0-draft.2** is under development. It breaks HAIP 1 compatibility and
 is not a production or Plasm release. The protocol is independent of this runtime.
 
 Build and test from the repository root with `npm ci` and `npm run check`. See the

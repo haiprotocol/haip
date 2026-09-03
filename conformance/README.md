@@ -1,4 +1,4 @@
-# Public HTTP fixtures — draft 2.0.0-draft.1
+# Public HTTP fixtures — draft 2.0.0-draft.2
 
 `exerciseReviewFixture` in `review.mjs` talks only to documented HTTP interfaces.
 It imports protocol primitives and no reference-service internals, database tables,

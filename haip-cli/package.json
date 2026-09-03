@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0-draft.1",
+  "version": "2.0.0-draft.2",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -30,8 +30,8 @@
     }
   },
   "dependencies": {
-    "@haip/protocol": "2.0.0-draft.1",
-    "@haip/sdk": "2.0.0-draft.1"
+    "@haip/protocol": "2.0.0-draft.2",
+    "@haip/sdk": "2.0.0-draft.2"
   },
   "bin": {
     "haip": "dist/index.js"

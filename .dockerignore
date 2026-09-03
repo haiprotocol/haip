@@ -40,8 +40,8 @@
 !haip-cli/src/
 !haip-cli/src/**
 !protocol/
-!protocol/draft-2.0.0-1/
-!protocol/draft-2.0.0-1/**
+!protocol/draft-2.0.0-2/
+!protocol/draft-2.0.0-2/**
 !third-party/
 !third-party/*LICENSE
 !third-party/README.md

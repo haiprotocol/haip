@@ -1,0 +1,21 @@
+---
+title: 'View client — @haip/view'
+description: 'Dependency-free client for producer Views on the HAIP Agent UI wire'
+---
+
+`@haip/view` is the client a producer bundles into its review View for **2.0.0-draft.2**. A View runs inside HAIP's opaque, scripts-only sandbox frame: it can present the stored input and result snapshots and propose a response, and it can never confirm, authorise or execute.
+
+```js
+import { connectView } from '@haip/view';
+
+const view = await connectView({
+  name: 'Choice review',
+  version: '1.0.0',
+  onResult: (result) => render(result.structuredContent?.payload),
+});
+await view.propose({ decision: 'answer', response: { choice: 'accept' } });
+```
+
+The client performs the `haip/ui.initialize` → `haip/ui.initialized` handshake, correlates request ids, delivers `haip/ui.input` and `haip/ui.result` exactly once and in order, acknowledges `haip/ui.teardown`, and exposes the host-verified envelope identity as `view.envelope` (request id and digest, bundle id and digest, source, snapshot digests and the binding digest). Every message and the envelope are defined in the protocol schema as `StoredApp` and the `AgentUi*` definitions, with generated TypeScript types in `@haip/protocol`.
+
+The sandbox has no network access, so bundle the client into the self-contained HTML you register through `POST /v2/bundles`. See `examples/http/choice-app.js` for a complete View.

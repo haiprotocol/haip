@@ -1,7 +1,7 @@
 # HAIP 2 implementation ledger
 
 Status: **HAIP-owned draft implementation with local and hosted CI evidence; full HAIP 2
-release remains incomplete**. Protocol/package version is `2.0.0-draft.1`.
+release remains incomplete**. Protocol/package version is `2.0.0-draft.2`.
 Available for review in [HAIP draft PR #5](https://github.com/haiprotocol/haip/pull/5).
 Package publication and deployment remain unauthorised and have not been performed.
 

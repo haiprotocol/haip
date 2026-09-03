@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, cpSync } from 'node:fs';
-const draft = JSON.parse(readFileSync('protocol/draft-2.0.0-1/schema.json'));
+const draft = JSON.parse(readFileSync('protocol/draft-2.0.0-2/schema.json'));
 const schema = Object.fromEntries(
   Object.entries(draft.$defs).map(([name, value]) => [
     name,
@@ -42,8 +42,8 @@ const operations = [
     'get',
     '/v2/requests/{id}/app',
     null,
-    null,
-    'Stored app and input/result; authenticated human only',
+    'StoredApp',
+    'Stored View bundle with its verified Agent UI envelope and snapshots; authenticated human only',
   ],
   [
     'post',
@@ -264,7 +264,7 @@ const spec = {
   openapi: '3.1.0',
   info: {
     title: 'HAIP — Human-Agent Interaction Protocol',
-    version: '2.0.0-draft.1',
+    version: '2.0.0-draft.2',
     description:
       'Draft portable review contract and execution extension. No HAIP 1 compatibility. Implementation ledger lists incomplete release gates.',
     license: { name: 'MIT', identifier: 'MIT' },
@@ -288,6 +288,6 @@ const spec = {
     },
   },
 };
-writeFileSync('protocol/draft-2.0.0-1/openapi.json', JSON.stringify(spec, null, 2) + '\n');
+writeFileSync('protocol/draft-2.0.0-2/openapi.json', JSON.stringify(spec, null, 2) + '\n');
 writeFileSync('docs/protocol/openapi.json', JSON.stringify(spec, null, 2) + '\n');
-cpSync('protocol/draft-2.0.0-1', '@types/contracts', { recursive: true });
+cpSync('protocol/draft-2.0.0-2', '@types/contracts', { recursive: true });

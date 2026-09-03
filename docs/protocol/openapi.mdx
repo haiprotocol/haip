@@ -1,12 +1,12 @@
 ---
-title: 'OpenAPI and schema — 2.0.0-draft.1'
+title: 'OpenAPI and schema — 2.0.0-draft.2'
 description: 'Machine-readable draft HTTP operations and signed object definitions.'
 ---
 
-The [OpenAPI 3.1 document](/protocol/openapi.json) describes the HAIP 2 draft HTTP API and its JSON schemas. Its revision is **2.0.0-draft.1**. It is a draft contract, not evidence of a production deployment.
+The [OpenAPI 3.1 document](/protocol/openapi.json) describes the HAIP 2 draft HTTP API and its JSON schemas. Its revision is **2.0.0-draft.2**. It is a draft contract, not evidence of a production deployment.
 
 Use the documented credential scope for each operation. Producer and publisher bearer credentials cannot call human confirmation endpoints. Human mutations require the authenticated browser session, CSRF token and exact trusted Origin.
 
-The `@haip/protocol` draft package also exports `@haip/protocol/schema.json` and `@haip/protocol/openapi.json`. The source contracts live under `protocol/draft-2.0.0-1` in the repository. Generated TypeScript declarations are derived from that schema rather than defining a separate wire format.
+The `@haip/protocol` draft package also exports `@haip/protocol/schema.json` and `@haip/protocol/openapi.json`. The source contracts live under `protocol/draft-2.0.0-2` in the repository. Generated TypeScript declarations are derived from that schema rather than defining a separate wire format.
 
 Start with the [review lifecycle](/protocol/review) and [HTTP transport](/protocol/essentials/transport) before implementing the API. [HAIP 1's archived OpenAPI document](/archive/v1/protocol/openapi.json) describes a different, unsupported protocol.

@@ -1,6 +1,6 @@
 # HAIP 2 release gates
 
-Version: **2.0.0-draft.1**. HAIP-owned implementation and isolated checks are available
+Version: **2.0.0-draft.2**. HAIP-owned implementation and isolated checks are available
 in [HAIP draft PR #5](https://github.com/haiprotocol/haip/pull/5).
 Full HAIP 2 and a Plasm live-window release are **not ready**. Package publication
 and deployment have not been performed.
@@ -78,7 +78,7 @@ the complete matrix and stable contracts. A mock executor cannot replace these g
 Run `npm run check`, `npm run test:cross-language`, `npm audit` and
 `npm run pack:check`. Record source hashes, dependency locks, licences and results.
 Local tarballs can be prepared with `npm pack --workspaces --pack-destination output/packages`;
-four draft tarballs are prepared there. Generated packages, App bundles and contract
+five draft tarballs are prepared there (`@haip/protocol`, `@haip/view`, `@haip/sdk`, `@haip/server`, `@haip/cli`). Generated packages, App bundles and contract
 archives are ignored by Git and can be rebuilt locally. This does not publish anything.
 
 Recheck baselines before proposing changes. Pin accepted upstream revisions when they

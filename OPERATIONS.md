@@ -318,7 +318,7 @@ material before the required recovery and reprovisioning procedure has run.
 ## Plasm boundary and incident response
 
 HAIP does not implement Plasm contexts, credentials, continuations, runtime scheduling
-or execution evidence. The [draft Plasm profile](protocol/draft-2.0.0-1/plasm-profile.md)
+or execution evidence. The [draft Plasm profile](protocol/draft-2.0.0-2/plasm-profile.md)
 is a set of integration requirements, not an advertised capability. Changes require
 upstream acceptance and hosted-product coordination. No renderer licence is changed by
 bundle registration; this distribution does not vendor external agent UI renderers.

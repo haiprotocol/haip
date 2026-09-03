@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "HAIP — Human-Agent Interaction Protocol",
+  "name": "HAIP \u2014 Human-Agent Interaction Protocol",
   "colors": {
     "primary": "#EAB308",
     "light": "#FCD34D",
@@ -12,7 +12,11 @@
     "groups": [
       {
         "group": "HAIP 2 draft",
-        "pages": ["index", "quickstart", "technical_overview"]
+        "pages": [
+          "index",
+          "quickstart",
+          "technical_overview"
+        ]
       },
       {
         "group": "Protocol",
@@ -44,20 +48,31 @@
           "sdk/authentication",
           "sdk/error-handling",
           "sdk/execution",
-          "sdk/webhooks"
+          "sdk/webhooks",
+          "sdk/view"
         ]
       },
       {
         "group": "Command line",
-        "pages": ["cli/overview", "cli/commands", "cli/configuration"]
+        "pages": [
+          "cli/overview",
+          "cli/commands",
+          "cli/configuration"
+        ]
       },
       {
         "group": "Local examples",
-        "pages": ["examples/review", "examples/using-cli", "examples/counter"]
+        "pages": [
+          "examples/review",
+          "examples/using-cli",
+          "examples/counter"
+        ]
       },
       {
         "group": "Unsupported HAIP 1 archive",
-        "pages": ["archive/v1/index"]
+        "pages": [
+          "archive/v1/index"
+        ]
       }
     ]
   },

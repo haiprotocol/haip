@@ -29,10 +29,10 @@ for (const file of await readdir('tests', { recursive: true }))
     const source = await readFile('tests/' + file, 'utf8');
     assert(!/plasm-oss\/apis\/|held[_-]out[_-]answers/.test(source), 'Fixture boundary: ' + file);
   }
-const schema = await json('protocol/draft-2.0.0-1/schema.json');
-const api = await json('protocol/draft-2.0.0-1/openapi.json');
+const schema = await json('protocol/draft-2.0.0-2/schema.json');
+const api = await json('protocol/draft-2.0.0-2/openapi.json');
 assert.equal(api.openapi, '3.1.0');
-assert.equal(api.info.version, '2.0.0-draft.1');
+assert.equal(api.info.version, '2.0.0-draft.2');
 assert(schema.$defs.DecisionRequest && schema.$defs.ExecutionBinding);
 assert.deepEqual(await json('docs/protocol/openapi.json'), api);
 assert.deepEqual(await json('@types/contracts/openapi.json'), api);

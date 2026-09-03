@@ -1,5 +1,5 @@
 export * from './generated.js';
-export const PROTOCOL_REVISION = '2.0.0-draft.1' as const;
+export const PROTOCOL_REVISION = '2.0.0-draft.2' as const;
 export const EXECUTION_PROFILE = 'haip.execution';
 export const EXECUTION_VERSION = '1-draft.1';
 export const RENDERER = { agent_ui: '1' } as const;

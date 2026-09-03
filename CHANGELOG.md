@@ -1,13 +1,18 @@
 # Changelog
 
-## Unreleased
+## 2.0.0-draft.2 — unreleased
 
-- Cut the review Host/View wire over to the native `haip/ui.*` Agent UI profile.
-  MCP Apps `ext-apps` / SDK are removed from the browser path; bundle compatibility is
-  `agent_ui: "1"` and the request profile is `haip.agent-ui: "1"`.
-- Retain offline verification of authority records carrying the earlier
-  `haip.mcp-app: "1-draft.1"` profile. Existing records are not reinterpreted as Agent UI.
-
+- New immutable draft revision. `protocol/draft-2.0.0-1` is retained unchanged as history;
+  the current contract lives under `protocol/draft-2.0.0-2`.
+- The review Host/View wire is the native `haip/ui.*` Agent UI profile
+  (`haip.agent-ui: "1"`, bundle compatibility `agent_ui: "1"`). MCP Apps `ext-apps` /
+  SDK are not used in the browser path.
+- `haip.mcp-app: "1-draft.1"` is retired. No deployment ever accepted a `draft.1`
+  request, so there is no earlier authority to retain, migrate or cancel.
+- The complete Agent UI envelope and every `haip/ui.*` message are defined in
+  `schema.json` with generated types (`StoredApp`, `AgentUi*`). The host verifies the
+  envelope's binding digest before creating a View.
+- New `@haip/view` package: a dependency-free View client for the Agent UI wire.
 
 ## 2.0.0-draft.1 — unreleased
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://haiprotocol.com/protocol/draft-2.0.0-1/schema.json",
+  "$id": "https://haiprotocol.com/protocol/draft-2.0.0-2/schema.json",
   "title": "DecisionRequest",
   "$ref": "#/$defs/DecisionRequest",
   "$defs": {
@@ -16,6 +16,19 @@
     "Metadata": {
       "type": "object",
       "additionalProperties": true
+    },
+    "AgentUiCompatibility": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "agent_ui": {
+          "const": "1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_ui"
+      ]
     },
     "Limits": {
       "type": "object",
@@ -136,11 +149,19 @@
               "pattern": "^sha256:[a-f0-9]{64}$"
             }
           },
-          "required": ["source", "revision", "digest"]
+          "required": [
+            "source",
+            "revision",
+            "digest"
+          ]
         },
         "mode": {
           "type": "string",
-          "enum": ["live_window", "durable", "fixed_mock"]
+          "enum": [
+            "live_window",
+            "durable",
+            "fixed_mock"
+          ]
         },
         "valid_until": {
           "type": "string",
@@ -171,7 +192,11 @@
               "$ref": "#/$defs/Metadata"
             }
           },
-          "required": ["profile", "version", "references"]
+          "required": [
+            "profile",
+            "version",
+            "references"
+          ]
         },
         "recovery_of": {
           "type": "string",
@@ -246,10 +271,15 @@
               "pattern": "^sha256:[a-f0-9]{64}$"
             },
             "compatibility": {
-              "$ref": "#/$defs/Metadata"
+              "$ref": "#/$defs/AgentUiCompatibility"
             }
           },
-          "required": ["id", "publisher", "digest", "compatibility"]
+          "required": [
+            "id",
+            "publisher",
+            "digest",
+            "compatibility"
+          ]
         }
       },
       "required": [
@@ -288,7 +318,7 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         },
         "compatibility": {
-          "$ref": "#/$defs/Metadata"
+          "$ref": "#/$defs/AgentUiCompatibility"
         },
         "author": {
           "type": "string",
@@ -325,7 +355,7 @@
           "minLength": 1
         },
         "compatibility": {
-          "$ref": "#/$defs/Metadata"
+          "$ref": "#/$defs/AgentUiCompatibility"
         },
         "author": {
           "type": "string",
@@ -338,19 +368,27 @@
           "maxLength": 160
         }
       },
-      "required": ["html", "compatibility", "author", "licence"]
+      "required": [
+        "html",
+        "compatibility",
+        "author",
+        "licence"
+      ]
     },
     "RequestInput": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "protocol_revision": {
-          "const": "2.0.0-draft.1",
+          "const": "2.0.0-draft.2",
           "type": "string"
         },
         "purpose": {
           "type": "string",
-          "enum": ["review", "authorise_execution"]
+          "enum": [
+            "review",
+            "authorise_execution"
+          ]
         },
         "profiles": {
           "$ref": "#/$defs/Profiles"
@@ -387,7 +425,11 @@
               "pattern": "^[a-zA-Z0-9_.:@/-]+$"
             }
           },
-          "required": ["digest", "representation", "digest_rules"]
+          "required": [
+            "digest",
+            "representation",
+            "digest_rules"
+          ]
         },
         "payload": {},
         "response_schema": {
@@ -426,13 +468,33 @@
         "response_schema",
         "review_document"
       ],
+      "dependentSchemas": {
+        "bundle_id": {
+          "type": "object",
+          "properties": {
+            "profiles": {
+              "type": "object",
+              "properties": {
+                "haip.agent-ui": {
+                  "const": "1"
+                }
+              },
+              "required": [
+                "haip.agent-ui"
+              ]
+            }
+          }
+        }
+      },
       "if": {
         "properties": {
           "purpose": {
             "const": "authorise_execution"
           }
         },
-        "required": ["purpose"]
+        "required": [
+          "purpose"
+        ]
       },
       "then": {
         "properties": {
@@ -446,10 +508,15 @@
                 "const": "1-draft.1"
               }
             },
-            "required": ["haip.execution"]
+            "required": [
+              "haip.execution"
+            ]
           }
         },
-        "required": ["execution", "profiles"]
+        "required": [
+          "execution",
+          "profiles"
+        ]
       },
       "else": {
         "properties": {
@@ -468,12 +535,15 @@
           "pattern": "^[a-zA-Z0-9_.:@/-]+$"
         },
         "protocol_revision": {
-          "const": "2.0.0-draft.1",
+          "const": "2.0.0-draft.2",
           "type": "string"
         },
         "purpose": {
           "type": "string",
-          "enum": ["review", "authorise_execution"]
+          "enum": [
+            "review",
+            "authorise_execution"
+          ]
         },
         "profiles": {
           "$ref": "#/$defs/Profiles"
@@ -507,7 +577,10 @@
               "pattern": "^[a-zA-Z0-9_.:@/-]+$"
             }
           },
-          "required": ["subject", "source"]
+          "required": [
+            "subject",
+            "source"
+          ]
         },
         "route": {
           "type": "string",
@@ -588,7 +661,9 @@
             "const": "authorise_execution"
           }
         },
-        "required": ["purpose"]
+        "required": [
+          "purpose"
+        ]
       },
       "then": {
         "properties": {
@@ -602,14 +677,75 @@
                 "const": "1-draft.1"
               }
             },
-            "required": ["haip.execution"]
+            "required": [
+              "haip.execution"
+            ]
           }
         },
-        "required": ["execution", "profiles"]
+        "required": [
+          "execution",
+          "profiles"
+        ],
+        "if": {
+          "properties": {
+            "review": {
+              "type": "object",
+              "properties": {
+                "bundle": {}
+              },
+              "required": [
+                "bundle"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "profiles": {
+              "type": "object",
+              "properties": {
+                "haip.agent-ui": {
+                  "const": "1"
+                }
+              },
+              "required": [
+                "haip.agent-ui"
+              ]
+            }
+          }
+        }
       },
       "else": {
         "properties": {
           "execution": false
+        },
+        "if": {
+          "properties": {
+            "review": {
+              "type": "object",
+              "properties": {
+                "bundle": {}
+              },
+              "required": [
+                "bundle"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "profiles": {
+              "type": "object",
+              "properties": {
+                "haip.agent-ui": {
+                  "const": "1"
+                }
+              },
+              "required": [
+                "haip.agent-ui"
+              ]
+            }
+          }
         }
       }
     },
@@ -620,10 +756,19 @@
         "response": {},
         "decision": {
           "type": "string",
-          "enum": ["answer", "approve", "reject", "authorise", "refuse"]
+          "enum": [
+            "answer",
+            "approve",
+            "reject",
+            "authorise",
+            "refuse"
+          ]
         }
       },
-      "required": ["response", "decision"]
+      "required": [
+        "response",
+        "decision"
+      ]
     },
     "DecisionCandidate": {
       "type": "object",
@@ -666,7 +811,13 @@
         },
         "decision": {
           "type": "string",
-          "enum": ["answer", "approve", "reject", "authorise", "refuse"]
+          "enum": [
+            "answer",
+            "approve",
+            "reject",
+            "authorise",
+            "refuse"
+          ]
         },
         "created_at": {
           "type": "string",
@@ -692,7 +843,10 @@
       "properties": {
         "purpose": {
           "type": "string",
-          "enum": ["review", "authorise_execution"]
+          "enum": [
+            "review",
+            "authorise_execution"
+          ]
         },
         "request_id": {
           "type": "string",
@@ -732,7 +886,13 @@
         },
         "decision": {
           "type": "string",
-          "enum": ["answer", "approve", "reject", "authorise", "refuse"]
+          "enum": [
+            "answer",
+            "approve",
+            "reject",
+            "authorise",
+            "refuse"
+          ]
         },
         "confirmed_at": {
           "type": "string",
@@ -761,24 +921,35 @@
             "const": "authorise_execution"
           }
         },
-        "required": ["purpose"]
+        "required": [
+          "purpose"
+        ]
       },
       "then": {
         "properties": {
           "decision": {
-            "enum": ["authorise", "refuse"]
+            "enum": [
+              "authorise",
+              "refuse"
+            ]
           },
           "grant_deadline": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": ["grant_deadline"]
+        "required": [
+          "grant_deadline"
+        ]
       },
       "else": {
         "properties": {
           "decision": {
-            "enum": ["answer", "approve", "reject"]
+            "enum": [
+              "answer",
+              "approve",
+              "reject"
+            ]
           },
           "grant_deadline": false
         }
@@ -811,7 +982,12 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "request_id", "reviewer", "expires_at"]
+      "required": [
+        "id",
+        "request_id",
+        "reviewer",
+        "expires_at"
+      ]
     },
     "ExecutionClaim": {
       "type": "object",
@@ -895,7 +1071,10 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
       },
-      "required": ["execution_identity", "execution_binding_digest"]
+      "required": [
+        "execution_identity",
+        "execution_binding_digest"
+      ]
     },
     "AdmissionStatus": {
       "type": "object",
@@ -987,7 +1166,11 @@
           "$ref": "#/$defs/Metadata"
         }
       },
-      "required": ["execution_identity", "status", "details"]
+      "required": [
+        "execution_identity",
+        "status",
+        "details"
+      ]
     },
     "RequestChangedEvent": {
       "type": "object",
@@ -1055,11 +1238,22 @@
         },
         "decision_state": {
           "type": "string",
-          "enum": ["pending", "confirmed", "cancelled", "superseded", "expired"]
+          "enum": [
+            "pending",
+            "confirmed",
+            "cancelled",
+            "superseded",
+            "expired"
+          ]
         },
         "audit_state": {
           "type": "string",
-          "enum": ["unanchored", "pending", "anchored", "conflict"]
+          "enum": [
+            "unanchored",
+            "pending",
+            "anchored",
+            "conflict"
+          ]
         },
         "grant_state": {
           "type": "string",
@@ -1172,7 +1366,7 @@
         },
         "protocol_revision": {
           "type": "string",
-          "const": "2.0.0-draft.1"
+          "const": "2.0.0-draft.2"
         },
         "keys": {
           "type": "array",
@@ -1207,13 +1401,23 @@
                 "format": "date-time"
               }
             },
-            "required": ["key_id", "algorithm", "public_key", "not_before", "not_after"]
+            "required": [
+              "key_id",
+              "algorithm",
+              "public_key",
+              "not_before",
+              "not_after"
+            ]
           },
           "minItems": 1,
           "maxItems": 128
         }
       },
-      "required": ["issuer", "protocol_revision", "keys"]
+      "required": [
+        "issuer",
+        "protocol_revision",
+        "keys"
+      ]
     },
     "SignedRecord": {
       "type": "object",
@@ -1237,7 +1441,11 @@
             },
             "purpose": {
               "type": "string",
-              "enum": ["review", "authorise_execution", "service"]
+              "enum": [
+                "review",
+                "authorise_execution",
+                "service"
+              ]
             },
             "profiles": {
               "$ref": "#/$defs/Profiles"
@@ -1282,7 +1490,11 @@
           "type": "string"
         }
       },
-      "required": ["protected", "payload", "signature"]
+      "required": [
+        "protected",
+        "payload",
+        "signature"
+      ]
     },
     "AuditExport": {
       "type": "object",
@@ -1383,7 +1595,10 @@
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
       },
-      "required": ["candidate_id", "candidate_digest"]
+      "required": [
+        "candidate_id",
+        "candidate_digest"
+      ]
     },
     "AdmissionInput": {
       "type": "object",
@@ -1403,7 +1618,11 @@
           "maxLength": 160
         }
       },
-      "required": ["claim_id", "nonce", "execution_identity"]
+      "required": [
+        "claim_id",
+        "nonce",
+        "execution_identity"
+      ]
     },
     "Discovery": {
       "type": "object",
@@ -1425,17 +1644,19 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "ext_apps": {
-              "type": "string"
-            },
-            "mcp_sdk": {
+            "agent_ui": {
               "type": "string"
             }
           },
-          "required": ["ext_apps", "mcp_sdk"]
+          "required": [
+            "agent_ui"
+          ]
         },
         "mode": {
-          "enum": ["development", "production"]
+          "enum": [
+            "development",
+            "production"
+          ]
         },
         "release_ready": {
           "type": "boolean"
@@ -1444,7 +1665,10 @@
           "type": "string"
         },
         "notifications": {
-          "enum": ["smtp", "polling-only"]
+          "enum": [
+            "smtp",
+            "polling-only"
+          ]
         }
       },
       "required": [
@@ -1476,7 +1700,11 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "reviewer", "expires_at"]
+      "required": [
+        "id",
+        "reviewer",
+        "expires_at"
+      ]
     },
     "RequestList": {
       "type": "object",
@@ -1501,11 +1729,22 @@
               },
               "decision": {
                 "type": "string",
-                "enum": ["pending", "confirmed", "cancelled", "superseded", "expired"]
+                "enum": [
+                  "pending",
+                  "confirmed",
+                  "cancelled",
+                  "superseded",
+                  "expired"
+                ]
               },
               "audit": {
                 "type": "string",
-                "enum": ["unanchored", "pending", "anchored", "conflict"]
+                "enum": [
+                  "unanchored",
+                  "pending",
+                  "anchored",
+                  "conflict"
+                ]
               },
               "grant": {
                 "type": "string",
@@ -1572,7 +1811,10 @@
           "description": "Next page offset, or null when no further page is available within the offset limit."
         }
       },
-      "required": ["items", "next_offset"],
+      "required": [
+        "items",
+        "next_offset"
+      ],
       "description": "A page of visible request summaries, without an exact total count."
     },
     "Material": {
@@ -1614,65 +1856,59 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "profile": {
+          "const": "org.haiprotocol.agent-ui/1"
+        },
+        "protocol_revision": {
+          "const": "2.0.0-draft.2"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentUiRequestIdentity"
+        },
+        "bundle": {
+          "$ref": "#/$defs/AgentUiBundleIdentity"
+        },
+        "source": {
+          "$ref": "#/$defs/AgentUiSource"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/AgentUiSnapshotDigests"
+        },
+        "binding_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
         "html": {
           "type": "string"
         },
         "origin": {
-          "type": "string"
+          "type": "string",
+          "format": "uri"
         },
         "scope": {
           "type": "string"
         },
-        "request_digest": {
-          "type": "string"
-        },
         "input": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "request_id": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "purpose": {
-              "enum": ["review", "authorise_execution"]
-            }
-          },
-          "required": ["request_id", "purpose"]
+          "$ref": "#/$defs/AgentUiInput"
         },
         "result": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "content": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "type": {
-                    "const": "text"
-                  },
-                  "text": {
-                    "type": "string"
-                  }
-                },
-                "required": ["type", "text"]
-              }
-            },
-            "structuredContent": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "payload": {}
-              },
-              "required": ["payload"]
-            }
-          },
-          "required": ["content"]
+          "$ref": "#/$defs/AgentUiResult"
         }
       },
-      "required": ["html", "origin", "scope", "request_digest", "input", "result"]
+      "required": [
+        "profile",
+        "protocol_revision",
+        "request",
+        "bundle",
+        "source",
+        "snapshots",
+        "binding_digest",
+        "html",
+        "origin",
+        "scope",
+        "input",
+        "result"
+      ]
     },
     "ReminderResult": {
       "type": "object",
@@ -1683,10 +1919,16 @@
           "format": "uuid"
         },
         "notification": {
-          "enum": ["queued", "polling-only"]
+          "enum": [
+            "queued",
+            "polling-only"
+          ]
         }
       },
-      "required": ["request_id", "notification"]
+      "required": [
+        "request_id",
+        "notification"
+      ]
     },
     "EventPage": {
       "type": "object",
@@ -1704,7 +1946,10 @@
           "maximum": 9007199254740991
         }
       },
-      "required": ["items", "next"]
+      "required": [
+        "items",
+        "next"
+      ]
     },
     "DeliveryStatus": {
       "type": "object",
@@ -1715,10 +1960,19 @@
           "format": "uuid"
         },
         "kind": {
-          "enum": ["smtp", "webhook", "checkpoint"]
+          "enum": [
+            "smtp",
+            "webhook",
+            "checkpoint"
+          ]
         },
         "state": {
-          "enum": ["pending", "accepted", "failed", "expired"]
+          "enum": [
+            "pending",
+            "accepted",
+            "failed",
+            "expired"
+          ]
         },
         "attempts": {
           "type": "integer",
@@ -1736,7 +1990,13 @@
           ]
         }
       },
-      "required": ["id", "kind", "state", "attempts", "error"]
+      "required": [
+        "id",
+        "kind",
+        "state",
+        "attempts",
+        "error"
+      ]
     },
     "AnchorAcceptance": {
       "type": "object",
@@ -1759,7 +2019,13 @@
           "format": "date-time"
         }
       },
-      "required": ["backend", "key", "version_id", "digest", "retained_until"]
+      "required": [
+        "backend",
+        "key",
+        "version_id",
+        "digest",
+        "retained_until"
+      ]
     },
     "AnchorProof": {
       "type": "object",
@@ -1792,11 +2058,20 @@
                 "type": "string"
               }
             },
-            "required": ["sequence", "previous_head", "record_digest", "head"]
+            "required": [
+              "sequence",
+              "previous_head",
+              "record_digest",
+              "head"
+            ]
           }
         }
       },
-      "required": ["checkpoint", "acceptance", "proof"]
+      "required": [
+        "checkpoint",
+        "acceptance",
+        "proof"
+      ]
     },
     "WebhookDelivery": {
       "type": "object",
@@ -1818,7 +2093,12 @@
           "$ref": "#/$defs/SignedRecord"
         }
       },
-      "required": ["delivery_id", "event_id", "timestamp", "event"]
+      "required": [
+        "delivery_id",
+        "event_id",
+        "timestamp",
+        "event"
+      ]
     },
     "PrincipalInput": {
       "type": "object",
@@ -1830,7 +2110,11 @@
           "maxLength": 160
         },
         "kind": {
-          "enum": ["producer", "publisher", "human"]
+          "enum": [
+            "producer",
+            "publisher",
+            "human"
+          ]
         },
         "token": {
           "type": "string",
@@ -1879,11 +2163,17 @@
               "type": "string"
             }
           },
-          "required": ["enabled"],
+          "required": [
+            "enabled"
+          ],
           "additionalProperties": true
         }
       },
-      "required": ["id", "kind", "config"]
+      "required": [
+        "id",
+        "kind",
+        "config"
+      ]
     },
     "PrincipalResult": {
       "type": "object",
@@ -1895,10 +2185,17 @@
           "maxLength": 160
         },
         "kind": {
-          "enum": ["producer", "publisher", "human"]
+          "enum": [
+            "producer",
+            "publisher",
+            "human"
+          ]
         }
       },
-      "required": ["id", "kind"]
+      "required": [
+        "id",
+        "kind"
+      ]
     },
     "RouteInput": {
       "type": "object",
@@ -1965,7 +2262,11 @@
           "$ref": "#/$defs/RouteInput"
         }
       },
-      "required": ["id", "revision", "config"]
+      "required": [
+        "id",
+        "revision",
+        "config"
+      ]
     },
     "LedgerEntry": {
       "type": "object",
@@ -2043,7 +2344,11 @@
               "format": "uuid"
             },
             "status": {
-              "enum": ["pending", "cancelled", "expired"]
+              "enum": [
+                "pending",
+                "cancelled",
+                "expired"
+              ]
             },
             "created_at": {
               "type": "string",
@@ -2054,7 +2359,12 @@
               "format": "date-time"
             }
           },
-          "required": ["case_id", "status", "created_at", "expires_at"]
+          "required": [
+            "case_id",
+            "status",
+            "created_at",
+            "expires_at"
+          ]
         },
         {
           "type": "object",
@@ -2093,13 +2403,26 @@
                       "type": "boolean"
                     }
                   },
-                  "required": ["response", "haip_receipt", "audit_state", "material_available"]
+                  "required": [
+                    "response",
+                    "haip_receipt",
+                    "audit_state",
+                    "material_available"
+                  ]
                 }
               },
-              "required": ["action", "data"]
+              "required": [
+                "action",
+                "data"
+              ]
             }
           },
-          "required": ["case_id", "status", "completed_at", "result"]
+          "required": [
+            "case_id",
+            "status",
+            "completed_at",
+            "result"
+          ]
         }
       ]
     },
@@ -2167,7 +2490,10 @@
               ]
             }
           },
-          "required": ["status", "hitl"]
+          "required": [
+            "status",
+            "hitl"
+          ]
         }
       ]
     },
@@ -2220,7 +2546,12 @@
                 "type": "number"
               }
             },
-            "required": ["kind", "state", "count", "oldest_seconds"]
+            "required": [
+              "kind",
+              "state",
+              "count",
+              "oldest_seconds"
+            ]
           }
         },
         "incidents": {
@@ -2240,7 +2571,11 @@
                 "format": "date-time"
               }
             },
-            "required": ["id", "code", "created_at"]
+            "required": [
+              "id",
+              "code",
+              "created_at"
+            ]
           }
         },
         "operations": {
@@ -2275,7 +2610,11 @@
                 ]
               }
             },
-            "required": ["name", "succeeded_at", "failed_at"]
+            "required": [
+              "name",
+              "succeeded_at",
+              "failed_at"
+            ]
           }
         },
         "http_since_process_start": {
@@ -2298,7 +2637,11 @@
               "maximum": 9007199254740991
             }
           },
-          "required": ["total", "failures", "conflicts"]
+          "required": [
+            "total",
+            "failures",
+            "conflicts"
+          ]
         },
         "policy_and_executor_evidence": {
           "type": "string"
@@ -2314,6 +2657,535 @@
         "operations",
         "http_since_process_start",
         "policy_and_executor_evidence"
+      ]
+    },
+    "AgentUiRequestIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "purpose": {
+          "enum": [
+            "review",
+            "authorise_execution"
+          ]
+        },
+        "authorisation_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "supersedes": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "digest",
+        "purpose",
+        "authorisation_revision",
+        "supersedes"
+      ]
+    },
+    "AgentUiBundleIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "publisher",
+        "digest",
+        "created_at"
+      ]
+    },
+    "AgentUiSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tenant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+        },
+        "producer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+        },
+        "requester": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[a-zA-Z0-9_.:@/-]+$"
+            }
+          },
+          "required": [
+            "subject",
+            "source"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "tenant",
+        "producer",
+        "requester",
+        "origin"
+      ]
+    },
+    "AgentUiSnapshotDigests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "input_digest",
+        "result_digest"
+      ]
+    },
+    "AgentUiEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "org.haiprotocol.agent-ui/1"
+        },
+        "protocol_revision": {
+          "const": "2.0.0-draft.2"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentUiRequestIdentity"
+        },
+        "bundle": {
+          "$ref": "#/$defs/AgentUiBundleIdentity"
+        },
+        "source": {
+          "$ref": "#/$defs/AgentUiSource"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/AgentUiSnapshotDigests"
+        },
+        "binding_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "profile",
+        "protocol_revision",
+        "request",
+        "bundle",
+        "source",
+        "snapshots",
+        "binding_digest"
+      ]
+    },
+    "AgentUiInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "purpose": {
+          "enum": [
+            "review",
+            "authorise_execution"
+          ]
+        }
+      },
+      "required": [
+        "request_id",
+        "purpose"
+      ]
+    },
+    "AgentUiResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "text"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ]
+          }
+        },
+        "structuredContent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "payload": {}
+          },
+          "required": [
+            "payload"
+          ]
+        }
+      },
+      "required": [
+        "content"
+      ]
+    },
+    "AgentUiInitializeParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "org.haiprotocol.agent-ui/1"
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "localProposal": {
+              "const": true
+            }
+          },
+          "required": [
+            "localProposal"
+          ]
+        },
+        "viewInfo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ]
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "capabilities"
+      ]
+    },
+    "AgentUiInitializeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": "org.haiprotocol.agent-ui/1"
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "localProposal": {
+              "const": true
+            }
+          },
+          "required": [
+            "localProposal"
+          ]
+        },
+        "hostInfo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ]
+        },
+        "envelope": {
+          "$ref": "#/$defs/AgentUiEnvelope"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "capabilities",
+        "hostInfo",
+        "envelope"
+      ]
+    },
+    "AgentUiTeardownResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "const": true
+        }
+      },
+      "required": [
+        "closed"
+      ]
+    },
+    "AgentUiViewFailedParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "reason"
+      ]
+    },
+    "AgentUiErrorCode": {
+      "enum": [
+        -32600,
+        -32601,
+        -32602,
+        -32000
+      ]
+    },
+    "AgentUiRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "integer"
+            }
+          ]
+        },
+        "method": {
+          "enum": [
+            "haip/ui.initialize",
+            "haip/ui.propose",
+            "haip/ui.teardown"
+          ]
+        },
+        "params": {}
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method"
+      ]
+    },
+    "AgentUiNotification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "method": {
+          "enum": [
+            "haip/ui.initialized",
+            "haip/ui.input",
+            "haip/ui.result",
+            "haip/ui.proxyReady",
+            "haip/ui.resourceReady",
+            "haip/ui.viewFailed"
+          ]
+        },
+        "params": {}
+      },
+      "required": [
+        "jsonrpc",
+        "method"
+      ]
+    },
+    "AgentUiSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "integer"
+            }
+          ]
+        },
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    "AgentUiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "integer"
+            }
+          ]
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/AgentUiErrorCode"
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 400
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "error"
+      ]
+    },
+    "AgentUiMessage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AgentUiRequest"
+        },
+        {
+          "$ref": "#/$defs/AgentUiNotification"
+        },
+        {
+          "$ref": "#/$defs/AgentUiSuccess"
+        },
+        {
+          "$ref": "#/$defs/AgentUiError"
+        }
+      ]
+    },
+    "AgentUiProposeParams": {
+      "$ref": "#/$defs/DecisionProposal"
+    },
+    "AgentUiProposeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "type": "string"
+        },
+        "status": {
+          "const": "awaiting_human_confirmation"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "status"
       ]
     }
   }

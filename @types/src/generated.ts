@@ -1,4 +1,4 @@
-/* Generated from protocol/draft-2.0.0-1/schema.json. Run npm run generate. */
+/* Generated from protocol/draft-2.0.0-2/schema.json. Run npm run generate. */
 
 export type LedgerPage = LedgerEntry[];
 export type HitlPoll =
@@ -39,6 +39,8 @@ export type HitlStatus =
         expires_at: string;
       };
     };
+export type AgentUiErrorCode = -32600 | -32601 | -32602 | -32000;
+export type AgentUiMessage = AgentUiRequest | AgentUiNotification | AgentUiSuccess | AgentUiError;
 
 export interface ProtocolTypes {
   Profiles?: Profiles;
@@ -88,6 +90,25 @@ export interface ProtocolTypes {
   HitlPoll?: HitlPoll;
   HitlStatus?: HitlStatus;
   MetricsSnapshot?: MetricsSnapshot;
+  AgentUiRequestIdentity?: AgentUiRequestIdentity;
+  AgentUiBundleIdentity?: AgentUiBundleIdentity;
+  AgentUiSource?: AgentUiSource;
+  AgentUiSnapshotDigests?: AgentUiSnapshotDigests;
+  AgentUiEnvelope?: AgentUiEnvelope;
+  AgentUiInput?: AgentUiInput;
+  AgentUiResult?: AgentUiResult;
+  AgentUiInitializeParams?: AgentUiInitializeParams;
+  AgentUiInitializeResult?: AgentUiInitializeResult;
+  AgentUiTeardownResult?: AgentUiTeardownResult;
+  AgentUiViewFailedParams?: AgentUiViewFailedParams;
+  AgentUiErrorCode?: AgentUiErrorCode;
+  AgentUiRequest?: AgentUiRequest;
+  AgentUiNotification?: AgentUiNotification;
+  AgentUiSuccess?: AgentUiSuccess;
+  AgentUiError?: AgentUiError;
+  AgentUiMessage?: AgentUiMessage;
+  AgentUiProposeParams?: AgentUiProposeParams;
+  AgentUiProposeResult?: AgentUiProposeResult;
 }
 export interface Profiles {
   [k: string]: string;
@@ -163,7 +184,7 @@ export interface BundleRegistration {
   licence: string;
 }
 export interface RequestInput {
-  protocol_revision: '2.0.0-draft.1';
+  protocol_revision: '2.0.0-draft.2';
   purpose: 'review' | 'authorise_execution';
   profiles: Profiles;
   route: string;
@@ -185,7 +206,7 @@ export interface RequestInput {
 }
 export interface DecisionRequest {
   id: string;
-  protocol_revision: '2.0.0-draft.1';
+  protocol_revision: '2.0.0-draft.2';
   purpose: 'review' | 'authorise_execution';
   profiles: Profiles;
   tenant: string;
@@ -363,7 +384,7 @@ export interface DeliveryStatus {
 }
 export interface TrustManifest {
   issuer: string;
-  protocol_revision: '2.0.0-draft.1';
+  protocol_revision: '2.0.0-draft.2';
   /**
    * @minItems 1
    * @maxItems 128
@@ -479,22 +500,56 @@ export interface Material {
   candidate: DecisionCandidate | null;
 }
 export interface StoredApp {
+  profile: 'org.haiprotocol.agent-ui/1';
+  protocol_revision: '2.0.0-draft.2';
+  request: AgentUiRequestIdentity;
+  bundle: AgentUiBundleIdentity;
+  source: AgentUiSource;
+  snapshots: AgentUiSnapshotDigests;
+  binding_digest: string;
   html: string;
   origin: string;
   scope: string;
-  request_digest: string;
-  input: {
-    request_id: string;
-    purpose: 'review' | 'authorise_execution';
+  input: AgentUiInput;
+  result: AgentUiResult;
+}
+export interface AgentUiRequestIdentity {
+  id: string;
+  digest: string;
+  purpose: 'review' | 'authorise_execution';
+  authorisation_revision: number;
+  supersedes: string | null;
+}
+export interface AgentUiBundleIdentity {
+  id: string;
+  publisher: string;
+  digest: string;
+  created_at: string;
+}
+export interface AgentUiSource {
+  tenant: string;
+  producer: string;
+  requester: {
+    subject: string;
+    source: string;
   };
-  result: {
-    content: {
-      type: 'text';
-      text: string;
-    }[];
-    structuredContent?: {
-      payload: unknown;
-    };
+  origin: string;
+}
+export interface AgentUiSnapshotDigests {
+  input_digest: string;
+  result_digest: string;
+}
+export interface AgentUiInput {
+  request_id: string;
+  purpose: 'review' | 'authorise_execution';
+}
+export interface AgentUiResult {
+  content: {
+    type: 'text';
+    text: string;
+  }[];
+  structuredContent?: {
+    payload: unknown;
   };
 }
 export interface ReminderResult {
@@ -585,4 +640,80 @@ export interface MetricsSnapshot {
     conflicts: number;
   };
   policy_and_executor_evidence: string;
+}
+export interface AgentUiEnvelope {
+  profile: 'org.haiprotocol.agent-ui/1';
+  protocol_revision: '2.0.0-draft.2';
+  request: AgentUiRequestIdentity;
+  bundle: AgentUiBundleIdentity;
+  source: AgentUiSource;
+  snapshots: AgentUiSnapshotDigests;
+  binding_digest: string;
+}
+export interface AgentUiInitializeParams {
+  protocolVersion: 'org.haiprotocol.agent-ui/1';
+  capabilities: {
+    localProposal: true;
+  };
+  viewInfo?: {
+    name: string;
+    version: string;
+  };
+}
+export interface AgentUiInitializeResult {
+  protocolVersion: 'org.haiprotocol.agent-ui/1';
+  capabilities: {
+    localProposal: true;
+  };
+  hostInfo: {
+    name: string;
+    version: string;
+  };
+  envelope: AgentUiEnvelope;
+}
+export interface AgentUiTeardownResult {
+  closed: true;
+}
+export interface AgentUiViewFailedParams {
+  reason: string;
+}
+export interface AgentUiRequest {
+  jsonrpc: '2.0';
+  id: string | number;
+  method: 'haip/ui.initialize' | 'haip/ui.propose' | 'haip/ui.teardown';
+  params?: unknown;
+}
+export interface AgentUiNotification {
+  jsonrpc: '2.0';
+  method:
+    | 'haip/ui.initialized'
+    | 'haip/ui.input'
+    | 'haip/ui.result'
+    | 'haip/ui.proxyReady'
+    | 'haip/ui.resourceReady'
+    | 'haip/ui.viewFailed';
+  params?: unknown;
+}
+export interface AgentUiSuccess {
+  jsonrpc: '2.0';
+  id: string | number;
+  result: {
+    [k: string]: unknown;
+  };
+}
+export interface AgentUiError {
+  jsonrpc: '2.0';
+  id: string | number;
+  error: {
+    code: AgentUiErrorCode;
+    message: string;
+  };
+}
+export interface AgentUiProposeParams {
+  response: unknown;
+  decision: 'answer' | 'approve' | 'reject' | 'authorise' | 'refuse';
+}
+export interface AgentUiProposeResult {
+  candidate_id: string;
+  status: 'awaiting_human_confirmation';
 }
