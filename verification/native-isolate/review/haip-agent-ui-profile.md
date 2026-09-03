@@ -21,4 +21,4 @@ Draft 3 does not reinterpret draft 2. The compatibility and stored-state treatme
 
 Lee Crossley (`@leecrossley`) owns the HAIP Agent UI profile, `@haip/view` client, HAIP conformance fixtures and release cadence.
 
-External renderer integration remains outside the HAIP repository. Ryan Roberts (`@ryan-s-roberts`) has been asked to own the renderer port and its acceptance test, but has not yet acknowledged that work. PR #6 remains draft pending that acknowledgement.
+The separate renderer acknowledgement was withdrawn. HAIP assigns no external renderer work and does not depend on an external port. Any external integration is independent and carries its own acceptance tests.

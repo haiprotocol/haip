@@ -24,6 +24,6 @@ The profile is narrower than the full approval contract. The complete request an
 
 The Quint package checks proposal, confirmation, authority and effect separation along with selected Host/View lifecycle cases. Browser tests cover message ordering, source and origin checks, limits, reload, fallback and frozen candidates. The [verification record](model-check-results.md) states the model bounds and does not claim full wire conformance.
 
-## Open work
+## Outcome
 
-The immutable `2.0.0-draft.3` and Agent UI profile 2 identities, verified envelope, discriminated JSON-RPC message schema and `@haip/view` client are implemented on PR #6. `2.0.0-draft.2` and profile 1 remain unchanged as history. The remaining external condition is the renderer maintainer's acknowledgement of ownership for the renderer port and its HAIP host acceptance test.
+The immutable `2.0.0-draft.3` and Agent UI profile 2 identities, verified envelope, discriminated JSON-RPC message schema and `@haip/view` client were reviewed in PR #6 and merged into `l/haip-2`. `2.0.0-draft.2` and profile 1 remain unchanged as history. HAIP owns the profile, client and conformance fixtures. The separate renderer acknowledgement was withdrawn. HAIP assigns no external renderer work and does not depend on an external port. Any external integration is independent and carries its own acceptance tests.
