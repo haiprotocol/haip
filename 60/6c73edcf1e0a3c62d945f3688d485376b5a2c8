@@ -1,0 +1,42 @@
+verification/native-isolate/review/protocol-review.md
+  s_08f73032aa8e41::t_1c39bd44ae8252 27
+  s_08f73032aa8e41::t_83e06dd0416208 29
+RELEASE.md
+  s_08f73032aa8e41::t_1c39bd44ae8252 3,9
+  s_08f73032aa8e41::t_0f6f4f49cafe1e 10
+verification/native-isolate/review/haip-agent-ui-profile.md
+  s_08f73032aa8e41::t_83e06dd0416208 24
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_1c39bd44ae8252 3,28-29,38
+ACCEPTANCE.md
+  s_08f73032aa8e41::t_1c39bd44ae8252 7,26
+  s_08f73032aa8e41::t_83e06dd0416208 1,23,29
+  s_08f73032aa8e41::t_7c3fec71823a61 3
+  s_08f73032aa8e41::t_0426538d748ecc 11,22
+  s_08f73032aa8e41::t_6e07852938f408 38
+  s_08f73032aa8e41::t_f2c98d58b6dc86 4-6
+  s_08f73032aa8e41::t_cca88a3f0fffa8 12-14
+  s_08f73032aa8e41::t_a80c5134ff6ec7 19-21
+  s_08f73032aa8e41::t_93a54a210fa99c 24
+  s_08f73032aa8e41::t_b59148618b65b7 30
+  s_08f73032aa8e41::t_c524e0cae6137e 39
+  s_08f73032aa8e41::t_1a0c82def1cad1 15-16,18,32-34,36,41-42,45
+verification/native-isolate/review/protocol-compatibility.md
+  s_08f73032aa8e41::t_83e06dd0416208 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "606c73edcf1e0a3c62d945f3688d485376b5a2c8",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
