@@ -5,6 +5,7 @@ import express, {
   type RequestHandler,
 } from 'express';
 import { readFileSync } from 'node:fs';
+import { AGENT_UI_PROFILE } from '@haip/protocol';
 import { digest, parseJson } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
 import { hitlStatus, hitlPoll } from './hitl.js';
@@ -198,25 +199,51 @@ export function createApp(service: ReviewService) {
     ).rows[0];
     requireBoundBundle(found, req.principal.tenant, bundle);
     const scope = bundleScope(req.principal.tenant, bundle);
-    const inline =
-      Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes;
-    res.json({
-      html: found.html,
-      origin: service.config.sandboxOrigin(scope),
-      scope,
-      request_digest: data.request_digest,
-      input: { request_id: data.request.id, purpose: data.request.purpose },
-      result: {
-        content: [
-          {
-            type: 'text',
-            text: inline
-              ? 'Stored review payload'
-              : 'Payload exceeds the inline limit; use the searchable trusted host view.',
-          },
-        ],
-        ...(inline ? { structuredContent: { payload: data.payload } } : {}),
+    requireThat(
+      Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes,
+      413,
+      'app_snapshot_too_large',
+    );
+    const origin = service.config.sandboxOrigin(scope);
+    const input = { request_id: data.request.id, purpose: data.request.purpose };
+    const result = {
+      content: [{ type: 'text', text: 'Stored review payload' }],
+      structuredContent: { payload: data.payload },
+    };
+    // The identity below is what the host verifies and the View is shown. Every value is
+    // bound by binding_digest; the snapshots are committed by their own digests.
+    const identity = {
+      profile: AGENT_UI_PROFILE,
+      protocol_revision: data.request.protocol_revision,
+      request: {
+        id: data.request.id,
+        digest: data.request_digest,
+        purpose: data.request.purpose,
+        authorisation_revision: data.request.authorisation_revision,
+        supersedes: data.request.supersedes ?? null,
       },
+      bundle: {
+        id: found.manifest.id,
+        publisher: found.manifest.publisher,
+        digest: found.manifest.digest,
+        created_at: found.manifest.created_at,
+      },
+      source: {
+        tenant: req.principal.tenant,
+        producer: data.request.producer,
+        requester: data.request.requester,
+        origin: new URL(origin).origin,
+      },
+      snapshots: { input_digest: digest(input), result_digest: digest(result) },
+    };
+    res.json({
+      ...identity,
+      binding_digest: digest(identity),
+      html: found.html,
+      origin,
+      scope,
+      input,
+      result,
     });
   });
   app.post('/v2/requests/:id/assignment', async (req, res) => {

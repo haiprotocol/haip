@@ -39,7 +39,7 @@ export async function exerciseReviewFixture({
     '/v2/bundles',
     {
       html: bundleHtml,
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '2' },
       author: 'HAIP HTTP fixture',
       licence: 'MIT',
     },
@@ -50,7 +50,7 @@ export async function exerciseReviewFixture({
   const input = {
     protocol_revision: PROTOCOL_REVISION,
     purpose: 'review',
-    profiles: { 'haip.mcp-app': '1-draft.1' },
+    profiles: { 'haip.agent-ui': '2' },
     route,
     summary: 'Independent structured-choice fixture',
     bundle_id: bundle.body.id,
@@ -70,7 +70,12 @@ export async function exerciseReviewFixture({
     metadata: { fixture_id: randomUUID(), future_optional: { meaning: 'non-authorising' } },
   };
   assert.equal(
-    (await call('/v2/requests', { ...input, profiles: { unsupported: 'unknown' } })).status,
+    (
+      await call('/v2/requests', {
+        ...input,
+        profiles: { 'haip.agent-ui': '2', unsupported: 'unknown' },
+      })
+    ).status,
     422,
   );
   const key = randomUUID(),

@@ -4,6 +4,7 @@ FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY @types/package.json ./@types/package.json
+COPY haip-view/package.json ./haip-view/package.json
 COPY haip-sdk/package.json ./haip-sdk/package.json
 COPY haip-server/package.json ./haip-server/package.json
 COPY haip-cli/package.json ./haip-cli/package.json
@@ -12,11 +13,11 @@ FROM manifests AS build
 RUN npm ci --no-audit --no-fund
 COPY tsconfig.json ./
 COPY @types ./@types
+COPY haip-view ./haip-view
 COPY haip-sdk ./haip-sdk
 COPY haip-server ./haip-server
 COPY haip-cli ./haip-cli
 COPY protocol ./protocol
-COPY third-party ./third-party
 COPY scripts/generate.mjs scripts/openapi.mjs scripts/build-browser.mjs ./scripts/
 RUN mkdir -p docs/protocol && npm run build
 
@@ -39,7 +40,6 @@ COPY --from=build /app/haip-server/dist ./haip-server/dist
 COPY --from=build /app/haip-server/migrations ./haip-server/migrations
 COPY --from=build /app/haip-server/schema ./haip-server/schema
 COPY --from=build /app/haip-server/public ./haip-server/public
-COPY --from=build /app/haip-server/third-party ./haip-server/third-party
 USER node
 EXPOSE 8080 8081
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \

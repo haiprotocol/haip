@@ -234,7 +234,11 @@ test('bundle quotas survive key rotation and collection, retain idempotency, and
 test('inbox pages enforce visibility in SQL; reads project expiry without audit writes and retention releases locks between pages', async () => {
   const env = await environment();
   try {
-    const initial = await env.api('/v2/requests', env.request()),
+    await env.put('/v2/admin/routes/review', {
+      ...env.route,
+      limits: { ...env.route.limits, review_seconds: 1 },
+    });
+    const initial = await env.api('/v2/requests', env.request(false, { review_seconds: 1 })),
       id = initial.body.request.id;
     await env.put('/v2/admin/routes/hidden', { ...env.route, reviewers: ['requester'] });
     // Large retained histories need not be fetched into the application to list a single inbox page.
@@ -276,13 +280,15 @@ test('inbox pages enforce visibility in SQL; reads project expiry without audit 
     assert.equal(operatorLastPage.body.items.length, 50);
     assert.equal(operatorLastPage.body.next_offset, null);
     assert.equal((await env.api('/v2/requests?offset=100001')).status, 400);
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        Math.max(0, Date.parse(initial.body.request.private_delete_at) - Date.now() + 20),
+      ),
+    );
     const before = (
       await env.store.pool.query("SELECT audit_sequence FROM haip_tenants WHERE id='test-tenant'")
     ).rows[0].audit_sequence;
-    await env.store.pool.query(
-      `UPDATE haip_requests SET data=jsonb_set(jsonb_set(data,'{request,review_deadline}',to_jsonb($1::text)),'{request,private_delete_at}',to_jsonb($1::text)) WHERE tenant='test-tenant'`,
-      [new Date(Date.now() - 1000).toISOString()],
-    );
     const lock = await env.store.pool.connect();
     try {
       await lock.query('BEGIN');

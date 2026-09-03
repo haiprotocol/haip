@@ -12,6 +12,13 @@
 !@types/README.md
 !@types/src/
 !@types/src/**
+!haip-view/
+!haip-view/package.json
+!haip-view/tsconfig.json
+!haip-view/LICENSE
+!haip-view/README.md
+!haip-view/src/
+!haip-view/src/**
 !haip-sdk/
 !haip-sdk/package.json
 !haip-sdk/tsconfig.json
@@ -40,8 +47,8 @@
 !haip-cli/src/
 !haip-cli/src/**
 !protocol/
-!protocol/draft-2.0.0-1/
-!protocol/draft-2.0.0-1/**
+!protocol/draft-2.0.0-3/
+!protocol/draft-2.0.0-3/**
 !third-party/
 !third-party/*LICENSE
 !third-party/README.md

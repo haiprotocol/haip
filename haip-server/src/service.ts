@@ -88,7 +88,7 @@ export class ReviewService {
     return {
       name: 'HAIP — Human-Agent Interaction Protocol',
       revisions: [PROTOCOL_REVISION],
-      profiles: { [EXECUTION_PROFILE]: EXECUTION_VERSION, 'haip.mcp-app': '1-draft.1' },
+      profiles: { [EXECUTION_PROFILE]: EXECUTION_VERSION, 'haip.agent-ui': RENDERER.agent_ui },
       renderer: RENDERER,
       mode: this.config.mode,
       release_ready: false,
@@ -393,6 +393,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(['producer', 'operator'].includes(p.kind), 403, 'producer_required');
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       this.pending(row, now);
       return this.idempotent(tx, p, 'remind:' + id, key, {}, async () => {
         requireThat(
@@ -703,12 +704,7 @@ export class ReviewService {
         413,
         'bundle_too_large',
       );
-      requireThat(
-        input.compatibility.ext_apps === RENDERER.ext_apps &&
-          input.compatibility.mcp_sdk === RENDERER.mcp_sdk,
-        422,
-        'unsupported_renderer',
-      );
+      requireThat(input.compatibility.agent_ui === RENDERER.agent_ui, 422, 'unsupported_renderer');
     }
     const contentDigest = replay ? '' : digestBytes(input.html),
       size = replay ? 0 : Buffer.byteLength(input.html);
@@ -915,7 +911,11 @@ export class ReviewService {
     }
     let bundle;
     if (input.bundle_id) {
-      requireThat(input.profiles['haip.mcp-app'] === '1-draft.1', 422, 'app_profile_required');
+      requireThat(
+        input.profiles['haip.agent-ui'] === RENDERER.agent_ui,
+        422,
+        'agent_ui_profile_required',
+      );
       if (!/^[a-f0-9-]{36}$/.test(input.bundle_id)) throw missing();
       const found = (
         await tx.query(
@@ -929,6 +929,7 @@ export class ReviewService {
         publisher: found.manifest.publisher,
         digest: found.manifest.digest,
         compatibility: found.manifest.compatibility,
+        created_at: found.manifest.created_at,
       };
     }
     const request: DecisionRequest = {
@@ -1041,10 +1042,54 @@ export class ReviewService {
       );
     });
   }
+  private requireCurrentRequest(row: RequestRow) {
+    const request = row.data?.request as DecisionRequest | undefined;
+    requireThat(request?.protocol_revision === PROTOCOL_REVISION, 409, 'unsupported_revision');
+    const profiles = request.profiles as unknown;
+    requireThat(
+      !!profiles && typeof profiles === 'object' && !Array.isArray(profiles),
+      409,
+      'unsupported_profile',
+    );
+    const supported = this.discovery().profiles as Record<string, string>;
+    for (const [name, version] of Object.entries(profiles))
+      requireThat(supported[name] === version, 409, 'unsupported_profile');
+    if (request.review?.bundle)
+      requireThat(
+        request.profiles['haip.agent-ui'] === RENDERER.agent_ui,
+        409,
+        'agent_ui_profile_required',
+      );
+  }
+  private requireStoredIntegrity(row: RequestRow) {
+    this.requireCurrentRequest(row);
+    let valid = false;
+    try {
+      validate('DecisionRequest', row.data.request);
+      const request = row.data.request;
+      valid =
+        request.id === row.id &&
+        request.tenant === row.tenant &&
+        request.producer === row.producer &&
+        request.route === row.route &&
+        digest(request) === row.data.request_digest;
+      if (valid && row.material)
+        valid =
+          typeof row.material.review_document === 'string' &&
+          digestBytes(canonicalise(row.material.payload)) === request.review.payload_digest &&
+          digestBytes(canonicalise(row.material.response_schema)) ===
+            request.review.response_schema_digest &&
+          digestBytes(row.material.review_document) === request.review.document_digest;
+    } catch {
+      valid = false;
+    }
+    requireThat(valid, 409, 'material_integrity_mismatch');
+  }
   async material(p: Principal, id: string) {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       this.project(row, now);
       requireThat(row.material, 410, 'material_deleted');
       return {
@@ -1056,6 +1101,7 @@ export class ReviewService {
     });
   }
   async eligible(tx: Tx, p: Principal, row: RequestRow): Promise<void> {
+    this.requireStoredIntegrity(row);
     requireThat(p.kind === 'human', 403, 'human_required');
     const route = await this.route(tx, p, row.route);
     requireThat(p.config.identity_certain !== false, 503, 'identity_uncertain');
@@ -1088,6 +1134,7 @@ export class ReviewService {
       );
   }
   pending(row: RequestRow, now: Date) {
+    this.requireCurrentRequest(row);
     requireThat(
       row.data.decision_state === 'pending' &&
         now.getTime() < Date.parse(row.data.request.review_deadline) &&
@@ -1306,6 +1353,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const old = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(old);
       return this.idempotent(
         tx,
         p,
@@ -1331,6 +1379,7 @@ export class ReviewService {
     });
   }
   async authority(tx: Tx, p: Principal, row: RequestRow, now: Date, existingClaim = false) {
+    this.requireStoredIntegrity(row);
     const d = row.data;
     const r = d.request;
     requireThat(
@@ -1384,6 +1433,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       if (this.recovery)
         await this.recovery.check(tx, p.tenant, row.data.request.authority_namespace);
       return this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
@@ -1517,6 +1567,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === (reconcile ? 'operator' : 'producer'), 403, 'forbidden');
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       return this.idempotent(
         tx,
         p,
@@ -1607,6 +1658,7 @@ export class ReviewService {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
+      this.requireStoredIntegrity(row);
       this.project(row, now);
       const audit = (
         await tx.query(

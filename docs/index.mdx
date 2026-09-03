@@ -1,18 +1,18 @@
 ---
-title: 'HAIP — Human-Agent Interaction Protocol'
+title: 'HAIP: Human-Agent Interaction Protocol'
 description: 'Portable human review and bounded execution authorisation in HAIP 2.'
 ---
 
-HAIP 2 is an independent protocol for asking a person to review immutable material and returning a verifiable decision. The current revision is **2.0.0-draft.1**. It is not a stable release or a claim of production readiness.
+HAIP 2 is an independent protocol for asking a person to review immutable material and returning a verifiable decision. The current revision is **2.0.0-draft.3**. It is not a stable release or a claim of production readiness.
 
-A producer submits a document, structured payload and response schema. An authenticated person reviews them in a trusted host, proposes a response and confirms that exact response. An optional MCP App can help present the material; it cannot confirm on the person's behalf.
+A producer submits a document, structured payload and response schema. An authenticated person reviews them in a trusted host, proposes a response and confirms that exact response. An optional Agent UI View can help present the material. It cannot confirm on the person's behalf.
 
 | Request purpose       | What the result means                                                                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `review`              | An authenticated structured response. It grants no execution authority.                                                                   |
 | `authorise_execution` | An explicit human decision bound to one proposed occurrence. Execution still requires a valid grant, exclusive claim and fresh admission. |
 
-The Node.js reference service, TypeScript SDK and CLI implement the draft without requiring Plasm or an agent framework. Plasm remains an externally owned execution integration; the presence of a draft profile is not evidence that integration is complete.
+The Node.js reference service, TypeScript SDK and CLI implement the draft without requiring Plasm or an agent framework. Plasm integration remains externally owned. The presence of a draft profile is not evidence that integration is complete.
 
 Start with the [local walkthrough](/quickstart), read the [review lifecycle](/protocol/review), or inspect the [HTTP contract](/protocol/openapi). The [deployment guide](/server/deployment) explains the remaining operational gates.
 

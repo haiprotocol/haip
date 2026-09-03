@@ -9,7 +9,7 @@ import { digest } from '@haip/protocol/crypto';
 test('public discovery, directory, review, assignment, events and metrics match the published schema', async () => {
   const env = await environment();
   try {
-    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-1/schema.json', 'utf8'));
+    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-3/schema.json', 'utf8'));
     const ajv = new Ajv2020({ strict: true });
     (addFormats as any)(ajv);
     ajv.addSchema(schema);
@@ -55,7 +55,7 @@ test('public discovery, directory, review, assignment, events and metrics match 
       (await env.api('/v2/admin/ledger', undefined, env.credentials.operator)).body,
     );
     check('HitlPoll', (await env.api(`/v2/hitl/${id}/poll`)).body);
-    const spec = JSON.parse(await readFile('protocol/draft-2.0.0-1/openapi.json', 'utf8'));
+    const spec = JSON.parse(await readFile('protocol/draft-2.0.0-3/openapi.json', 'utf8'));
     for (const path of Object.values(spec.paths) as any[])
       for (const operation of Object.values(path) as any[]) {
         assert.ok(operation.responses['200']?.content || operation.responses['201']?.content);
@@ -65,10 +65,10 @@ test('public discovery, directory, review, assignment, events and metrics match 
   }
 });
 
-test('the public schema binds execution purpose to the execution profile and receipt semantics', async () => {
+test('the public schema binds execution purpose and App bundles to their profiles', async () => {
   const env = await environment();
   try {
-    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-1/schema.json', 'utf8'));
+    const schema = JSON.parse(await readFile('protocol/draft-2.0.0-3/schema.json', 'utf8'));
     const ajv = new Ajv2020({ strict: true });
     (addFormats as any)(ajv);
     ajv.addSchema(schema);
@@ -76,6 +76,19 @@ test('the public schema binds execution purpose to the execution profile and rec
       ajv.getSchema(schema.$id + '#/$defs/' + name)!(value);
     const reviewer = await env.login();
     const execution = env.request(true).execution;
+    const bundled = env.request(false, { bundle_id: '00000000-0000-0000-0000-000000000000' });
+    assert.equal(conforms('RequestInput', bundled), false);
+    bundled.profiles = { 'haip.agent-ui': '2' };
+    assert.equal(conforms('RequestInput', bundled), true);
+    assert.equal(
+      conforms('BundleRegistration', {
+        html: '<!doctype html>',
+        compatibility: { agent_ui: 'future' },
+        author: 'Fixture',
+        licence: 'MIT',
+      }),
+      false,
+    );
     for (const executable of [false, true]) {
       const input = env.request(executable);
       assert.equal(conforms('RequestInput', input), true);
@@ -83,6 +96,21 @@ test('the public schema binds execution purpose to the execution profile and rec
       assert.equal(created.status, 201, JSON.stringify(created.body));
       const request = created.body.request;
       assert.equal(conforms('DecisionRequest', request), true);
+      const boundRequest = structuredClone(request);
+      boundRequest.review.bundle = {
+        id: '00000000-0000-0000-0000-000000000000',
+        publisher: 'publisher',
+        digest: digest('<!doctype html>'),
+        compatibility: { agent_ui: '2' },
+        created_at: '2026-09-03T00:00:00.000Z',
+      };
+      assert.equal(
+        conforms('DecisionRequest', boundRequest),
+        false,
+        'a bound Agent UI bundle requires its request profile',
+      );
+      boundRequest.profiles = { ...request.profiles, 'haip.agent-ui': '2' };
+      assert.equal(conforms('DecisionRequest', boundRequest), true);
       for (const [name, value] of [
         ['RequestInput', input],
         ['DecisionRequest', request],

@@ -3,7 +3,7 @@ import type { PoolConfig } from 'pg';
 import { checkServerIdentity } from 'node:tls';
 import { isIP } from 'node:net';
 import { getDomain } from 'tldts';
-import { PROTOCOL_REVISION, type TrustManifest } from '@haip/protocol';
+import { isAgentUiOrigin, PROTOCOL_REVISION, type TrustManifest } from '@haip/protocol';
 import { validate } from './validation.js';
 
 type Mode = 'development' | 'production';
@@ -30,6 +30,7 @@ export function validateOrigins(mode: Mode, origin: string, sandboxPattern: stri
     !['http:', 'https:'].includes(sandbox.protocol) ||
     trusted.origin !== origin ||
     sandbox.origin !== sample ||
+    !isAgentUiOrigin(sample) ||
     !sandbox.hostname.split('.').includes('scope') ||
     sandbox.hostname === trusted.hostname
   )

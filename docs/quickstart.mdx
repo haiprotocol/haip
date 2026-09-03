@@ -3,7 +3,7 @@ title: 'Try HAIP 2 locally'
 description: 'Complete a structured review using disposable local fixtures.'
 ---
 
-This walkthrough uses **2.0.0-draft.1** from a checkout. It needs Node.js 24, npm and PostgreSQL command-line tools. The fixture suite has run with PostgreSQL 16 and 17. It requires no cloud account.
+This walkthrough uses **2.0.0-draft.3** from a checkout. It needs Node.js 24, npm and PostgreSQL command-line tools. The fixture suite has run with PostgreSQL 16 and 17. It requires no cloud account.
 
 ```sh
 npm ci
@@ -11,7 +11,7 @@ npm run build
 npm run demo
 ```
 
-The demo creates a temporary PostgreSQL database, a local identity provider, random credentials and a test-only anchor. It prints the loopback origin and separate producer, publisher and operator credentials. Keep this terminal open. Normal shutdown removes the temporary database; do not use it to retain real reviews.
+The demo creates a temporary PostgreSQL database, a local identity provider, random credentials and a test-only anchor. It prints the loopback origin and separate producer, publisher and operator credentials. Keep this terminal open. Normal shutdown removes the temporary database. Do not use it to retain real reviews.
 
 In another terminal, set `HAIP_URL` and `HAIP_TOKEN` to the printed origin and **producer** credential. Set `HAIP_LOCAL_HTTP=true` for this fixture only. Choose one new `HAIP_IDEMPOTENCY_KEY` for the logical request and keep it unchanged if retrying.
 
@@ -28,10 +28,7 @@ node haip-cli/dist/index.js export REQUEST_ID review-audit.json
 
 The export contains the retained response and signed receipt. `review` purpose never grants permission to execute, regardless of the response text.
 
-To try a separately registered App, continue with the [HTTP review example](/examples/review). To use the CLI throughout, follow the [CLI example](/examples/using-cli).
+To try a separately registered Agent UI View, continue with the [HTTP review example](/examples/review). To use the CLI throughout, follow the [CLI example](/examples/using-cli).
 
-<Warning>
-  Never expose the demo publicly or reuse its credentials, identity provider or filesystem anchor in
-  production. The [deployment guide](/server/deployment) describes the separate configuration and
-  validation required for a real service.
-</Warning>
+{/* prettier-ignore */}
+<Warning>Never expose the demo publicly or reuse its credentials, identity provider or filesystem anchor in production. The [deployment guide](/server/deployment) describes the separate configuration and validation required for a real service.</Warning>

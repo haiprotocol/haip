@@ -14,7 +14,7 @@ if (!process.env.HAIP_IDEMPOTENCY_KEY)
 const material = JSON.parse(await readFile(new URL('./review.json', import.meta.url), 'utf8'));
 if (process.env.HAIP_BUNDLE_ID) {
   material.bundle_id = process.env.HAIP_BUNDLE_ID;
-  material.profiles['haip.mcp-app'] = '1-draft.1';
+  material.profiles['haip.agent-ui'] = '2';
 }
 const response = await fetch(url + '/v2/requests', {
   method: 'POST',

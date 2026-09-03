@@ -13,7 +13,7 @@ async function reviewWithBundle(env: Awaited<ReturnType<typeof environment>>) {
     '/v2/bundles',
     {
       html,
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '2' },
       author: 'Independent test fixture',
       licence: 'MIT',
     },
@@ -24,7 +24,7 @@ async function reviewWithBundle(env: Awaited<ReturnType<typeof environment>>) {
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.mcp-app': '1-draft.1' },
+      profiles: { 'haip.agent-ui': '2' },
     }),
   );
   assert.equal(created.status, 201);
@@ -53,9 +53,14 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
       { name: 'wrong publisher', html, manifest: { ...manifest, publisher: 'other-publisher' } },
       { name: 'wrong digest', html, manifest: { ...manifest, digest: digest({ changed: true }) } },
       {
+        name: 'changed registration time',
+        html,
+        manifest: { ...manifest, created_at: '2026-01-01T00:00:00.000Z' },
+      },
+      {
         name: 'changed compatibility',
         html,
-        manifest: { ...manifest, compatibility: { ...manifest.compatibility, mcp_sdk: '1.0.0' } },
+        manifest: { ...manifest, compatibility: { ...manifest.compatibility, agent_ui: '0' } },
       },
       {
         name: 'new unbound compatibility field',
@@ -79,8 +84,7 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
     const reordered = {
       ...manifest,
       compatibility: {
-        mcp_sdk: manifest.compatibility.mcp_sdk,
-        ext_apps: manifest.compatibility.ext_apps,
+        agent_ui: manifest.compatibility.agent_ui,
       },
     };
     await env.store.pool.query(
@@ -94,6 +98,69 @@ test('exports verify bundle bytes, manifest identity and compatibility against t
     assert.deepEqual(restored.audit, original.audit);
     for (const credential of [env.credentials.otherProducer, env.credentials.foreignProducer])
       assert.equal((await env.api(path, undefined, credential)).status, 404);
+  } finally {
+    await env.close();
+  }
+});
+
+test('delivery, proposals and confirmation recompute every stored material binding', async () => {
+  const env = await environment();
+  try {
+    const { request } = await reviewWithBundle(env);
+    const human = await env.login();
+    const candidate = await human.call(`/v2/requests/${request.id}/candidates`, {
+      decision: 'answer',
+      response: { choice: 'accept' },
+    });
+    assert.equal(candidate.status, 201);
+    const original = (
+      await env.store.pool.query(
+        'SELECT data,material FROM haip_requests WHERE tenant=$1 AND id=$2',
+        ['test-tenant', request.id],
+      )
+    ).rows[0];
+    const corruptions: [
+      string,
+      (data: Record<string, any>, material: Record<string, any>) => void,
+    ][] = [
+      ['request bytes', (data) => (data.request.summary = 'Changed after acceptance')],
+      ['request digest', (data) => (data.request_digest = digest({ changed: true }))],
+      ['payload', (_data, material) => (material.payload = { changed: true })],
+      ['response schema', (_data, material) => (material.response_schema = { type: 'boolean' })],
+      ['review document', (_data, material) => (material.review_document = 'Changed document')],
+    ];
+    for (const [name, corrupt] of corruptions) {
+      const data = structuredClone(original.data);
+      const material = structuredClone(original.material);
+      corrupt(data, material);
+      await env.store.pool.query(
+        'UPDATE haip_requests SET data=$1,material=$2 WHERE tenant=$3 AND id=$4',
+        [JSON.stringify(data), JSON.stringify(material), 'test-tenant', request.id],
+      );
+      for (const result of [
+        await human.call(`/v2/requests/${request.id}/material`),
+        await human.call(`/v2/requests/${request.id}/app`),
+        await env.api(`/v2/requests/${request.id}/export`),
+        await human.call(`/v2/requests/${request.id}/candidates`, {
+          decision: 'answer',
+          response: { choice: 'decline' },
+        }),
+        await human.call(`/v2/requests/${request.id}/confirm`, {
+          candidate_id: candidate.body.id,
+          candidate_digest: digest(candidate.body),
+        }),
+      ]) {
+        assert.equal(result.status, 409, name);
+        assert.deepEqual(result.body, { error: 'material_integrity_mismatch' }, name);
+      }
+    }
+    await env.store.pool.query(
+      'UPDATE haip_requests SET data=$1,material=$2 WHERE tenant=$3 AND id=$4',
+      [JSON.stringify(original.data), JSON.stringify(original.material), 'test-tenant', request.id],
+    );
+    assert.equal((await human.call(`/v2/requests/${request.id}/material`)).status, 200);
+    assert.equal((await human.call(`/v2/requests/${request.id}/app`)).status, 200);
+    assert.equal((await env.api(`/v2/requests/${request.id}/export`)).status, 200);
   } finally {
     await env.close();
   }
@@ -116,11 +183,7 @@ test('exports refuse deleted required bundles but never revive private material 
       manifest.id,
     ]);
     assert.equal((await env.api(path)).status, 410);
-    const deadline = new Date(Date.now() + 60000);
-    await env.store.pool.query(
-      "UPDATE haip_requests SET data=jsonb_set(data,'{request,private_delete_at}',to_jsonb($1::text)) WHERE tenant=$2 AND id=$3",
-      [deadline.toISOString(), 'test-tenant', request.id],
-    );
+    const deadline = new Date(request.private_delete_at);
     const read = env.store.read.bind(env.store);
     let now = new Date(deadline.getTime() - 1);
     env.store.read = (run) => read((tx) => run(tx, now));

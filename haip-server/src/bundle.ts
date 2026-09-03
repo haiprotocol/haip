@@ -21,6 +21,7 @@ export function requireBoundBundle(
       manifest.id === binding.id &&
       manifest.tenant === tenant &&
       manifest.publisher === binding.publisher &&
+      manifest.created_at === binding.created_at &&
       digest(manifest.compatibility) === digest(binding.compatibility);
   } catch {
     // Malformed stored metadata must not escape through a successful export or App response.

@@ -3,24 +3,28 @@ title: 'Review lifecycle and commitments'
 description: 'Submit immutable material, freeze a response and confirm it through the trusted host.'
 ---
 
-A `review` request obtains an authenticated response without granting execution authority. Producers use their own bearer credentials; the reviewer signs in through the trusted browser host.
+A `review` request obtains an authenticated response without granting execution authority. Producers use their own bearer credentials. The reviewer signs in through the trusted browser host.
 
-1. Submit the exact revision, purpose, route, artefact commitment, payload, response schema and static review document. An App bundle is optional.
+1. Submit the exact revision, purpose, route, artefact commitment, payload, response schema and static review document. An Agent UI View bundle is optional.
 2. The service captures the authorised route, operator-resolved requester, limits and review deadline. Accepted material cannot be edited in place.
 3. A permitted reviewer examines the retained material and proposes a response. The host validates it against the stored schema and freezes a candidate.
 4. The person confirms the exact candidate ID and digest in the trusted host. Confirmation rechecks identity, eligibility, separation of duties and the original deadline.
 5. The producer polls status or consumes advisory events, then retrieves the signed receipt and retained response through the scoped export.
 
-Changing a proposed response replaces the candidate; an earlier confirmation target is invalid. Assignment only reserves review work. It does not create an execution claim or decide the request.
+Changing a proposed response replaces the candidate and invalidates the earlier confirmation target. Assignment only reserves review work. It does not create an execution claim or decide the request.
 
-| Material                              | Commitment                                                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Payload, response schema and response | SHA-256 over RFC 8785 canonical JSON.                                                                         |
-| Static review document and App HTML   | SHA-256 over their exact UTF-8 bytes.                                                                         |
-| Producer artefact                     | The producer's declared representation and digest rules; native integration hashes are not silently replaced. |
+| Material                              | Commitment                                                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Payload, response schema and response | SHA-256 over RFC 8785 canonical JSON.                                                                |
+| Static review document and View HTML  | SHA-256 over their exact UTF-8 bytes.                                                                |
+| Producer artefact                     | The producer's declared representation and digest rules. Native integration hashes remain unchanged. |
 
 Duplicate JSON keys, invalid Unicode and lossy numeric inputs are rejected. Valid decimal responses are supported. Use schema-defined strings when values require more precision than the JSON number model permits.
 
-Cancellation and supersession are explicit state changes, not edits to signed history. Supersession creates a new request and invalidates old candidates and unused authority. Retention can remove private material while leaving original signatures and commitments available for audit.
+Cancellation and supersession create explicit state changes while preserving signed history. Supersession creates a new request and invalidates old candidates and unused authority. Retention can remove private material while leaving original signatures and commitments available for audit.
 
 For a complete local flow, use the [HTTP review example](/examples/review). The [authentication guide](/server/authentication) explains why possession of a review link never grants access or confirmation rights.
+
+## Agent UI
+
+A request may reference a registered bundle with compatibility `agent_ui: "2"` and select `haip.agent-ui: "2"`. The reviewer's host serves `StoredApp` with the exact bundle bytes, sandbox origin and scope, complete `input` and `result` snapshots, and an `AgentUiEnvelope`. The server verifies the persisted request and bound bundle before constructing the envelope. `binding_digest` checks the canonical request, bundle, source and snapshot identity for consistency, and the browser host recomputes it before creating a View. The View may only propose a `DecisionProposal`. The `AgentUi*` schema definitions specify every message shape, and the dependency-free [`@haip/view`](/sdk/view) client validates the exact `2.0.0-draft.3` envelope.

@@ -141,7 +141,7 @@ test('tenant, producer and publisher ownership is checked without existence leak
     '/v2/bundles',
     {
       html: '<!doctype html><p>Test</p>',
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '2' },
       author: 'Fixture author',
       licence: 'MIT',
     },
@@ -150,7 +150,7 @@ test('tenant, producer and publisher ownership is checked without existence leak
   assert.equal(registered.status, 201);
   const input = env.request(false, {
     bundle_id: registered.body.id,
-    profiles: { 'haip.mcp-app': '1-draft.1' },
+    profiles: { 'haip.agent-ui': '2' },
   });
   const created = await env.api('/v2/requests', input);
   assert.equal(created.status, 201);

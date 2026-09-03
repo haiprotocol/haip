@@ -3,7 +3,7 @@ title: 'TypeScript SDK'
 description: 'Use the HAIP 2 public HTTP API without an agent framework.'
 ---
 
-`@haip/sdk` is the TypeScript client for **2.0.0-draft.1**. It depends on the independent protocol package and does not need Plasm or an agent framework. The draft packages are built from this workspace; do not assume the public `latest` npm tag contains HAIP 2.
+`@haip/sdk` is the TypeScript client for **2.0.0-draft.3**. It depends on the independent protocol package and does not need Plasm or an agent framework. The draft packages are built from this workspace. Do not assume the public `latest` npm tag contains HAIP 2.
 
 ```sh
 npm ci
@@ -24,4 +24,4 @@ The variables represent your configured credential, validated `RequestInput` and
 
 The SDK exposes creation, status, cancellation, events and audit export, plus execution claim/admission/outcome methods. It deliberately has no machine convenience method for human confirmation.
 
-Use the [method reference](/sdk/api-reference), [credential guide](/sdk/authentication) and [error handling](/sdk/error-handling) for ordinary review. Executors must additionally follow [authority verification](/sdk/execution). Webhook consumers use the separate [verification and persistence helpers](/sdk/webhooks).
+Use the [method reference](/sdk/api-reference), [credential guide](/sdk/authentication) and [error handling](/sdk/error-handling) for ordinary review. Executors must also follow [authority verification](/sdk/execution). Webhook consumers use the separate [verification and persistence helpers](/sdk/webhooks).

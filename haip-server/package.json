@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0-draft.1",
+  "version": "2.0.0-draft.3",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -16,7 +16,6 @@
     "LICENSE",
     "migrations",
     "schema",
-    "third-party",
     "public"
   ],
   "scripts": {
@@ -36,9 +35,7 @@
   "dependencies": {
     "@azure/identity": "4.13.2",
     "@azure/storage-blob": "12.33.0",
-    "@haip/protocol": "2.0.0-draft.1",
-    "@modelcontextprotocol/ext-apps": "1.7.4",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@haip/protocol": "2.0.0-draft.3",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "express": "5.2.1",

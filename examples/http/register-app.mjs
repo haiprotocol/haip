@@ -20,7 +20,7 @@ const response = await fetch(origin + '/v2/bundles', {
   },
   body: JSON.stringify({
     html: await readFile('output/examples/choice-app.html', 'utf8'),
-    compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+    compatibility: { agent_ui: '2' },
     author: 'Independent HTTP example',
     licence: 'MIT',
   }),

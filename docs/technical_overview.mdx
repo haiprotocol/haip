@@ -10,7 +10,7 @@ HAIP separates a person's decision from the system that might act on it. The pro
 | Protocol and profiles | Versioned wire contracts, commitments, trust rules and required capabilities.                                                    |
 | Reference service     | Scoped identities and routes, immutable reviews, trusted confirmation, claims, admission, audit and notifications.               |
 | Trusted browser host  | Full retained material, response validation and explicit confirmation by the signed-in person.                                   |
-| Optional MCP App      | Sandboxed presentation and response proposals. No confirmation or execution authority.                                           |
+| Optional Agent UI View | Sandboxed presentation and response proposals. No confirmation or execution authority.                                          |
 | Producer or executor  | Submit the intended material; verify the result. An executor additionally maintains a durable launch fence and reports outcomes. |
 
 The service uses PostgreSQL transactions to order authority changes per tenant. A state change, its audit record, producer event and delivery job commit together. The delivery worker may retry notifications, but cannot renew a deadline or authorise an effect.

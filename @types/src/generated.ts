@@ -1,5 +1,9 @@
-/* Generated from protocol/draft-2.0.0-1/schema.json. Run npm run generate. */
+/* Generated from protocol/draft-2.0.0-3/schema.json. Run npm run generate. */
 
+/**
+ * Canonical lowercase HTTP or HTTPS origin using localhost, an IPv4 address or a DNS name. Default and invalid ports are forbidden.
+ */
+export type AgentUiOrigin = string;
 export type LedgerPage = LedgerEntry[];
 export type HitlPoll =
   | {
@@ -39,10 +43,50 @@ export type HitlStatus =
         expires_at: string;
       };
     };
+export type AgentUiErrorCode = -32600 | -32601 | -32602 | -32000;
+export type AgentUiId = string | number;
+export type AgentUiRequest =
+  AgentUiInitializeRequest | AgentUiProposeRequest | AgentUiTeardownRequest;
+export type AgentUiNotification =
+  AgentUiInitializedNotification | AgentUiInputNotification | AgentUiResultNotification;
+export type AgentUiSuccess =
+  AgentUiInitializeSuccess | AgentUiProposeSuccess | AgentUiTeardownSuccess;
+/**
+ * Closed public View-to-Host message union. Error responses in this direction correlate only to Host teardown requests.
+ */
+export type AgentUiViewToHostMessage =
+  | AgentUiInitializeRequest
+  | AgentUiInitializedNotification
+  | AgentUiProposeRequest
+  | AgentUiTeardownSuccess
+  | AgentUiError;
+/**
+ * Closed public Host-to-View message union. Error responses in this direction correlate only to View initialize or propose requests.
+ */
+export type AgentUiHostToViewMessage =
+  | AgentUiInitializeSuccess
+  | AgentUiInputNotification
+  | AgentUiResultNotification
+  | AgentUiProposeSuccess
+  | AgentUiTeardownRequest
+  | AgentUiError;
+/**
+ * Private outer-Proxy-to-Host lifecycle notifications. These messages never cross the public View boundary.
+ */
+export type AgentUiProxyToHostNotification =
+  AgentUiProxyReadyNotification | AgentUiViewFailedNotification;
+export type AgentUiPrivateProxyNotification =
+  AgentUiProxyToHostNotification | AgentUiHostToProxyNotification;
+/**
+ * Closed public Agent UI version 2 message union. Directional validators enforce the fixed initialize, initialized, input, result, optional proposals and terminal teardown lifecycle. Private Proxy notifications are excluded.
+ */
+export type AgentUiMessage = AgentUiViewToHostMessage | AgentUiHostToViewMessage;
 
 export interface ProtocolTypes {
   Profiles?: Profiles;
   Metadata?: Metadata;
+  AgentUiCompatibility?: AgentUiCompatibility;
+  AgentUiOrigin?: AgentUiOrigin;
   Limits?: Limits;
   ExecutionBinding?: ExecutionBinding;
   ReviewBinding?: ReviewBinding;
@@ -87,11 +131,58 @@ export interface ProtocolTypes {
   HitlPoll?: HitlPoll;
   HitlStatus?: HitlStatus;
   MetricsSnapshot?: MetricsSnapshot;
+  AgentUiRequestIdentity?: AgentUiRequestIdentity;
+  AgentUiBundleIdentity?: AgentUiBundleIdentity;
+  AgentUiSource?: AgentUiSource;
+  AgentUiSnapshotDigests?: AgentUiSnapshotDigests;
+  AgentUiEnvelope?: AgentUiEnvelope;
+  AgentUiInput?: AgentUiInput;
+  AgentUiResult?: AgentUiResult;
+  AgentUiInitializeParams?: AgentUiInitializeParams;
+  AgentUiInitializeResult?: AgentUiInitializeResult;
+  AgentUiTeardownResult?: AgentUiTeardownResult;
+  AgentUiViewFailedParams?: AgentUiViewFailedParams;
+  AgentUiErrorCode?: AgentUiErrorCode;
+  AgentUiId?: AgentUiId;
+  AgentUiInitializedParams?: AgentUiInitializedParams;
+  AgentUiTeardownParams?: AgentUiTeardownParams;
+  AgentUiProxyReadyParams?: AgentUiProxyReadyParams;
+  AgentUiResourceReadyParams?: AgentUiResourceReadyParams;
+  AgentUiInitializeRequest?: AgentUiInitializeRequest;
+  AgentUiProposeRequest?: AgentUiProposeRequest;
+  AgentUiTeardownRequest?: AgentUiTeardownRequest;
+  AgentUiInitializedNotification?: AgentUiInitializedNotification;
+  AgentUiInputNotification?: AgentUiInputNotification;
+  AgentUiResultNotification?: AgentUiResultNotification;
+  AgentUiProxyReadyNotification?: AgentUiProxyReadyNotification;
+  AgentUiResourceReadyNotification?: AgentUiResourceReadyNotification;
+  AgentUiViewFailedNotification?: AgentUiViewFailedNotification;
+  AgentUiInitializeSuccess?: AgentUiInitializeSuccess;
+  AgentUiProposeSuccess?: AgentUiProposeSuccess;
+  AgentUiTeardownSuccess?: AgentUiTeardownSuccess;
+  AgentUiRequest?: AgentUiRequest;
+  AgentUiNotification?: AgentUiNotification;
+  AgentUiSuccess?: AgentUiSuccess;
+  AgentUiError?: AgentUiError;
+  AgentUiViewToHostMessage?: AgentUiViewToHostMessage;
+  AgentUiHostToViewMessage?: AgentUiHostToViewMessage;
+  AgentUiProxyToHostNotification?: AgentUiProxyToHostNotification;
+  AgentUiHostToProxyNotification?: AgentUiHostToProxyNotification;
+  AgentUiPrivateProxyNotification?: AgentUiPrivateProxyNotification;
+  AgentUiMessage?: AgentUiMessage;
+  AgentUiProposeParams?: AgentUiProposeParams;
+  AgentUiProposeResult?: AgentUiProposeResult;
+  AgentUiLimits?: AgentUiLimits;
+  AgentUiLifecycle?: AgentUiLifecycle;
 }
 export interface Profiles {
   [k: string]: string;
 }
 export interface Metadata {
+  [k: string]: unknown;
+}
+export interface AgentUiCompatibility {
+  agent_ui: '2';
   [k: string]: unknown;
 }
 export interface Limits {
@@ -138,7 +229,11 @@ export interface ReviewBinding {
     id: string;
     publisher: string;
     digest: string;
-    compatibility: Metadata;
+    compatibility: AgentUiCompatibility;
+    /**
+     * Immutable registration time captured when the request binds the bundle.
+     */
+    created_at: string;
   };
 }
 export interface ReviewBundle {
@@ -146,19 +241,19 @@ export interface ReviewBundle {
   tenant: string;
   publisher: string;
   digest: string;
-  compatibility: Metadata;
+  compatibility: AgentUiCompatibility;
   author: string;
   licence: string;
   created_at: string;
 }
 export interface BundleRegistration {
   html: string;
-  compatibility: Metadata;
+  compatibility: AgentUiCompatibility;
   author: string;
   licence: string;
 }
 export interface RequestInput {
-  protocol_revision: '2.0.0-draft.1';
+  protocol_revision: '2.0.0-draft.3';
   purpose: 'review' | 'authorise_execution';
   profiles: Profiles;
   route: string;
@@ -180,7 +275,7 @@ export interface RequestInput {
 }
 export interface DecisionRequest {
   id: string;
-  protocol_revision: '2.0.0-draft.1';
+  protocol_revision: '2.0.0-draft.3';
   purpose: 'review' | 'authorise_execution';
   profiles: Profiles;
   tenant: string;
@@ -358,7 +453,7 @@ export interface DeliveryStatus {
 }
 export interface TrustManifest {
   issuer: string;
-  protocol_revision: '2.0.0-draft.1';
+  protocol_revision: '2.0.0-draft.3';
   /**
    * @minItems 1
    * @maxItems 128
@@ -379,7 +474,7 @@ export interface TrustManifest {
       not_before: string;
       not_after: string;
       revoked_at?: string;
-    }[]
+    }[],
   ];
 }
 export interface AuditExport {
@@ -414,8 +509,7 @@ export interface Discovery {
   revisions: string[];
   profiles: Profiles;
   renderer: {
-    ext_apps: string;
-    mcp_sdk: string;
+    agent_ui: string;
   };
   mode: 'development' | 'production';
   release_ready: boolean;
@@ -475,22 +569,68 @@ export interface Material {
   candidate: DecisionCandidate | null;
 }
 export interface StoredApp {
+  profile: 'org.haiprotocol.agent-ui/2';
+  protocol_revision: '2.0.0-draft.3';
+  request: AgentUiRequestIdentity;
+  bundle: AgentUiBundleIdentity;
+  source: AgentUiSource;
+  snapshots: AgentUiSnapshotDigests;
+  /**
+   * SHA-256 over the RFC 8785 canonical identity fields. The authenticated host and its server-side verification establish trust in this transient presentation commitment.
+   */
+  binding_digest: string;
   html: string;
-  origin: string;
+  origin: AgentUiOrigin;
   scope: string;
-  request_digest: string;
-  input: {
-    request_id: string;
-    purpose: 'review' | 'authorise_execution';
+  input: AgentUiInput;
+  result: AgentUiResult;
+}
+export interface AgentUiRequestIdentity {
+  id: string;
+  digest: string;
+  purpose: 'review' | 'authorise_execution';
+  authorisation_revision: number;
+  supersedes: string | null;
+}
+export interface AgentUiBundleIdentity {
+  id: string;
+  publisher: string;
+  digest: string;
+  /**
+   * Immutable registration time captured in the accepted request binding.
+   */
+  created_at: string;
+}
+export interface AgentUiSource {
+  tenant: string;
+  /**
+   * Authenticated machine principal acting as the producer and agent system.
+   */
+  producer: string;
+  /**
+   * Operator-resolved human owner on whose behalf the producer submitted the request.
+   */
+  requester: {
+    subject: string;
+    source: string;
   };
-  result: {
-    content: {
-      type: 'text';
-      text: string;
-    }[];
-    structuredContent?: {
-      payload: unknown;
-    };
+  origin: AgentUiOrigin;
+}
+export interface AgentUiSnapshotDigests {
+  input_digest: string;
+  result_digest: string;
+}
+export interface AgentUiInput {
+  request_id: string;
+  purpose: 'review' | 'authorise_execution';
+}
+export interface AgentUiResult {
+  content: {
+    type: 'text';
+    text: string;
+  }[];
+  structuredContent: {
+    payload: unknown;
   };
 }
 export interface ReminderResult {
@@ -581,4 +721,165 @@ export interface MetricsSnapshot {
     conflicts: number;
   };
   policy_and_executor_evidence: string;
+}
+export interface AgentUiEnvelope {
+  profile: 'org.haiprotocol.agent-ui/2';
+  protocol_revision: '2.0.0-draft.3';
+  request: AgentUiRequestIdentity;
+  bundle: AgentUiBundleIdentity;
+  source: AgentUiSource;
+  snapshots: AgentUiSnapshotDigests;
+  /**
+   * SHA-256 over the RFC 8785 canonical identity fields. The authenticated host and its server-side verification establish trust in this transient presentation commitment.
+   */
+  binding_digest: string;
+}
+export interface AgentUiInitializeParams {
+  protocolVersion: 'org.haiprotocol.agent-ui/2';
+  capabilities: {
+    localProposal: true;
+  };
+  viewInfo?: {
+    name: string;
+    version: string;
+  };
+}
+export interface AgentUiInitializeResult {
+  protocolVersion: 'org.haiprotocol.agent-ui/2';
+  capabilities: {
+    localProposal: true;
+  };
+  hostInfo: {
+    name: string;
+    version: string;
+  };
+  envelope: AgentUiEnvelope;
+  limits: AgentUiLimits;
+  lifecycle: AgentUiLifecycle;
+}
+/**
+ * Fixed Agent UI version 2 transport, lifecycle and text budgets. Message byte limits apply to UTF-8 encoded JSON, and json_depth counts the root as depth zero.
+ */
+export interface AgentUiLimits {
+  view_message_bytes: 1048576;
+  host_message_bytes: 6291456;
+  tracked_view_request_ids: 512;
+  proposals_per_view: 32;
+  initialise_timeout_ms: 5000;
+  teardown_grace_ms: 250;
+  json_depth: 64;
+  request_id_codepoints: 200;
+  error_message_codepoints: 400;
+  view_name_codepoints: 120;
+  view_version_codepoints: 40;
+  failure_reason_codepoints: 160;
+}
+/**
+ * Fixed Agent UI version 2 lifecycle. Messages outside this order are invalid for the active View instance.
+ */
+export interface AgentUiLifecycle {
+  initialise: 'haip/ui.initialize -> haip/ui.initialized';
+  snapshots: 'haip/ui.input -> haip/ui.result';
+  proposal_after: 'haip/ui.result';
+  teardown: 'terminal';
+}
+export interface AgentUiTeardownResult {
+  closed: true;
+}
+export interface AgentUiViewFailedParams {
+  reason: string;
+}
+export type AgentUiInitializedParams = Record<string, never>;
+export type AgentUiTeardownParams = Record<string, never>;
+export type AgentUiProxyReadyParams = Record<string, never>;
+export interface AgentUiResourceReadyParams {
+  html: string;
+  sandbox: 'allow-scripts';
+}
+export interface AgentUiInitializeRequest {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  method: 'haip/ui.initialize';
+  params: AgentUiInitializeParams;
+}
+export interface AgentUiProposeRequest {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  method: 'haip/ui.propose';
+  params: AgentUiProposeParams;
+}
+export interface AgentUiProposeParams {
+  response: unknown;
+  decision: 'answer' | 'approve' | 'reject' | 'authorise' | 'refuse';
+}
+export interface AgentUiTeardownRequest {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  method: 'haip/ui.teardown';
+  params: AgentUiTeardownParams;
+}
+export interface AgentUiInitializedNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.initialized';
+  params: AgentUiInitializedParams;
+}
+export interface AgentUiInputNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.input';
+  params: AgentUiInput;
+}
+export interface AgentUiResultNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.result';
+  params: AgentUiResult;
+}
+export interface AgentUiProxyReadyNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.proxyReady';
+  params: AgentUiProxyReadyParams;
+}
+export interface AgentUiResourceReadyNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.resourceReady';
+  params: AgentUiResourceReadyParams;
+}
+export interface AgentUiViewFailedNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.viewFailed';
+  params: AgentUiViewFailedParams;
+}
+export interface AgentUiInitializeSuccess {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  result: AgentUiInitializeResult;
+}
+export interface AgentUiProposeSuccess {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  result: AgentUiProposeResult;
+}
+export interface AgentUiProposeResult {
+  candidate_id: string;
+  status: 'awaiting_human_confirmation';
+}
+export interface AgentUiTeardownSuccess {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  result: AgentUiTeardownResult;
+}
+export interface AgentUiError {
+  jsonrpc: '2.0';
+  id: AgentUiId;
+  error: {
+    code: AgentUiErrorCode;
+    message: string;
+  };
+}
+/**
+ * Private Host-to-outer-Proxy resource notification. This message never crosses the public View boundary.
+ */
+export interface AgentUiHostToProxyNotification {
+  jsonrpc: '2.0';
+  method: 'haip/ui.resourceReady';
+  params: AgentUiResourceReadyParams;
 }

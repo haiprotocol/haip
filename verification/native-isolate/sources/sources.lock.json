@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-09-02T22:49:21Z",
+  "purpose": "Reproducible source identity lock for the native HAIP Agent UI extension and HAIP 2 approval spine",
+  "reviewTarget": {
+    "repository": "https://github.com/haiprotocol/haip",
+    "pullRequest": "https://github.com/haiprotocol/haip/pull/6",
+    "baseCommit": "c02bf330324b0ec8385a8438d112c258caec6161",
+    "implementationCommit": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+    "implementationTree": "0b60353f5904aeb84713c16d337f6ecfdacd7638",
+    "statusAtPreparation": "open draft",
+    "normativeWeight": "review context only; not an external authority or a claim about the eventual PR head"
+  },
+  "policy": {
+    "sourcePrecedence": [
+      "dated normative specification",
+      "dated official extension specification",
+      "commit-pinned external specification",
+      "commit-pinned review-target specification",
+      "commit-pinned review-target implementation",
+      "informative overview or release note"
+    ],
+    "immutability": "Review-target source blobs are commit-pinned. The pull-request URL identifies review context only and is not counted as an immutable source.",
+    "excluded": [
+      "MCP Apps, MCP core, MCP Tasks, MRTR, and HITL specifications as HAIP authorities",
+      "HAIP PR merge refs or later commits",
+      "claims inferred only from tests or README prose"
+    ],
+    "factInterpretationRule": "A source statement is a verified fact only about that HAIP source. Proposed executable behaviour is a modelling assumption until implemented and observed.",
+    "roleMetadata": {
+      "normativeRole": "Describes how an entry may govern this review; it does not promote review-target code or comparison material into a HAIP authority."
+    }
+  },
+  "sources": [
+    {
+      "id": "haip-review",
+      "title": "HAIP review contract 2.0.0-draft.1",
+      "kind": "review-target-specification",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/protocol/draft-2.0.0-1/review.md",
+      "authority": "HAIP project",
+      "status": "draft",
+      "normativeRole": "review-target native HAIP semantics",
+      "usedFor": ["review semantics", "identity", "digests", "signatures", "state separation"]
+    },
+    {
+      "id": "haip-execution",
+      "title": "HAIP execution extension 1-draft.1",
+      "kind": "review-target-specification",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/protocol/draft-2.0.0-1/execution.md",
+      "authority": "HAIP project",
+      "status": "draft",
+      "normativeRole": "review-target native HAIP execution semantics",
+      "usedFor": ["claims", "admission", "deadlines", "cancellation", "effect safety"]
+    },
+    {
+      "id": "haip-security",
+      "title": "HAIP reference security profile 2.0.0-draft.1",
+      "kind": "review-target-specification",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/protocol/draft-2.0.0-1/security.md",
+      "authority": "HAIP project",
+      "status": "draft",
+      "normativeRole": "review-target native HAIP security semantics",
+      "usedFor": ["trusted host", "sandbox profile", "quotas", "webhooks", "anchoring"]
+    },
+    {
+      "id": "haip-evolution",
+      "title": "HAIP evolution and trust 2.0.0-draft.1",
+      "kind": "review-target-specification",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/protocol/draft-2.0.0-1/evolution.md",
+      "authority": "HAIP project",
+      "status": "draft",
+      "normativeRole": "review-target native HAIP evolution and trust semantics",
+      "usedFor": ["versioning", "profile negotiation", "trust discovery"]
+    },
+    {
+      "id": "haip-schema",
+      "title": "HAIP 2 JSON Schema",
+      "kind": "review-target-schema",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/protocol/draft-2.0.0-1/schema.json",
+      "authority": "HAIP project",
+      "status": "draft",
+      "normativeRole": "review-target schema cross-check evidence",
+      "usedFor": ["wire-shape cross-check"]
+    },
+    {
+      "id": "haip-openapi",
+      "title": "HAIP 2 OpenAPI 3.1 contract",
+      "kind": "review-target-schema",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/protocol/draft-2.0.0-1/openapi.json",
+      "authority": "HAIP project",
+      "status": "draft",
+      "normativeRole": "review-target HTTP cross-check evidence",
+      "usedFor": ["HTTP surface cross-check"]
+    },
+    {
+      "id": "haip-app-host",
+      "title": "HAIP pinned native Agent UI browser host implementation",
+      "kind": "review-target-implementation",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/haip-server/src/browser/host.ts",
+      "authority": "HAIP project",
+      "status": "reference implementation",
+      "normativeRole": "non-normative pinned implementation evidence for Host lifecycle, message validation and human confirmation",
+      "usedFor": ["pinned Host lifecycle", "message validation", "human confirmation"]
+    },
+    {
+      "id": "haip-app-sandbox",
+      "title": "HAIP pinned native Agent UI sandbox proxy",
+      "kind": "review-target-implementation",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/haip-server/src/browser/sandbox.ts",
+      "authority": "HAIP project",
+      "status": "reference implementation",
+      "normativeRole": "non-normative pinned implementation evidence for the opaque View boundary and message filtering",
+      "usedFor": ["origin and WindowProxy checks", "message filtering", "sandbox lifecycle"]
+    },
+    {
+      "id": "haip-agent-ui-profile",
+      "title": "Proposed HAIP Agent UI Host/View profile",
+      "kind": "proposed-extension-specification",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/verification/native-isolate/review/haip-agent-ui-profile.md",
+      "authority": "HAIP PR #6 proposal",
+      "status": "draft proposal",
+      "normativeRole": "proposed extension contract under review; not a published HAIP revision",
+      "usedFor": ["Host/View lifecycle", "message subset", "sandbox and fallback invariants"]
+    },
+    {
+      "id": "haip-agent-ui-model",
+      "title": "Pinned HAIP Agent UI and approval-spine Quint model",
+      "kind": "verification-model",
+      "revision": "f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5",
+      "url": "https://github.com/haiprotocol/haip/blob/f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5/verification/native-isolate/quint/scenarios.qnt",
+      "authority": "HAIP PR #6 verification artefact",
+      "status": "non-normative model",
+      "normativeRole": "non-normative executable abstraction checked against the proposed profile and implementation",
+      "usedFor": ["deterministic traces", "bounded simulation", "toolchain smoke"]
+    }
+  ]
+}

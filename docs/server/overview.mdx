@@ -5,14 +5,14 @@ description: 'What the Node.js service owns, and what remains outside its bounda
 
 The draft reference service uses Node.js 24, Express 5 and PostgreSQL. It owns authenticated review, immutable bindings, trusted confirmation, claims and fresh admission, audit records, retention and advisory notifications. It is not a general executor.
 
-Operator-managed directory entries distinguish producers, publishers and humans. A producer has verified ownership, permitted routes and an optional registered webhook destination. A publisher registers its own immutable App bundles and has no review-payload access.
+Operator-managed directory entries distinguish producers, publishers and humans. A producer has verified ownership, permitted routes and an optional registered webhook destination. A publisher registers its own immutable View bundles and has no review-payload access.
 
-The native inbox presents full retained documents, searchable payloads, response schemas, assignments and separate decision/audit/grant/execution states. The trusted response form remains available if an optional App fails. Request listing returns bounded pages; it does not load the entire tenant history into the browser.
+The native inbox presents full retained documents, searchable payloads, response schemas, assignments and separate decision, audit, grant and execution states. The trusted response form remains available if an optional View fails. Request listing returns bounded pages. It does not load the entire tenant history into the browser.
 
 Reads project expiry and withhold private material as soon as its captured retention deadline is reached, even if a cleanup job has not yet persisted that transition. Reads do not create audit events. The retention worker persists lifecycle changes separately with service attribution.
 
 Authority-changing transactions serialise per tenant and sample PostgreSQL time after acquiring the lock. State, audit records, events and outbox jobs commit together. Notification delivery may retry, but it cannot confirm a response, authorise an action or move a deadline.
 
-Execution grants require independent checkpoint acceptance. Permanent safety records fence generations, occurrences and identities across restore. The current production design has one active process per generation; restart requires offline recovery and fresh provisioning.
+Execution grants require independent checkpoint acceptance. Permanent safety records fence generations, occurrences and identities across restore. The current production design has one active process per generation. Restart requires offline recovery and fresh provisioning.
 
 Use [configuration](/server/configuration), [authentication](/server/authentication), [deployment](/server/deployment) and [monitoring](/server/monitoring) before operating the service. Local fixtures and successful CI do not validate a production provider account or Plasm integration.

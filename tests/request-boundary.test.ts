@@ -113,7 +113,7 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     '/v2/bundles',
     {
       html,
-      compatibility: { ext_apps: '1.7.4', mcp_sdk: '1.29.0' },
+      compatibility: { agent_ui: '2' },
       author: 'Test fixture',
       licence: 'MIT',
     },
@@ -124,7 +124,7 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     '/v2/requests',
     env.request(false, {
       bundle_id: registered.body.id,
-      profiles: { 'haip.mcp-app': '1-draft.1' },
+      profiles: { 'haip.agent-ui': '2' },
     }),
   );
   assert.equal(created.status, 201, JSON.stringify(created.body));
@@ -201,6 +201,35 @@ test('review CSP permits only its bound sandbox and stored bundle corruption is 
     (await human.call(`/v2/requests/${id}/app`)).body.error,
     'bundle_integrity_mismatch',
   );
+});
+
+test('an App receives only a complete inline snapshot', async () => {
+  const registered = await env.api(
+    '/v2/bundles',
+    {
+      html: '<!doctype html><p>Large payload fixture</p>',
+      compatibility: { agent_ui: '2' },
+      author: 'Test fixture',
+      licence: 'MIT',
+    },
+    env.credentials.publisher,
+  );
+  assert.equal(registered.status, 201);
+  const created = await env.api(
+    '/v2/requests',
+    env.request(false, {
+      bundle_id: registered.body.id,
+      profiles: { 'haip.agent-ui': '2' },
+      payload: { value: 'x'.repeat(2 * 1024 ** 2) },
+    }),
+  );
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const human = await env.login();
+  const material = await human.call(`/v2/requests/${created.body.request.id}/material`);
+  assert.equal(material.status, 200);
+  const app = await human.call(`/v2/requests/${created.body.request.id}/app`);
+  assert.equal(app.status, 413);
+  assert.deepEqual(app.body, { error: 'app_snapshot_too_large' });
 });
 
 test('an exhausted producer is refused before its next body is buffered while existing review remains available', async () => {

@@ -3,39 +3,39 @@ title: 'Configuration and captured limits'
 description: 'Configure explicit identities, origins and storage, with bounded per-principal resource use.'
 ---
 
-The server entry point reads explicit environment configuration. The complete operational procedure is in `OPERATIONS.md` in the checkout; these are the principal settings:
+The server entry point reads explicit environment configuration. The complete operational procedure is in `OPERATIONS.md` in the checkout. These are the principal settings:
 
-| Setting                                                                           | Purpose                                                                                                                                                           |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HAIP_MODE`                                                                       | `development` for isolated fixtures or `production` with all production gates.                                                                                    |
-| `HAIP_LISTEN_HOST`                                                                | Listener interface; defaults to loopback. Container exposure needs an explicit, separately restricted interface.                                                  |
-| `HAIP_ORIGIN`, `HAIP_SANDBOX_ORIGIN`                                              | Exact trusted origin and App template containing `{scope}` once. HTTPS and separate registrable sites are required unless both hosts are loopback in development. |
-| `HAIP_DATABASE_URL`, optional `HAIP_DATABASE_CA_FILE`                             | PostgreSQL connection and custom trust root where needed; production requires verified TLS.                                                                       |
-| `HAIP_SIGNING_KEY_FILE`, `HAIP_SIGNING_KEY_ID`, `HAIP_TRUST_MANIFEST_FILE`        | Ed25519 signing identity and independently supplied public-key trust.                                                                                             |
-| `HAIP_OIDC_ISSUER`, `HAIP_OIDC_CLIENT_ID`, `HAIP_OIDC_CLIENT_SECRET`              | Explicit identity-provider application configuration.                                                                                                             |
-| `HAIP_AZURE_ACCOUNT_URL`, `HAIP_AZURE_CONTAINER`, `HAIP_ANCHOR_INDEPENDENT_ADMIN` | Required production anchor location and independent-administration acknowledgement.                                                                               |
+| Setting                                                                           | Purpose                                                                                                                                                            |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HAIP_MODE`                                                                       | `development` for isolated fixtures or `production` with all production gates.                                                                                     |
+| `HAIP_LISTEN_HOST`                                                                | Listener interface. Defaults to loopback. Container exposure needs an explicit, separately restricted interface.                                                   |
+| `HAIP_ORIGIN`, `HAIP_SANDBOX_ORIGIN`                                              | Exact trusted origin and View template containing `{scope}` once. HTTPS and separate registrable sites are required unless both hosts are loopback in development. |
+| `HAIP_DATABASE_URL`, optional `HAIP_DATABASE_CA_FILE`                             | PostgreSQL connection and custom trust root where needed. Production requires verified TLS.                                                                        |
+| `HAIP_SIGNING_KEY_FILE`, `HAIP_SIGNING_KEY_ID`, `HAIP_TRUST_MANIFEST_FILE`        | Ed25519 signing identity and independently supplied public-key trust.                                                                                              |
+| `HAIP_OIDC_ISSUER`, `HAIP_OIDC_CLIENT_ID`, `HAIP_OIDC_CLIENT_SECRET`              | Explicit identity-provider application configuration.                                                                                                              |
+| `HAIP_AZURE_ACCOUNT_URL`, `HAIP_AZURE_CONTAINER`, `HAIP_ANCHOR_INDEPENDENT_ADMIN` | Required production anchor location and independent-administration acknowledgement.                                                                                |
 
-SMTP and allowlisted HTTPS webhooks are optional. Individual review requests cannot nominate their own delivery destinations. Production checks apply before database setup, including offline bootstrap; an acknowledgement alone does not prove real administrator or writer separation.
+SMTP and allowlisted HTTPS webhooks are optional. Individual review requests cannot nominate their own delivery destinations. Production checks apply before database setup, including offline bootstrap. An acknowledgement alone does not prove real administrator or writer separation.
 
-Production enables certificate-verified database TLS even when the connection URL omits SSL flags. If `sslmode` is present it must be `verify-full`; insecure or ambiguous SSL parameters and query-string host overrides are refused. `HAIP_DATABASE_CA_FILE` adds a private CA without disabling verification.
+Production enables certificate-verified database TLS even when the connection URL omits SSL flags. If `sslmode` is present it must be `verify-full`. Insecure or ambiguous SSL parameters and query-string host overrides are refused. `HAIP_DATABASE_CA_FILE` adds a private CA without disabling verification.
 
-Offline bootstrap requires an operator token generated from at least 32 cryptographically random bytes, encoded as unpadded base64url or hexadecimal. Short or obviously repeated values are refused; format checks cannot establish the randomness of a supplied secret. Never reuse a fixture token or use a password.
+Offline bootstrap requires an operator token generated from at least 32 cryptographically random bytes, encoded as unpadded base64url or hexadecimal. Short or obviously repeated values are refused. Format checks cannot establish the randomness of a supplied secret. Never reuse a fixture token or use a password.
 
-The trust manifest is strict, schema-validated JSON with matching issuer and protocol revision, unique key IDs and public-only Ed25519 keys. The selected signing key must match its public entry and be currently valid and unrevoked. Expired public keys may remain for historical verification; a supplied discovery manifest does not establish trust by itself.
+The trust manifest is strict, schema-validated JSON with matching issuer and protocol revision, unique key IDs and public-only Ed25519 keys. The selected signing key must match its public entry and be currently valid and unrevoked. Expired public keys may remain for historical verification. A supplied discovery manifest does not establish trust by itself.
 
 | Captured request limit                                                         | Default maximum                                                                        |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| App bundle / review payload or document                                        | 5 MiB / 10 MiB.                                                                        |
-| Response / response schema / request metadata / execution provenance reference | 256 KiB each; metadata and provenance follow the route's captured response-byte limit. |
-| Inline App result                                                              | 2 MiB; larger material remains available in the searchable trusted host.               |
+| View bundle / review payload or document                                       | 5 MiB / 10 MiB.                                                                        |
+| Response / response schema / request metadata / execution provenance reference | 256 KiB each. Metadata and provenance follow the route's captured response-byte limit. |
+| Inline View result                                                             | 2 MiB. Larger material remains available in the searchable trusted host.               |
 | Retained material                                                              | 1 GiB per producer, including linked bundle usage.                                     |
-| Producer creation                                                              | 10/minute, burst 20; 200/day; 100 outstanding.                                         |
-| Tenant creation                                                                | 50/minute, burst 100; 1,000/day; 500 outstanding.                                      |
+| Producer creation                                                              | 10/minute, burst 20. 200/day. 100 outstanding.                                         |
+| Tenant creation                                                                | 50/minute, burst 100. 1,000/day. 500 outstanding.                                      |
 | Route creation                                                                 | 100/day.                                                                               |
-| Email / reminders                                                              | 10 per recipient/hour; one reminder per request/day.                                   |
+| Email / reminders                                                              | 10 per recipient/hour. One reminder per request/day.                                   |
 
-Bundle registration has separate operational limits: publisher 2/minute with burst 5 and 20/day; tenant 10/minute with burst 20 and 100/day. Retained bundle bytes are capped at 1 GiB per publisher and per tenant, with linked producer retention limits also enforced. Identical idempotent retries do not consume an additional registration slot.
+Bundle registration has separate operational limits: publisher 2/minute with burst 5 and 20/day, and tenant 10/minute with burst 20 and 100/day. Retained bundle bytes are capped at 1 GiB per publisher and per tenant, with linked producer retention limits also enforced. Identical idempotent retries do not consume an additional registration slot.
 
-Routes may lower their request limits, never exceed the reference maxima. Stable principal counters survive token rotation. Reassignment, cleanup and supersession do not reset fatigue limits. Creation reserves response capacity so an existing review can still be resolved when creation is throttled.
+Routes may lower their request limits but may never exceed the reference maxima. Stable principal counters survive token rotation. Reassignment, cleanup and supersession do not reset fatigue limits. Creation reserves response capacity so an existing review can still be resolved when creation is throttled.
 
-Review and grant defaults are 24 hours each, execution one hour, private reconciliation seven days and audit retention 90 days. Execution-private material has an absolute cap of nine days and one hour from acceptance. Reads enforce captured expiry immediately; background cleanup persists transitions in indexed batches of 50 due requests, releasing the tenant lock between batches.
+Review and grant defaults are 24 hours each, execution one hour, private reconciliation seven days and audit retention 90 days. Execution-private material has an absolute cap of nine days and one hour from acceptance. Reads enforce captured expiry immediately. Background cleanup persists transitions in indexed batches of 50 due requests, releasing the tenant lock between batches.
