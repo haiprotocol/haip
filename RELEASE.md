@@ -1,10 +1,12 @@
 # Release gates
 
-Version: **2.0.0-draft.3**. The current changes and isolated checks are under review in [HAIP draft PR #6](https://github.com/haiprotocol/haip/pull/6), based on the implementation in PR #5. Full HAIP 2 and a Plasm live-window release are **not ready**. Package publication and deployment have not been performed.
+Version: **2.0.0-draft.3**. The Agent UI changes were reviewed in [PR #6](https://github.com/haiprotocol/haip/pull/6) and merged into the `l/haip-2` branch under review in [PR #5](https://github.com/haiprotocol/haip/pull/5). Full HAIP 2 and a Plasm live-window release are **not ready**. Package publication and deployment have not been performed.
 
 ## Draft evidence
 
 Draft contracts, schemas, generated types, OpenAPI, reference service, native host and inbox, SDK and CLI, independent HTTP review and Agent UI View demonstrations, fixed-counter demonstrations, HITL mapping, delivery, quotas, retention, recovery, backups, migrations and operations are implemented. Exact results are in the research manifest. [ACCEPTANCE.md](ACCEPTANCE.md) maps coverage. The [review follow-up](REVIEW-FIXES.md) records the later fixes and expanded coverage from a clean checkout and hosted CI without treating historical run records as evidence for the current source. The subsequent [worker and boundary follow-up](WORKER-FOLLOW-UP.md) records bounded cleanup and checkpoint continuation, draft pagination and remaining boundary fixes. Its [hosted run](https://github.com/haiprotocol/haip/actions/runs/33342151204) passed 85 tests, 25 comparisons, four package dry runs, the production dependency audit and nine container checks on `7daeefa`, with [separate evidence](research/haip2-2026-08-30/validation/worker-follow-up-7daeefa/README.md).
+
+The [Agent UI run](https://github.com/haiprotocol/haip/actions/runs/33811067004) tested `c39eb20ac8707e0b3ddafabfb3edc201a992a80c`. [The implementation ledger](IMPLEMENTATION.md) records its results and scope. Later commits require a current passing PR check.
 
 [Hosted CI](https://github.com/haiprotocol/haip/actions/runs/33334308802) passed on `5f70557e7d8a0f29a1e0ea87170689d452375d31`: 46 tests, 25 cross-language comparisons, zero known production dependency vulnerabilities and four package dry runs. [Retained remote evidence](research/haip2-2026-08-30/validation/remote-ci-33334308802/manifest.json) is separate from historical local records. Current PR checks govern later revisions.
 

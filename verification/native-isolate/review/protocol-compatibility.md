@@ -37,4 +37,4 @@ Draft 2 and profile 1 remain immutable historical contracts. Draft 3 does not re
 
 Lee Crossley (`@leecrossley`) owns the HAIP Agent UI profile, `@haip/view` client, HAIP conformance fixtures and release cadence.
 
-Renderer integration and its acceptance test need an external owner. Ryan Roberts (`@ryan-s-roberts`) has been asked to own that work and has not yet acknowledged it. PR #6 remains draft pending that acknowledgement.
+The separate renderer acknowledgement was withdrawn. HAIP assigns no external renderer work and does not depend on an external port. Any external integration is independent and carries its own acceptance tests.
