@@ -180,7 +180,7 @@ for (const [method, path, sourceInput, sourceOutput, summary] of operations) {
     ? 'Assignment'
     : (sourceOutput ?? contracts[path]?.[1]);
   if (!output) throw new Error('Missing response contract: ' + path);
-  const human = /assignment|candidates|confirm|\/app$/.test(path),
+  const human = /(?:assignment|candidates|confirm|\/app)$/.test(path),
     parameters = [];
   if (path.includes('{id}'))
     parameters.push({ in: 'path', name: 'id', required: true, schema: { type: 'string' } });

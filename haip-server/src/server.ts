@@ -15,6 +15,7 @@ import { ProtocolError, requireThat } from './errors.js';
 import { Metrics, prometheus } from './metrics.js';
 import { validate } from './validation.js';
 import { requireBoundBundle } from './bundle.js';
+import { principalRateKey, requestRateLimit } from './rate-limit.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = (name: string) =>
   readFileSync(new URL('../public/' + name, import.meta.url), 'utf8');
@@ -22,6 +23,10 @@ const hostPolicy = (frameOrigin = "'none'") =>
   `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-src ${frameOrigin}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`;
 const bundleScope = (tenant: string, bundle: { publisher: string; digest: string }) =>
   digest({ tenant, publisher: bundle.publisher, digest: bundle.digest }).slice(7);
+const pathId = (request: Request) => {
+  requireThat(typeof request.params.id === 'string', 400, 'invalid_path_parameter');
+  return request.params.id;
+};
 function jsonBody(limit: number): RequestHandler[] {
   return [
     (req, _res, next) => {
@@ -50,6 +55,15 @@ function jsonBody(limit: number): RequestHandler[] {
 export function createApp(service: ReviewService) {
   const app = express();
   const metrics = new Metrics();
+  const healthAdmission = requestRateLimit({
+    limit: 600,
+    identifier: 'health-service',
+  });
+  const principalAdmission = requestRateLimit({
+    limit: 1200,
+    identifier: 'principal',
+    key: principalRateKey,
+  });
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.once('finish', () => {
@@ -73,7 +87,7 @@ export function createApp(service: ReviewService) {
   });
   app.get('/.well-known/haip', (_req, res) => res.json(service.discovery()));
   app.get('/.well-known/haip-trust', (_req, res) => res.json(service.config.trust));
-  app.get('/health', async (_req, res) => {
+  app.get('/health', healthAdmission, async (_req, res) => {
     await service.store.pool.query('SELECT 1');
     res.json({ status: 'ok', release: 'draft', notifications: service.discovery().notifications });
   });
@@ -91,6 +105,7 @@ export function createApp(service: ReviewService) {
   );
   app.get('/', (_req, res) => res.redirect('/inbox'));
   installAuth(app, service);
+  app.use('/v2', principalAdmission);
   app.get(['/inbox', '/review/:id'], async (req, res) => {
     requireThat(req.principal.kind === 'human', 403, 'human_required');
     if (typeof req.params.id === 'string') {
@@ -165,7 +180,7 @@ export function createApp(service: ReviewService) {
     role('operator'),
     ...jsonBody(64 * 1024),
   );
-  app.get('/v2/requests', async (req, res) =>
+  app.get('/v2/requests', principalAdmission, async (req, res) =>
     res.json(
       await service.list(
         req.principal,
@@ -174,21 +189,21 @@ export function createApp(service: ReviewService) {
       ),
     ),
   );
-  app.post('/v2/bundles', async (req, res) =>
+  app.post('/v2/bundles', principalAdmission, async (req, res) =>
     res.status(201).json(await service.registerBundle(req.principal, req.body, key(req))),
   );
-  app.post('/v2/requests', async (req, res) =>
+  app.post('/v2/requests', principalAdmission, async (req, res) =>
     res.status(201).json(await service.create(req.principal, req.body, key(req))),
   );
-  app.get('/v2/requests/:id', async (req, res) =>
-    res.json(await service.status(req.principal, req.params.id!)),
+  app.get('/v2/requests/:id', principalAdmission, async (req, res) =>
+    res.json(await service.status(req.principal, pathId(req))),
   );
-  app.get('/v2/requests/:id/material', async (req, res) =>
-    res.json(await service.material(req.principal, req.params.id!)),
+  app.get('/v2/requests/:id/material', principalAdmission, async (req, res) =>
+    res.json(await service.material(req.principal, pathId(req))),
   );
-  app.get('/v2/requests/:id/app', async (req, res) => {
+  app.get('/v2/requests/:id/app', principalAdmission, async (req, res) => {
     human(req);
-    const data = await service.material(req.principal, req.params.id!);
+    const data = await service.material(req.principal, pathId(req));
     const bundle = data.request.review.bundle;
     requireThat(bundle, 404, 'not_found');
     const found = (
@@ -246,15 +261,15 @@ export function createApp(service: ReviewService) {
       result,
     });
   });
-  app.post('/v2/requests/:id/assignment', async (req, res) => {
+  app.post('/v2/requests/:id/assignment', principalAdmission, async (req, res) => {
     human(req);
-    res.json(await service.assign(req.principal, req.params.id!, key(req)));
+    res.json(await service.assign(req.principal, pathId(req), key(req)));
   });
-  app.post('/v2/requests/:id/candidates', async (req, res) => {
+  app.post('/v2/requests/:id/candidates', principalAdmission, async (req, res) => {
     human(req);
-    res.status(201).json(await service.propose(req.principal, req.params.id!, req.body, key(req)));
+    res.status(201).json(await service.propose(req.principal, pathId(req), req.body, key(req)));
   });
-  app.post('/v2/requests/:id/confirm', async (req, res) => {
+  app.post('/v2/requests/:id/confirm', principalAdmission, async (req, res) => {
     human(req);
     validate('Confirmation', req.body);
     requireThat(
@@ -265,63 +280,61 @@ export function createApp(service: ReviewService) {
     res.json(
       await service.confirm(
         req.principal,
-        req.params.id!,
+        pathId(req),
         req.body.candidate_id,
         req.body.candidate_digest,
         key(req),
       ),
     );
   });
-  app.post('/v2/requests/:id/cancel', async (req, res) =>
-    res.json(await service.invalidate(req.principal, req.params.id!, 'cancelled', key(req))),
+  app.post('/v2/requests/:id/cancel', principalAdmission, async (req, res) =>
+    res.json(await service.invalidate(req.principal, pathId(req), 'cancelled', key(req))),
   );
-  app.post('/v2/requests/:id/revoke', async (req, res) =>
-    res.json(await service.invalidate(req.principal, req.params.id!, 'revoked', key(req))),
+  app.post('/v2/requests/:id/revoke', principalAdmission, async (req, res) =>
+    res.json(await service.invalidate(req.principal, pathId(req), 'revoked', key(req))),
   );
-  app.post('/v2/requests/:id/remind', async (req, res) =>
-    res.json(await service.remind(req.principal, req.params.id!, key(req))),
+  app.post('/v2/requests/:id/remind', principalAdmission, async (req, res) =>
+    res.json(await service.remind(req.principal, pathId(req), key(req))),
   );
-  app.post('/v2/requests/:id/discard', async (req, res) =>
-    res.json(await service.discard(req.principal, req.params.id!, key(req))),
+  app.post('/v2/requests/:id/discard', principalAdmission, async (req, res) =>
+    res.json(await service.discard(req.principal, pathId(req), key(req))),
   );
-  app.post('/v2/requests/:id/supersede', async (req, res) =>
-    res
-      .status(201)
-      .json(await service.supersede(req.principal, req.params.id!, req.body, key(req))),
+  app.post('/v2/requests/:id/supersede', principalAdmission, async (req, res) =>
+    res.status(201).json(await service.supersede(req.principal, pathId(req), req.body, key(req))),
   );
-  app.post('/v2/requests/:id/claims', async (req, res) =>
-    res.status(201).json(await service.claim(req.principal, req.params.id!, req.body, key(req))),
+  app.post('/v2/requests/:id/claims', principalAdmission, async (req, res) =>
+    res.status(201).json(await service.claim(req.principal, pathId(req), req.body, key(req))),
   );
-  app.post('/v2/requests/:id/admission', async (req, res) =>
-    res.json(await service.admission(req.principal, req.params.id!, req.body)),
+  app.post('/v2/requests/:id/admission', principalAdmission, async (req, res) =>
+    res.json(await service.admission(req.principal, pathId(req), req.body)),
   );
-  app.post('/v2/requests/:id/outcomes', async (req, res) =>
-    res.json(await service.outcome(req.principal, req.params.id!, req.body, key(req))),
+  app.post('/v2/requests/:id/outcomes', principalAdmission, async (req, res) =>
+    res.json(await service.outcome(req.principal, pathId(req), req.body, key(req))),
   );
-  app.post('/v2/requests/:id/reconcile', async (req, res) =>
-    res.json(await service.outcome(req.principal, req.params.id!, req.body, key(req), true)),
+  app.post('/v2/requests/:id/reconcile', principalAdmission, async (req, res) =>
+    res.json(await service.outcome(req.principal, pathId(req), req.body, key(req), true)),
   );
-  app.get('/v2/requests/:id/export', async (req, res) =>
-    res.json(await service.export(req.principal, req.params.id!)),
+  app.get('/v2/requests/:id/export', principalAdmission, async (req, res) =>
+    res.json(await service.export(req.principal, pathId(req))),
   );
-  app.get('/v2/hitl/:id', async (req, res) => {
-    const result = await hitlStatus(service, req.principal, req.params.id!);
+  app.get('/v2/hitl/:id', principalAdmission, async (req, res) => {
+    const result = await hitlStatus(service, req.principal, pathId(req));
     res.status(result.httpStatus).json(result.body);
   });
-  app.get('/v2/hitl/:id/poll', async (req, res) =>
-    res.json(await hitlPoll(service, req.principal, req.params.id!)),
+  app.get('/v2/hitl/:id/poll', principalAdmission, async (req, res) =>
+    res.json(await hitlPoll(service, req.principal, pathId(req))),
   );
-  app.get('/v2/events', async (req, res) =>
+  app.get('/v2/events', principalAdmission, async (req, res) =>
     res.json(await service.events(req.principal, offset(req.query.after))),
   );
-  app.put('/v2/admin/principals/:id', async (req, res) => {
-    requireThat(req.params.id === req.body.id, 400, 'identity_mismatch');
+  app.put('/v2/admin/principals/:id', principalAdmission, async (req, res) => {
+    requireThat(pathId(req) === req.body.id, 400, 'identity_mismatch');
     res.json(await registerPrincipal(service, req.principal, req.body));
   });
-  app.put('/v2/admin/routes/:id', async (req, res) =>
-    res.json(await registerRoute(service, req.principal, req.params.id!, req.body)),
+  app.put('/v2/admin/routes/:id', principalAdmission, async (req, res) =>
+    res.json(await registerRoute(service, req.principal, pathId(req), req.body)),
   );
-  app.get('/v2/admin/ledger', async (req, res) => {
+  app.get('/v2/admin/ledger', principalAdmission, async (req, res) => {
     requireThat(req.principal.kind === 'operator', 403, 'operator_required');
     res.json(
       (
@@ -332,10 +345,10 @@ export function createApp(service: ReviewService) {
       ).rows,
     );
   });
-  app.get('/v2/admin/metrics', async (req, res) =>
+  app.get('/v2/admin/metrics', principalAdmission, async (req, res) =>
     res.json(await metrics.snapshot(service, req.principal)),
   );
-  app.get('/v2/admin/metrics.prom', async (req, res) =>
+  app.get('/v2/admin/metrics.prom', principalAdmission, async (req, res) =>
     res.type('text/plain').send(prometheus(await metrics.snapshot(service, req.principal))),
   );
   app.use((_req, _res, next) => next(new ProtocolError(404, 'not_found')));

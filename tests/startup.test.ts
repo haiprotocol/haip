@@ -59,6 +59,7 @@ test('production requires explicit anchor configuration before database access, 
   const complete = {
     HAIP_AZURE_ACCOUNT_URL: 'https://fixture.blob.core.windows.net',
     HAIP_AZURE_CONTAINER: 'audit',
+    HAIP_AZURE_SAFETY_CONTAINER: 'safety',
     HAIP_ANCHOR_INDEPENDENT_ADMIN: 'true',
   };
   requireProductionAnchor('development', {});
@@ -68,6 +69,14 @@ test('production requires explicit anchor configuration before database access, 
     delete missing[field];
     assert.throws(() => requireProductionAnchor('production', missing), /Production requires/);
   }
+  assert.throws(
+    () =>
+      requireProductionAnchor('production', {
+        ...complete,
+        HAIP_AZURE_SAFETY_CONTAINER: complete.HAIP_AZURE_CONTAINER,
+      }),
+    /separate Azure containers/,
+  );
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([name]) => !name.startsWith('HAIP_')),
   );

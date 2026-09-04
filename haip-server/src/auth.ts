@@ -5,6 +5,7 @@ import { digestBytes } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
 import type { Principal } from './config.js';
 import { requireThat } from './errors.js';
+import { principalRateKey, requestRateLimit } from './rate-limit.js';
 export interface HumanSession {
   tenant: string;
   id: string;
@@ -28,6 +29,20 @@ const cookie = (req: Request, name: string) =>
     ?.slice(name.length + 1);
 export function installAuth(app: Express, service: ReviewService) {
   const { store, config } = service;
+  const loginAdmission = requestRateLimit({
+    limit: 120,
+    identifier: 'login-service',
+  });
+  // Caddy is the direct peer, so requests without an authenticated principal share this service bucket.
+  const credentialAdmission = requestRateLimit({
+    limit: 12000,
+    identifier: 'credential-service',
+  });
+  const humanAdmission = requestRateLimit({
+    limit: 1200,
+    identifier: 'human',
+    key: principalRateKey,
+  });
   const callback = config.origin + '/auth/callback';
   let discovered: Promise<oidc.Configuration> | undefined;
   const client = () =>
@@ -50,7 +65,7 @@ export function installAuth(app: Express, service: ReviewService) {
         discovered = undefined;
         throw e;
       }));
-  app.get('/auth/login', async (req, res) => {
+  app.get('/auth/login', loginAdmission, async (req, res) => {
     const c = await client(),
       state = random(),
       nonce = oidc.randomNonce(),
@@ -115,7 +130,7 @@ export function installAuth(app: Express, service: ReviewService) {
       }).href,
     );
   });
-  app.get('/auth/callback', async (req, res) => {
+  app.get('/auth/callback', loginAdmission, async (req, res) => {
     const token = cookie(req, '__Host-haip-login');
     requireThat(token, 401, 'invalid_login');
     requireThat(typeof req.query.state === 'string', 401, 'invalid_login');
@@ -264,12 +279,17 @@ export function installAuth(app: Express, service: ReviewService) {
     }
     next();
   };
-  app.use(['/v2', '/review', '/inbox', '/auth/session', '/auth/logout'], authenticate);
-  app.get('/auth/session', (req, res) => {
+  app.use(
+    ['/v2', '/review', '/inbox', '/auth/session', '/auth/logout'],
+    credentialAdmission,
+    authenticate,
+  );
+  app.use(['/review', '/inbox', '/auth/session', '/auth/logout'], humanAdmission);
+  app.get('/auth/session', humanAdmission, (req, res) => {
     requireThat(req.humanSession, 403, 'human_required');
     res.json({ subject: req.principal.id, csrf: req.humanSession.csrf });
   });
-  app.post('/auth/logout', async (req, res) => {
+  app.post('/auth/logout', humanAdmission, async (req, res) => {
     const token = cookie(req, '__Host-haip');
     if (token)
       await store.pool.query('DELETE FROM haip_sessions WHERE token_hash=$1', [digestBytes(token)]);

@@ -1,0 +1,144 @@
+{
+  "document_type": "plan",
+  "schema_version": "haip.deployment.acceptance.v1",
+  "source": {
+    "commit": "0000000000000000000000000000000000000000",
+    "require_clean": true
+  },
+  "deployment": {
+    "environment": "replace-with-isolated-environment",
+    "protocol_revision": "2.0.0-draft.3",
+    "configuration_revision": "replace-with-reviewed-configuration-revision",
+    "service_artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "trusted_origin": "https://review.example.com",
+    "sandbox_origin_pattern": "https://{scope}.review-sandbox.example",
+    "runtime_identity_label": "replace-with-runtime-identity-label",
+    "storage_administrator_label": "replace-with-independent-administrator-label",
+    "independent_administration_asserted": false,
+    "components": [
+      {
+        "kind": "runtime",
+        "provider": "replace-with-provider",
+        "region": "replace-with-region",
+        "revision": "replace-with-runtime-revision"
+      },
+      {
+        "kind": "database",
+        "provider": "replace-with-provider",
+        "region": "replace-with-region",
+        "revision": "PostgreSQL 17"
+      },
+      {
+        "kind": "identity",
+        "provider": "replace-with-provider",
+        "region": "replace-with-region",
+        "revision": "replace-with-application-revision"
+      },
+      {
+        "kind": "anchor",
+        "provider": "Azure Blob Storage",
+        "region": "replace-with-region",
+        "revision": "replace-after-checkpoint-default-and-safety-container-policies-are-locked-and-safety-is-held",
+        "identity_label": "replace-with-runtime-identity-label"
+      },
+      {
+        "kind": "backup",
+        "provider": "replace-with-private-storage-provider",
+        "region": "replace-with-region",
+        "revision": "replace-with-lifecycle-revision"
+      },
+      {
+        "kind": "notifications",
+        "provider": "replace-with-provider",
+        "region": "replace-with-region",
+        "revision": "replace-with-endpoint-revision"
+      },
+      {
+        "kind": "monitoring",
+        "provider": "replace-with-provider",
+        "region": "replace-with-region",
+        "revision": "replace-with-alert-revision"
+      }
+    ]
+  },
+  "adapter_env": [
+    "AZURE_CLIENT_ID",
+    "AZURE_CLIENT_SECRET",
+    "AZURE_TENANT_ID",
+    "HAIP_BACKUP_KEY",
+    "HAIP_DATABASE_URL",
+    "HAIP_OIDC_CLIENT_SECRET",
+    "HAIP_RECOVERY_TOKEN",
+    "HAIP_SMTP_PASSWORD"
+  ],
+  "secret_env": [
+    "AZURE_CLIENT_SECRET",
+    "HAIP_BACKUP_KEY",
+    "HAIP_DATABASE_URL",
+    "HAIP_OIDC_CLIENT_SECRET",
+    "HAIP_RECOVERY_TOKEN",
+    "HAIP_SMTP_PASSWORD"
+  ],
+  "checks": [
+    {
+      "id": "origins_tls",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No live origin and TLS adapter is configured."
+    },
+    {
+      "id": "external_identity",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No external identity application is configured."
+    },
+    {
+      "id": "writer_permissions",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No restricted storage writer is configured."
+    },
+    {
+      "id": "immutable_storage",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No locked immutable storage namespace is configured."
+    },
+    {
+      "id": "duplicate_conflict",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No independently supervised conflict injector is configured."
+    },
+    {
+      "id": "outage_expiry",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No approved storage outage exercise is configured."
+    },
+    {
+      "id": "backup_recovery",
+      "command": null,
+      "timeout_ms": 300000,
+      "unrun_reason": "No isolated deployed backup target is configured."
+    },
+    {
+      "id": "notifications",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No test recipient or persistent webhook receiver is configured."
+    },
+    {
+      "id": "operations",
+      "command": null,
+      "timeout_ms": 60000,
+      "unrun_reason": "No installed metrics scrape or incident route is configured."
+    },
+    {
+      "id": "restart_rollback",
+      "command": null,
+      "timeout_ms": 300000,
+      "unrun_reason": "No isolated restart and rollback rehearsal is configured."
+    }
+  ]
+}

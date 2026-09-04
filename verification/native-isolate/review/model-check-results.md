@@ -2,9 +2,9 @@
 
 ## Evidence
 
-These results apply to the historical native isolate model at implementation commit `f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5` and tree `0b60353f5904aeb84713c16d337f6ecfdacd7638`. [`sources/sources.lock.json`](../sources/sources.lock.json) pins the reviewed protocol and implementation evidence independently.
+The original native isolate review applies to implementation commit `f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5` and tree `0b60353f5904aeb84713c16d337f6ecfdacd7638`. [`sources/sources.lock.json`](../sources/sources.lock.json) preserves the protocol and implementation evidence used for that review.
 
-The model provides evidence for the state and authority properties recorded below. It predates the complete `2.0.0-draft.3` envelope, exact Agent UI profile 2 message union and fixed transport budgets. It has not been rebound to those wire shapes and does not prove their conformance.
+The current repository runs [`scripts/check-current-contract.mjs`](../scripts/check-current-contract.mjs) before the Quint typecheck. It checks the immutable `2.0.0-draft.3` purpose coupling, Agent UI profile identity, closed message unions, lifecycle and fixed limits against the built protocol constants, then requires the mapped model actions and invariants. The finite model still abstracts field parsing, byte accounting and browser enforcement.
 
 ## Toolchain
 
@@ -21,6 +21,7 @@ Run each command from `verification/native-isolate`.
 
 | Check                    | Exact command                                              | Result                                                                                                         |
 | ------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Current contract binding | `npm run check:contract`                                   | Pass for draft 3 identities, unions, lifecycle, limits and mapped model transitions                            |
 | Parse and typecheck      | `npm run check`                                            | Pass                                                                                                           |
 | Deterministic traces     | `npm test`                                                 | Pass, 46 of 46                                                                                                 |
 | Bounded simulation       | `npm run simulate`                                         | Pass, 500 samples, at most 30 transitions, seed `0x5eed2026`, with no `haipSafety` or `boundedState` violation |
@@ -48,7 +49,7 @@ The normative model path contains only native Agent UI state and the path from a
 
 ## Bounds
 
-The model has one finite candidate, occurrence, envelope, bundle, Host instance, View instance and proposal request. Integer tags abstract protocol enums. Hashes and signatures are modelled as unforgeable bindings. Browser origin and CSP enforcement, exact wire validation, and durable transactions are trusted guards that require separate implementation tests.
+The model has one finite candidate, occurrence, envelope, bundle, Host instance, View instance and proposal request. Integer tags abstract protocol enums. Hashes and signatures are modelled as unforgeable bindings. Browser origin and CSP enforcement, exact wire validation, byte limits and durable transactions are trusted guards that require separate implementation tests.
 
 The Apalache result checks its toolchain through two transitions. That depth cannot reach Host or View state and is not a symbolic proof of the profile. The deterministic traces and reproducible 30-step simulation provide routine executable checks. [`quint/temporal.qnt`](../quint/temporal.qnt) is typechecked, but its temporal formulas are not claimed as verified liveness proofs because an unconditional fairness assumption cannot force human response.
 
@@ -64,4 +65,4 @@ Apalache still emits a warning that its generated protobuf types predate the fix
 
 At commit `f3acf381416ff8c77fa63bd2aa69e32dbc1f24c5`, the model tests covered selected Host and View lifecycle cases, proposal correlation, authority separation, admission and effect invariants. The pinned implementation did not yet carry the complete final envelope or exact profile 2 wire contract.
 
-Draft 3 defines and tests those current shapes in [`protocol/draft-2.0.0-3/agent-ui.md`](../../../protocol/draft-2.0.0-3/agent-ui.md), its adjacent schema, the browser tests and the View client tests. That later evidence resolves the old implementation gap without changing the scope of this historical model result. Names left from the Apps comparison in the Quint modules record provenance only.
+Draft 3 defines and tests those shapes in [`protocol/draft-2.0.0-3/agent-ui.md`](../../../protocol/draft-2.0.0-3/agent-ui.md), its adjacent schema, the browser tests and the View client tests. The current binding check detects changes to the mapped contract without changing the scope or source history of the original model result. Names left from the Apps comparison in the Quint modules record provenance only.
