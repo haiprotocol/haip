@@ -1,0 +1,370 @@
+{
+  "recorded_at": "2026-08-30T23:33:54.930534+00:00",
+  "classification": "clean_copy_worker_and_boundary_validation",
+  "repository": "haiprotocol/haip",
+  "source_commit": "7daeefacb04891a610ebaea0b23bb942fec55782",
+  "source_tree": "232e59806ae3f78e0d90e7c178627b7a41402668",
+  "snapshot": "Fresh directory exported from the staged Git index, with npm ci; no pre-existing node_modules.",
+  "tracked_files_verified_unchanged_after_checks": 459,
+  "runtimes": {
+    "node": "v24.15.0",
+    "python": "Python 3.9.6",
+    "rust": "rustc 1.93.0 (254b59607 2026-01-19)",
+    "postgresql": "PostgreSQL 17.10 (Homebrew)"
+  },
+  "validation": {
+    "npm ci": "passed",
+    "npm run check": {
+      "tests": 85,
+      "pass": 85,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 163767.057292
+    },
+    "npm run test:cross-language": {
+      "passed": 25,
+      "scope": "Primitive comparisons, not full protocol or Plasm conformance"
+    },
+    "npm audit --omit=dev": {
+      "known_production_dependency_vulnerabilities": 0
+    },
+    "npm run pack:check": {
+      "draft_package_dry_runs": 4,
+      "new_migration_and_compiled_modules_in_server_package": true,
+      "publication_performed": false
+    },
+    "secret_review": "secret-review.json",
+    "screenshot_review": "The retained app is populated, its payload disclosure is visible, and the complete candidate appears before confirmation. The viewport is temporarily expanded for capture and restored before confirmation."
+  },
+  "commands": [
+    {
+      "command": [
+        "npm",
+        "ci"
+      ],
+      "log": "install.txt",
+      "started_at": "2026-08-30T23:30:18.360505+00:00",
+      "finished_at": "2026-08-30T23:30:22.585417+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "check"
+      ],
+      "log": "check.txt",
+      "started_at": "2026-08-30T23:30:22.586936+00:00",
+      "finished_at": "2026-08-30T23:33:13.456728+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "venv",
+        ".local/primitive-python"
+      ],
+      "log": "python-env.txt",
+      "started_at": "2026-08-30T23:33:13.458228+00:00",
+      "finished_at": "2026-08-30T23:33:15.980230+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        ".local/primitive-python/bin/pip",
+        "install",
+        "-r",
+        "research/haip2-2026-08-30/runners/requirements.txt"
+      ],
+      "log": "python-install.txt",
+      "started_at": "2026-08-30T23:33:15.980809+00:00",
+      "finished_at": "2026-08-30T23:33:19.674478+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:cross-language"
+      ],
+      "log": "cross-language.txt",
+      "started_at": "2026-08-30T23:33:19.675056+00:00",
+      "finished_at": "2026-08-30T23:33:30.207207+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "npm",
+        "audit",
+        "--omit=dev",
+        "--json"
+      ],
+      "log": "audit.json",
+      "started_at": "2026-08-30T23:33:30.208096+00:00",
+      "finished_at": "2026-08-30T23:33:31.330815+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "pack:check"
+      ],
+      "log": "pack-check.txt",
+      "started_at": "2026-08-30T23:33:31.331312+00:00",
+      "finished_at": "2026-08-30T23:33:32.079127+00:00",
+      "exit_code": 0
+    }
+  ],
+  "source_files": [
+    {
+      "path": ".github/workflows/check.yml",
+      "sha256": "6e62ef860f7ad16adda41d1b49af8ef1374b04d8f431f83d520d5c4d92153abe"
+    },
+    {
+      "path": "@types/src/generated.ts",
+      "sha256": "9bd21fdf8673ee221a3a600fd5f607219ec5acfd0e84430bf6176009bf127ad8"
+    },
+    {
+      "path": "ACCEPTANCE.md",
+      "sha256": "8ef35da81daf45ad3e872c3baf4b4cda37fd91eadcbbd3a2b30a8de335270c89"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "36f43aede98b722350660a570983a43a6cce176d891fdc888bd1ccb0d0fbe763"
+    },
+    {
+      "path": "IMPLEMENTATION.md",
+      "sha256": "24609782bca77fbed49504dea038638b0528d76493053ece9b0ec58afb4ac8eb"
+    },
+    {
+      "path": "OPERATIONS.md",
+      "sha256": "5c418427094dcbac4a606a97df69f9473fab3c254ef8ff769412d6bcf3911bf3"
+    },
+    {
+      "path": "RELEASE.md",
+      "sha256": "280947b19f6efe80ede23d881d40556d9c5f459a0b8dff0aac625716502bed70"
+    },
+    {
+      "path": "REVIEW-FIXES.md",
+      "sha256": "f55763bcd7507c9cce5b8417033e5425a95d45c8aebf76b0b900014e94407f43"
+    },
+    {
+      "path": "WORKER-FOLLOW-UP.md",
+      "sha256": "53d6e3cf0aded301bf97ff2eb11d4311ab6d1c7b1542c2ebd34cc3666a50f7f8"
+    },
+    {
+      "path": "docs/protocol/openapi.json",
+      "sha256": "6f88c090d4326a16ac07c6b458eb5aec9cd99182f6eecc2b3f1306397a9f3771"
+    },
+    {
+      "path": "docs/server/authentication.mdx",
+      "sha256": "393a70390a4446a89ab14c0e05daf20cd64caf465d8b854918f365b560aea1f4"
+    },
+    {
+      "path": "docs/server/configuration.mdx",
+      "sha256": "7013414caaf941a942916b37557fadc063914a672a7b8a60e9fee75ac9ec4e5e"
+    },
+    {
+      "path": "docs/server/monitoring.mdx",
+      "sha256": "909281d92a38e28486008a2a58b55b6f7359af33fc256690303643b8f472f412"
+    },
+    {
+      "path": "haip-server/migrations/005_worker_progress.sql",
+      "sha256": "857d9cccbdd2174f3cabd990cfa46c98a2d1029db555fd6a50cbf01bbcdfe8f9"
+    },
+    {
+      "path": "haip-server/src/admin.ts",
+      "sha256": "554b2e28762f45625b72bb0390d11d636314ccf0fe7e756feeb008ba73263a32"
+    },
+    {
+      "path": "haip-server/src/auth.ts",
+      "sha256": "a20ea8eac310c62d0bdc13a67760d2efeb2796b062bdfa19b1801d17d7ef4c00"
+    },
+    {
+      "path": "haip-server/src/bundle.ts",
+      "sha256": "672f22633719405e8846c65a2bee391537deae7ed91444dbd3667a0ac3f662b5"
+    },
+    {
+      "path": "haip-server/src/delivery.ts",
+      "sha256": "de7b5ddf3e44d48195a4ddf842322df5294038548373ba96b1b555678a1577fe"
+    },
+    {
+      "path": "haip-server/src/main.ts",
+      "sha256": "a9e4f84a2873f245c8b078b3a6f04c10b29bf1be62b2598c7aa7b32bed8719c2"
+    },
+    {
+      "path": "haip-server/src/server.ts",
+      "sha256": "897d3787dee4d93c1288417baad48cf7b50e2c95748e33d1fff3443c1336b8ae"
+    },
+    {
+      "path": "haip-server/src/service.ts",
+      "sha256": "45a2efc93fd0929c34f296180d0b9d1df00273e397c8567af5574a1e9d8e13fb"
+    },
+    {
+      "path": "haip-server/src/startup.ts",
+      "sha256": "6441f6ed54969819606c77a87df4a32e5ef14c32aa324c098907adde3323a701"
+    },
+    {
+      "path": "haip-server/src/worker.ts",
+      "sha256": "4323fa5230e4a39b2788b98a2fde683bd0f97645503f35215df476f1646bfd67"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "7dcff129f29cdb15ca69b94d177dd667f021c60bd1e4b7a60d83bf955d4a4a8e"
+    },
+    {
+      "path": "protocol/draft-2.0.0-1/openapi.json",
+      "sha256": "6f88c090d4326a16ac07c6b458eb5aec9cd99182f6eecc2b3f1306397a9f3771"
+    },
+    {
+      "path": "protocol/draft-2.0.0-1/schema.json",
+      "sha256": "b112d94ab3596bdbc43e0995c6b8dfa2e8db6273dd744dac05123a7dc3f0803c"
+    },
+    {
+      "path": "scripts/smoke-container.ts",
+      "sha256": "84fda380226773c55ebc1c92f57025c526dcaecfe2a605a7286d12d79184f7c5"
+    },
+    {
+      "path": "tests/auth-browser.test.ts",
+      "sha256": "055f5ea8f5f16307f0710a48454f8958cd67066a2dc29e0bbc006192dd2b7392"
+    },
+    {
+      "path": "tests/auth.test.ts",
+      "sha256": "3242311b8eb2a11f2872c905da3d5acdbd87650089bf27801a63052d56c39696"
+    },
+    {
+      "path": "tests/browser.test.ts",
+      "sha256": "b59d80295695bdb79873118a9232a5c66fc325199624352a14ba78e2ccc043a4"
+    },
+    {
+      "path": "tests/isolation-headers.test.ts",
+      "sha256": "e00cc27a6137540eeaadd415cf7b813c3c8b46d9bab4c24ca6676825dd4f899f"
+    },
+    {
+      "path": "tests/notifications.test.ts",
+      "sha256": "b749ad80a03aec4e71f231ffe1f5f7996763a0e796ce59d6ed4f43740fec0fbf"
+    },
+    {
+      "path": "tests/outbox-bounds.test.ts",
+      "sha256": "0b5b4df20bf0cc24e64d8791fc41eb22de0a8e12a227b93de68e84cb6919fd49"
+    },
+    {
+      "path": "tests/provisioning.test.ts",
+      "sha256": "ee724d54ba7ed8f383d4d06dfd2bfd2652373d5d874b4bd1802d063cb04ea368"
+    },
+    {
+      "path": "tests/request-boundary.test.ts",
+      "sha256": "c5a1cfb291b39abcf2b13cae6ff5dc6aa758bf652ed48832a194689a643d750c"
+    },
+    {
+      "path": "tests/service-bounds.test.ts",
+      "sha256": "8584e265547074f61b26d35273bb317ddc4734555fbaff696917634bc927a19f"
+    },
+    {
+      "path": "tests/service-exports.test.ts",
+      "sha256": "385ba7797f6de83a9a5977055639f120dd36fed8dd8782a5132aa63c27c4c3ad"
+    },
+    {
+      "path": "tests/service-pagination.test.ts",
+      "sha256": "74abd4c07ab223e3ba37e85cba64fd28b80951d766106f2c3615d8e376916ad3"
+    },
+    {
+      "path": "tests/startup.test.ts",
+      "sha256": "c5204a96d9d976a3e0f3e88c363f9ed1394f45e98f3c58769f2d50fb2f1b7f82"
+    },
+    {
+      "path": "tests/worker-liveness.test.ts",
+      "sha256": "77e8d4739e95b3b7eeaa912838f6b83bbb0587ec507dda3a8c7c94fd418887e9"
+    }
+  ],
+  "original_local_evidence": [
+    {
+      "path": "install.txt",
+      "sha256": "acbacd0cea4cb5c239d57e6073dfb58d03942cd168ddead726c93b888a799423"
+    },
+    {
+      "path": "check.txt",
+      "sha256": "96b105847a89c18325fc2e4028a295a0a623ee056c01f1ec31e62456f1c67a6b"
+    },
+    {
+      "path": "audit.json",
+      "sha256": "a15df6fce68cf7f8b794f1945c6cae93392b21fae42fcd89afdcdcf223948aea"
+    },
+    {
+      "path": "cross-language.txt",
+      "sha256": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3"
+    },
+    {
+      "path": "secret-review.json",
+      "sha256": "239c605567f05c7661226c6faa5c26bcf89f734e8a6ac2e413dbf840df136e02"
+    },
+    {
+      "path": "cross-language-results.json",
+      "sha256": "94886456890c37de22ac4881ed7a39745e8f2c9450308d960443966026e34db3"
+    },
+    {
+      "path": "trusted-review.png",
+      "sha256": "a4949854f47c50dd563ff89e66ee031b60d95e7ffd8770a827f51bde08dfa575"
+    },
+    {
+      "path": "frozen-confirmation.png",
+      "sha256": "1cce36144e80d18f660b940213462c950f852467ca98fe6c6ae812893ae73361"
+    },
+    {
+      "path": "pack-check.txt",
+      "sha256": "6c450a4566aaa42da81770de7131eac3bfe085048e4ff15eaaf4f249e2e2ba6f"
+    }
+  ],
+  "processing": [
+    "Machine-specific workspace and clean-copy roots are replaced by <workspace> and <clean-copy>; original bytes are hashed above.",
+    "Package dry-run JSON is extracted from npm output without altering its records. Screenshots are retained byte-for-byte."
+  ],
+  "limitations": [
+    "Tests use isolated PostgreSQL, browser, OIDC, SMTP, TLS and storage fixtures. They do not establish actual provider permissions, independent Azure administration, production restore or Plasm acceptance.",
+    "Development-container validation belongs to the separate hosted record, not this local suite.",
+    "An earlier passing local run exposed blank off-screen iframe screenshot capture. The capture was corrected without changing production headers; these retained results are the subsequent complete clean-copy rerun.",
+    "No merge, deployment, resource provisioning, image or package publication was performed."
+  ],
+  "retained_evidence": [
+    {
+      "path": "audit.json",
+      "sha256": "a15df6fce68cf7f8b794f1945c6cae93392b21fae42fcd89afdcdcf223948aea"
+    },
+    {
+      "path": "check.txt",
+      "sha256": "96b105847a89c18325fc2e4028a295a0a623ee056c01f1ec31e62456f1c67a6b"
+    },
+    {
+      "path": "cross-language-results.json",
+      "sha256": "94886456890c37de22ac4881ed7a39745e8f2c9450308d960443966026e34db3"
+    },
+    {
+      "path": "cross-language.txt",
+      "sha256": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3"
+    },
+    {
+      "path": "frozen-confirmation.png",
+      "sha256": "1cce36144e80d18f660b940213462c950f852467ca98fe6c6ae812893ae73361"
+    },
+    {
+      "path": "install.txt",
+      "sha256": "acbacd0cea4cb5c239d57e6073dfb58d03942cd168ddead726c93b888a799423"
+    },
+    {
+      "path": "pack-check.json",
+      "sha256": "8820ce6a70745c199cf260abe8f64222a67dc52b3eb4d29de3c507ccfc944595"
+    },
+    {
+      "path": "secret-review.json",
+      "sha256": "239c605567f05c7661226c6faa5c26bcf89f734e8a6ac2e413dbf840df136e02"
+    },
+    {
+      "path": "trusted-review.png",
+      "sha256": "a4949854f47c50dd563ff89e66ee031b60d95e7ffd8770a827f51bde08dfa575"
+    }
+  ]
+}

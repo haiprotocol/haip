@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-08-30T22:27:52.869600+00:00",
+  "source_commit": "bc1feed4aac1dbe5ea6e47d2c9ad5ce8dd9f9fcd",
+  "source_tree": "4b689e8c54625feec1bbce8847ee11cb1cf3471b",
+  "scope": "Read-only final publication and narrative review of the unchanged staged source snapshot before hosted validation completed.",
+  "retained_evidence_sha256": {
+    "claims.json": "dc3cfdcf43fd258dba263cead9d60d6f68689f5072aef1c66c4afa28fa6afcca",
+    "docs-mdx.json": "8118104d3329fbbb76f4302e2d30b66001a96fd671db5431587cfd4b6bb4db86",
+    "docs-targets.json": "02551dbbca40fd7752b46aae1a200d2884d1ae3c4f45dac91bdd789b46e2bf51",
+    "publication-integrity.json": "068dc97e5c2a5dcbf284a8e190c19bc3970a3108e3b87a553b3dcdab7a02538b"
+  },
+  "limitations": [
+    "Link checks cover repository page/file targets and redirects, not external availability or fragment anchors.",
+    "All MDX was parsed; hosted documentation rendering was not run.",
+    "The narrative record describes claims in the recorded source commit, before later hosted evidence was added."
+  ]
+}

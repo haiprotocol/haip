@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-08-30T22:32:55.435535+00:00",
+  "tool": "gitleaks 8.30.1",
+  "scope": "New retained review-regression evidence, separate from the clean source snapshot scan in local/secret-review.json.",
+  "findings": 1,
+  "reviewed_findings": [
+    {
+      "rule": "generic-api-key",
+      "file": "local/manifest.json",
+      "line_at_scan": 72,
+      "classification": "SHA-256 metadata, not a credential",
+      "reason": "The flagged value is the retained_evidence_sha256 entry for local/secret-review.json. It was recomputed from that file and matches exactly."
+    }
+  ],
+  "actual_credentials_identified": 0,
+  "suppression_added": false
+}

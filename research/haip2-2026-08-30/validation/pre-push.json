@@ -1,0 +1,34 @@
+{
+  "recorded_at": "2026-08-30T17:34:28.430229+00:00",
+  "scope": "HAIP-only draft PR; clean installation from staged files",
+  "clean_tests": {
+    "passed": 46,
+    "failed": 0,
+    "skipped": 0
+  },
+  "cross_language_checks": 25,
+  "gitleaks": {
+    "version": "8.30.1",
+    "redacted": true,
+    "findings_reviewed": 50,
+    "real_credentials_identified": 0,
+    "categories": {
+      "source_sha256_metadata": 25,
+      "truncated_documentation_tokens": 14,
+      "invalid_expired_quickstart_examples": 6,
+      "published_jwt_example": 3,
+      "curl_placeholders": 2
+    },
+    "note": "All initial staged-snapshot findings were reviewed, not silently suppressed; no token was sent to an authentication service."
+  },
+  "archive_v1_files_verified_against_main": 128,
+  "workflow_lint": "passed",
+  "remote_ci": {
+    "run": false,
+    "reason": "GitHub Actions disabled at repository level; setting left unchanged"
+  },
+  "licences": "MCP, Zod and zod-to-json-schema notices retained in server and standalone App outputs",
+  "whitespace": "Active changes pass; exact archived files, original licence copy and historical raw logs retain their whitespace",
+  "generated_release_outputs": "Ignored by Git; rebuild locally",
+  "plasm_modified_during_pre_push": false
+}

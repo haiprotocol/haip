@@ -1,0 +1,85 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "HAIP 1 — unsupported archive",
+  "colors": {
+    "primary": "#EAB308",
+    "light": "#FCD34D",
+    "dark": "#CA8A04"
+  },
+  "favicon": "archive/v1/favicon.ico",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "archive/v1/index",
+          "archive/v1/quickstart",
+          "archive/v1/technical_overview"
+        ]
+      },
+      {
+        "group": "Protocol",
+        "pages": [
+          "archive/v1/protocol/overview",
+          "archive/v1/protocol/openapi"
+        ]
+      },
+      {
+        "group": "Examples",
+        "pages": [
+          "archive/v1/examples/basic-chat",
+          "archive/v1/examples/using-cli",
+          "archive/v1/examples/audio-streaming",
+          "archive/v1/examples/flow-control"
+        ]
+      },
+      {
+        "group": "TypeScript SDK",
+        "pages": [
+          "archive/v1/sdk/overview",
+          "archive/v1/sdk/installation",
+          "archive/v1/sdk/quickstart",
+          "archive/v1/sdk/client",
+          "archive/v1/sdk/transports",
+          "archive/v1/sdk/authentication",
+          "archive/v1/sdk/messaging",
+          "archive/v1/sdk/tools",
+          "archive/v1/sdk/flow-control",
+          "archive/v1/sdk/error-handling",
+          "archive/v1/sdk/api-reference"
+        ]
+      },
+      {
+        "group": "HAIP Server",
+        "pages": [
+          "archive/v1/server/overview",
+          "archive/v1/server/installation",
+          "archive/v1/server/quickstart",
+          "archive/v1/server/configuration",
+          "archive/v1/server/transports",
+          "archive/v1/server/tools",
+          "archive/v1/server/authentication",
+          "archive/v1/server/monitoring",
+          "archive/v1/server/deployment",
+          "archive/v1/server/api-reference"
+        ]
+      },
+      {
+        "group": "HAIP CLI",
+        "pages": [
+          "archive/v1/cli/overview",
+          "archive/v1/cli/installation",
+          "archive/v1/cli/quickstart",
+          "archive/v1/cli/commands",
+          "archive/v1/cli/configuration",
+          "archive/v1/cli/api-reference"
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "archive/v1/light.svg",
+    "dark": "archive/v1/dark.svg"
+  }
+}

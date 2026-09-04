@@ -1,0 +1,12 @@
+# Publication copy: machine-specific checkout roots are redacted.
+# Original and retained byte hashes are recorded in ../publication-edits.json.
+   Compiling plasm-agent-core v0.4.45 ([PLASM_WORKTREE]/plasm-oss/crates/plasm-agent-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.38s
+     Running unittests src/lib.rs ([PLASM_CHECKOUT]/target/debug/deps/plasm_agent_core-fc953de0332d973f)
+
+running 2 tests
+test execution_effect::tests::haip_unknown_execution_is_not_replayable ... ok
+test plasm_plan_run::tests::approval_policy::haip_required_approval_has_no_automatic_receipt ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 897 filtered out; finished in 0.00s
+

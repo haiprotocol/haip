@@ -1,0 +1,20 @@
+# Install only after configuring independent storage, identities, TLS and recovery.
+[Unit]
+Description=HAIP review service
+After=network-online.target postgresql.service
+[Service]
+Type=simple
+User=haip
+Group=haip
+WorkingDirectory=/opt/haip
+EnvironmentFile=/etc/haip/service.env
+ExecStart=/usr/bin/node /opt/haip/haip-server/dist/main.js
+# A restart requires namespace recovery. Do not configure automatic transparent failover.
+Restart=no
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+UMask=0077
+[Install]
+WantedBy=multi-user.target

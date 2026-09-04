@@ -1,0 +1,21 @@
+# Publication copy: machine-specific checkout roots are redacted.
+# Original and retained byte hashes are recorded in ../publication-edits.json.
+   Compiling plasm-agent-core v0.4.45 ([PLASM_WORKTREE]/plasm-oss/crates/plasm-agent-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.13s
+     Running unittests src/lib.rs ([PLASM_CHECKOUT]/target/debug/deps/plasm_agent_core-fc953de0332d973f)
+
+running 11 tests
+test graph_execute::concurrency_shuttle::shuttle_brand_new_divergent_ref_serializes ... ok
+test graph_execute::concurrency_shuttle::shuttle_disjoint_ref_commits_both_succeed ... ok
+test graph_execute::concurrency_shuttle::shuttle_branch_retry_loop_commits_under_bounded_contention ... ok
+test graph_execute::concurrency_shuttle::shuttle_same_ref_dual_commit_serializes ... ok
+test graph_execute::concurrency_shuttle::shuttle_interleaved_fork_commit ... ok
+test graph_execute::concurrency_shuttle::shuttle_brand_new_identical_ref_both_commit ... ok
+test graph_execute::concurrency_shuttle::shuttle_idempotent_shared_ancestor_both_commit ... ok
+test graph_execute::concurrency_shuttle::shuttle_parallel_fanout_commits ... ok
+test graph_execute::concurrency_shuttle::shuttle_branch_commit_merges_entity ... ok
+test graph_execute::concurrency_shuttle::shuttle_read_lock_available_while_branch_alive ... ok
+test graph_execute::concurrency_shuttle::shuttle_stale_commit_never_writes_branch_entities ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 888 filtered out; finished in 0.13s
+

@@ -1,0 +1,85 @@
+{
+  "recorded_at": "2026-08-30T20:45:48.912721+00:00",
+  "scope": "First successful hosted CI run of the HAIP-owned draft; isolated fixtures, not deployment acceptance",
+  "repository": "haiprotocol/haip",
+  "pull_request_url": "https://github.com/haiprotocol/haip/pull/5",
+  "run": {
+    "id": 33334308802,
+    "run_attempt": 1,
+    "html_url": "https://github.com/haiprotocol/haip/actions/runs/33334308802",
+    "event": "pull_request",
+    "head_branch": "l/haip-2",
+    "head_sha": "5f70557e7d8a0f29a1e0ea87170689d452375d31",
+    "created_at": "2026-08-30T20:40:33Z",
+    "run_started_at": "2026-08-30T20:40:33Z",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "checked_out_merge_sha": "4ea87738aaaad19c6ff83872610634be92bb0929",
+  "base_sha": "f04a2f362ee02e09fd23819a5409e78b82a7be8b",
+  "checked_out_tree_sha": "0cb4b6c93d2b06cf602783520bca755c28ee0772",
+  "checked_out_tree_matches_head": true,
+  "workflow_sha256": "601feb06ee434c7297f7f4c5776e3119a99e176d267497114eff5e4823cd894f",
+  "runner": {
+    "label": "ubuntu-24.04",
+    "os": "Ubuntu 24.04.4 LTS",
+    "runner_version": "2.336.0",
+    "image_version": "20260823.283.1"
+  },
+  "runtimes": {
+    "node": "v24.19.0",
+    "python": "Python 3.12.14",
+    "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "postgresql": "PostgreSQL 16.15 (Ubuntu 16.15-1.pgdg24.04+2)"
+  },
+  "validation": {
+    "npm ci": "passed",
+    "npm run check": {
+      "passed": 46,
+      "failed": 0,
+      "skipped": 0,
+      "duration_ms": 81614.760557
+    },
+    "npm run test:cross-language": {
+      "passed": 25
+    },
+    "npm audit --omit=dev": {
+      "known_production_dependency_vulnerabilities": 0
+    },
+    "npm run pack:check": {
+      "draft_package_dry_runs": 4,
+      "publication_performed": false
+    }
+  },
+  "job": {
+    "id": 99318341013,
+    "html_url": "https://github.com/haiprotocol/haip/actions/runs/33334308802/job/99318341013",
+    "started_at": "2026-08-30T20:40:35Z",
+    "completed_at": "2026-08-30T20:43:08Z",
+    "conclusion": "success"
+  },
+  "artifact": {
+    "id": 9738583515,
+    "name": "draft-fixture-evidence",
+    "size_in_bytes": 202923,
+    "digest": "sha256:91bc7e805d2179cb986c169535f1a95f19557a2c5b99fb236b2f2e65bfab0782",
+    "created_at": "2026-08-30T20:43:04Z",
+    "expires_at": "2026-09-06T20:43:04Z"
+  },
+  "artifact_digest_verified_locally": true,
+  "retained_evidence_sha256": {
+    "audit.txt": "ad413bad0633b8847232dd9d7e47f3c92198749fd3191d8ddbc78bbe2c634dd9",
+    "check.txt": "fa9fa4e4bc93d923457809d964867e0f3ea05d4c4fc29950408714d7611f3a86",
+    "cross-language.json": "f6219313bd4c552a2eb3ac55492623ae0de26cc3b4cdb16b827cb60f3034ebc7",
+    "pack-check.json": "6d7083776a304c26a970d905fb189c780ec7402e12f39100a90bf966097f20e8",
+    "runtime-versions.txt": "6894397572b2059ff5a4e5f175f4bb559c8439d786585ce86484268735cdd772",
+    "trusted-review.png": "7cb86feca966dc3b02a4a68bcb13463045e794829ebcfd570f8fb7ae5a708907"
+  },
+  "limitations": [
+    "Historical local validation/manifest.json and pre-push.json remain unchanged; this is separate remote evidence for the recorded commit.",
+    "This run used Node 20-targeted Actions forced onto Node 24 by GitHub; its successful results do not remove the recorded deprecation warning.",
+    "Production dependency audit here is distinct from the earlier local full dependency audit.",
+    "No real OIDC account, immutable Azure storage, restricted production database role, deployed restore rehearsal or Plasm execution integration was validated.",
+    "No merge, package publication or deployment was performed."
+  ]
+}

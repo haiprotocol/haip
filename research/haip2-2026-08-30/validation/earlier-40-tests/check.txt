@@ -1,0 +1,86 @@
+
+> haip-workspace@2.0.0-draft.1 check
+> npm run build && node scripts/check-integrity.mjs && npm test
+
+
+> haip-workspace@2.0.0-draft.1 build
+> npm run generate && npm run build --workspaces && tsc -p haip-server/tsconfig.browser.json && node scripts/build-browser.mjs
+
+
+> haip-workspace@2.0.0-draft.1 generate
+> node scripts/generate.mjs && node scripts/openapi.mjs
+
+
+> @haip/protocol@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/sdk@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/server@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/cli@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+Draft identity, dependency pins and evaluation-integrity checks passed
+
+> haip-workspace@2.0.0-draft.1 test
+> node --import tsx --test --test-concurrency=1 tests/*.test.ts
+
+✔ expiry during anchoring does not restart the grant clock (2634.861375ms)
+✔ uncertain identity temporarily blocks admission without permanently revoking grants (131.793542ms)
+✔ offline authority rejects tampering, stale nonces, clock skew and missing independent anchoring (143.624583ms)
+✔ checkpoint conflict fences every new claim (119.173375ms)
+✔ Azure adapter checks exact versions, retention, conditional duplicate recovery and permanent safety holds (12.969ms)
+✔ authenticated encrypted backups restore only to an empty database, fence admission and expire after 30 days (1584.842958ms)
+Connecting to 'http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:64079/sandbox/null/forbidden' violates the following Content Security Policy directive: "connect-src 'none'". The action has been blocked.
+Fetch API cannot load http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:64079/sandbox/null/forbidden. Refused to connect because it violates the document's Content Security Policy.
+Blocked opening 'about:blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set.
+Framing 'http://127.0.0.1:64092/' violates the following Content Security Policy directive: "frame-src about:". The request has been blocked.
+
+✔ browser OIDC, app replay, restricted tool bridge, escaped text and trusted confirmation (3854.675167ms)
+✔ near-10-MiB payload remains searchable through the last of 1,000 steps (882.306708ms)
+✔ reusable review fixtures operate solely through the public HTTP contract (1466.7305ms)
+✔ public discovery, directory, review, assignment, events and metrics match the published schema (1577.902833ms)
+✔ invalid counter authority produces no effect; a crash after fencing is uncertain and never relaunched (1641.107541ms)
+✔ ordinary HTTP structured review produces an authenticated signed receipt without execution fields (1286.230125ms)
+✔ exclusive claim, fresh admission, outcomes and replays keep one execution identity (162.580792ms)
+✔ tenant, producer and publisher ownership is checked without existence leaks (77.5875ms)
+✔ producer cannot confirm; human separation, CSRF and frozen candidates are enforced (82.586166ms)
+✔ creation idempotency, unsupported profiles and ambiguous JSON reject without downgrade (37.214625ms)
+✔ targeted revocation survives re-adding a reviewer and issued permits remain historical (230.657458ms)
+✔ supersession atomically invalidates old candidates and preserves occurrence identity (65.413125ms)
+✔ independent bounded HTTP counter validates authority and never repeats its effect (243.446375ms)
+✔ HITL browser/poll mapping uses the same authoritative lifecycle and never executes (52.124792ms)
+✔ OAuth metadata discovery and Basic client authentication support provider configuration without a browser SDK (1222.734709ms)
+✔ reassignment and reviewer removal do not reset proposal limits or deadlines (1810.248417ms)
+✔ owner removal and producer deauthorisation are permanent, while unrelated route additions preserve grants (1384.55425ms)
+✔ response fields may use schema keyword names without enabling remote references or patterns (1105.696708ms)
+✔ operator metrics expose own pressure, failures, uncertainty and checkpoint lag without other tenant contents (1478.839833ms)
+✔ test SMTP honours recipient quotas and notifies the owner after human sign-out (3963.696709ms)
+✔ webhook destinations reject private, mapped and loopback addresses (1.317458ms)
+✔ RFC 8785 property ordering, UTF-16 and number serialisation (0.751167ms)
+✔ rotation preserves original signatures and enforces exclusive key-validity and revocation boundaries (3.131ms)
+✔ RFC 8032 test vector 1 uses the authoritative empty-message signature (0.530708ms)
+✔ unambiguous parser rejects lossy and executable JSON edge cases (0.680042ms)
+✔ recovery retires a matching prefix with a lost unanchored tail, clears credentials/private copies and preserves permanent fences (2046.391042ms)
+✔ migration checksums reject altered or newer schema history without renewing existing objects (1074.311708ms)
+✔ lost independent consumption acknowledgement cannot substitute identity or reopen an occurrence (1340.160875ms)
+✔ an isolated PostgreSQL backup missing independently anchored history cannot admit execution (1760.343292ms)
+✔ production cannot admit using a development fixture without independent recovery storage (1333.354625ms)
+✔ private deletion removes response copies and cannot restore a consumed occurrence (1651.140708ms)
+✔ captured deadlines expire immediately and cleanup keeps consumption after audit removal (10219.322375ms)
+✔ creation quotas and fresh keys cannot bypass fatigue limits or prevent existing confirmation (1641.374667ms)
+✔ TLS webhook delivery persists before acknowledgement, deduplicates after restart and rejects five-minute replay and altered scopes (1437.268166ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 58084.144042

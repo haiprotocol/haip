@@ -1,0 +1,46 @@
+# Examples only. Supply an operator-scoped scrape target and your own alert routing.
+groups:
+  - name: haip
+    rules:
+      - alert: HAIPAdmissionFenced
+        expr: haip_admission_fenced > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: HAIP admission is fenced; investigate before recovery
+      - alert: HAIPCheckpointStalled
+        expr: haip_outbox_oldest_seconds{kind="checkpoint",state="pending"} > 300
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Independent checkpoint publication is overdue
+      - alert: HAIPDeliveryFailed
+        expr: haip_outbox_jobs{state="failed"} > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: HAIP delivery has exhausted its retry window
+      - alert: HAIPExecutionUnresolved
+        expr: haip_unresolved_execution > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: Execution needs independent outcome reconciliation
+      - alert: HAIPOutboxWorkerStalled
+        expr: time() - haip_operation_last_success_seconds{operation="outbox"} > 300
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: HAIP outbox worker has not completed a cycle
+      - alert: HAIPRetentionWorkerStalled
+        expr: time() - haip_operation_last_success_seconds{operation="retention"} > 1800
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: HAIP retention cleanup is overdue

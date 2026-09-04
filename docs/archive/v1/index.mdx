@@ -1,0 +1,184 @@
+---
+title: "HAIP 1 archive — Human-Agent Interaction Protocol"
+description: "Historical HAIP 1 documentation. Unsupported and incompatible with HAIP 2."
+---
+
+<Warning>
+**Unsupported HAIP 1 archive.** This is historical chat and streaming documentation, not the HAIP 2 review protocol. Its APIs, package examples and security advice must not be used for a HAIP 2 deployment. Start with the [current HAIP 2 guides](/index).
+</Warning>
+
+## What is HAIP?
+
+The Human-Agent Interaction Protocol (HAIP) is an open standard designed to streamline real-time, multi-modal exchanges between user-facing web, mobile, and voice applications and AI agents. It complements the Model Context Protocol (MCP): HAIP focuses on the human-agent layer, acting as a universal translator between frontend interfaces and intelligent backends, while MCP governs tool execution.
+
+### Features
+
+- Re-establishing dropped connections & ensuring message order.
+- Multimodal transactions audio and text.
+- Allowing multiple users and LLMs to share a conversation (transaction).
+- Letting the user know about MCP (Model Context Protocol) calls.
+- Transaction history, transaction management, schema validation, custom tooling, logging, authentication and more.
+
+## **Available Packages**
+
+<CardGroup cols={3}>
+  <Card title="@haip/sdk" icon="code">
+    [![npm
+    version](https://badge.fury.io/js/%40haip%2Fsdk.svg)](https://badge.fury.io/js/%40haip%2Fsdk)
+    <br />
+    TypeScript SDK for HAIP
+  </Card>
+  <Card title="@haip/server" icon="server">
+    [![npm
+    version](https://badge.fury.io/js/%40haip%2Fserver.svg)](https://badge.fury.io/js/%40haip%2Fserver)
+    <br />
+    Reference HAIP server
+  </Card>
+  <Card title="@haip/cli" icon="terminal">
+    [![npm
+    version](https://badge.fury.io/js/%40haip%2Fcli.svg)](https://badge.fury.io/js/%40haip%2Fcli)
+    <br />
+    Command-line interface
+  </Card>
+</CardGroup>
+
+<Card title="Get Started" icon="rocket" href="/archive/v1/quickstart" horizontal>
+  Follow our quickstart guide to implement HAIP in your application.
+</Card>
+
+<Card title="HAIP CLI" icon="terminal" href="/archive/v1/cli/overview" horizontal>
+  Use the command-line interface for testing and monitoring HAIP servers.
+</Card>
+
+## Key Features
+
+<Columns cols={2}>
+  <Card
+    title="Multi-modal Interaction"
+    icon="microphone"
+    href="/archive/v1/protocol/essentials/messaging"
+  >
+    Native support for text chat and audio streams with seamless switching.
+  </Card>
+  <Card title="Asynchronous Tools" icon="gear" href="/archive/v1/protocol/essentials/tools">
+    Non-blocking agent workflows with real-time progress updates.
+  </Card>
+  <Card title="Robust Streaming" icon="arrow-up" href="/archive/v1/protocol/essentials/transport">
+    Low-latency chunk delivery with reconnection and de-duplication.
+  </Card>
+  <Card
+    title="Transport Agnostic"
+    icon="network-wired"
+    href="/archive/v1/protocol/essentials/websocket"
+  >
+    Works over WebSockets, SSE, HTTP streaming, or any message bus.
+  </Card>
+</Columns>
+
+## Quick Implementation
+
+<Columns cols={2}>
+  <Card title="WebSocket Connection" icon="plug" href="/archive/v1/protocol/essentials/websocket">
+    Establish bidirectional streaming communication with WebSockets.
+  </Card>
+  <Card title="Server-Sent Events" icon="radio" href="/archive/v1/protocol/essentials/sse">
+    Use SSE for one-way streaming from server to client.
+  </Card>
+  <Card title="Authentication" icon="shield" href="/archive/v1/protocol/essentials/authentication">
+    Secure your connections with JWT Bearer tokens.
+  </Card>
+  <Card title="Flow Control" icon="sliders" href="/archive/v1/protocol/essentials/flow-control">
+    Manage back-pressure and prevent overwhelming your system.
+  </Card>
+</Columns>
+
+## Protocol Features
+
+<Columns cols={2}>
+  <Card title="Event Sequencing" icon="list-ol" href="/archive/v1/protocol/essentials/messaging">
+    Tolerant of out-of-order or overlapping events with automatic replay.
+  </Card>
+  <Card title="Tool Integration" icon="wrench" href="/archive/v1/protocol/essentials/tools">
+    Dynamic advertisement of tools and schemas with seamless invocation.
+  </Card>
+  <Card title="Framework Agnostic" icon="code" href="/archive/v1/examples/basic-chat">
+    Works with React, Vue, Angular, native mobile or any framework.
+  </Card>
+  <Card title="MCP Compatibility" icon="link" href="/archive/v1/protocol/essentials/tools">
+    Seamless integration with Model Context Protocol for tool execution.
+  </Card>
+</Columns>
+
+## Ready to build?
+
+<Card title="View API Reference" icon="book-open" href="/archive/v1/protocol/openapi">
+  Explore the complete HAIP API specification and event schemas.
+</Card>
+
+
+## Archive contents
+
+Every link below stays within the unsupported HAIP 1 archive. The original repository source snapshot is retained separately in `archive/v1`; the website copy adds archive warnings and updates navigation links.
+
+### Getting Started
+
+- [quickstart](/archive/v1/quickstart)
+- [technical_overview](/archive/v1/technical_overview)
+
+### Cli
+
+- [cli / api reference](/archive/v1/cli/api-reference)
+- [cli / commands](/archive/v1/cli/commands)
+- [cli / configuration](/archive/v1/cli/configuration)
+- [cli / installation](/archive/v1/cli/installation)
+- [cli / overview](/archive/v1/cli/overview)
+- [cli / quickstart](/archive/v1/cli/quickstart)
+
+### Examples
+
+- [examples / audio streaming](/archive/v1/examples/audio-streaming)
+- [examples / basic chat](/archive/v1/examples/basic-chat)
+- [examples / flow control](/archive/v1/examples/flow-control)
+- [examples / using cli](/archive/v1/examples/using-cli)
+
+### Protocol
+
+- [protocol / essentials / authentication](/archive/v1/protocol/essentials/authentication)
+- [protocol / essentials / binary frames](/archive/v1/protocol/essentials/binary-frames)
+- [protocol / essentials / error handling](/archive/v1/protocol/essentials/error-handling)
+- [protocol / essentials / flow control](/archive/v1/protocol/essentials/flow-control)
+- [protocol / essentials / http streaming](/archive/v1/protocol/essentials/http-streaming)
+- [protocol / essentials / messaging](/archive/v1/protocol/essentials/messaging)
+- [protocol / essentials / sse](/archive/v1/protocol/essentials/sse)
+- [protocol / essentials / tools](/archive/v1/protocol/essentials/tools)
+- [protocol / essentials / transport](/archive/v1/protocol/essentials/transport)
+- [protocol / essentials / websocket](/archive/v1/protocol/essentials/websocket)
+- [protocol / openapi](/archive/v1/protocol/openapi)
+- [protocol / overview](/archive/v1/protocol/overview)
+
+### Sdk
+
+- [sdk / api reference](/archive/v1/sdk/api-reference)
+- [sdk / authentication](/archive/v1/sdk/authentication)
+- [sdk / client](/archive/v1/sdk/client)
+- [sdk / error handling](/archive/v1/sdk/error-handling)
+- [sdk / flow control](/archive/v1/sdk/flow-control)
+- [sdk / installation](/archive/v1/sdk/installation)
+- [sdk / messaging](/archive/v1/sdk/messaging)
+- [sdk / overview](/archive/v1/sdk/overview)
+- [sdk / quickstart](/archive/v1/sdk/quickstart)
+- [sdk / tools](/archive/v1/sdk/tools)
+- [sdk / transports](/archive/v1/sdk/transports)
+
+### Server
+
+- [server / api reference](/archive/v1/server/api-reference)
+- [server / authentication](/archive/v1/server/authentication)
+- [server / configuration](/archive/v1/server/configuration)
+- [server / deployment](/archive/v1/server/deployment)
+- [server / installation](/archive/v1/server/installation)
+- [server / monitoring](/archive/v1/server/monitoring)
+- [server / overview](/archive/v1/server/overview)
+- [server / quickstart](/archive/v1/server/quickstart)
+- [server / tools](/archive/v1/server/tools)
+- [server / transports](/archive/v1/server/transports)

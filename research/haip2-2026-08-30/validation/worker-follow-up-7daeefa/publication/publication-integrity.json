@@ -1,0 +1,79 @@
+{
+  "scope": "Exact final staged blobs; original hashes checked against their recorded Git revisions.",
+  "index_listing_sha256": "dfb05f2d60c655963cb55f19aa3ebf25437e4366bac08eb9a8019fc18d4d6470",
+  "ledger_file_count": 12,
+  "ledger_hashes": [
+    {
+      "path": "research/haip2-2026-08-30/INDEX.md",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/INDEX.md",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/README.txt",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/adapted-sandbox.ts",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/manifest.json",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/upstream-sandbox.ts",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/protocol-checks/check-results.json",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/runners/run.mjs",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-approval-tests.txt",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-policy-tests.txt",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-shuttle-tests.txt",
+      "original_matches": true,
+      "retained_matches": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-tests.txt",
+      "original_matches": true,
+      "retained_matches": true
+    }
+  ],
+  "original_archive_source_files": 128,
+  "original_archive_source_files_unchanged": 128,
+  "historical_research_files_unchanged": 105,
+  "historical_remote_files_unchanged": 7,
+  "previous_migrations_unchanged": [
+    "haip-server/migrations/001_review.sql",
+    "haip-server/migrations/002_operations.sql",
+    "haip-server/migrations/003_creation_windows.sql",
+    "haip-server/migrations/004_bounded_work.sql"
+  ],
+  "research_machine_path_files": [],
+  "issues": []
+}

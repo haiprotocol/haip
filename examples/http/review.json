@@ -1,0 +1,20 @@
+{
+  "protocol_revision": "2.0.0-draft.3",
+  "purpose": "review",
+  "profiles": {},
+  "route": "review",
+  "summary": "Choose a support response",
+  "artefact": {
+    "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "representation": "application/json",
+    "digest_rules": "rfc8785-sha256"
+  },
+  "payload": {},
+  "response_schema": {
+    "type": "object",
+    "properties": { "choice": { "type": "string", "enum": ["accept", "decline"] } },
+    "required": ["choice"],
+    "additionalProperties": false
+  },
+  "review_document": "Choose accept or decline for this demonstration."
+}

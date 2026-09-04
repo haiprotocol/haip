@@ -1,0 +1,4 @@
+v24.19.0
+Python 3.12.14
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+PostgreSQL 16.15 (Ubuntu 16.15-1.pgdg24.04+2)

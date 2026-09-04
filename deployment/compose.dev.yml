@@ -1,0 +1,71 @@
+# DEVELOPMENT ONLY. Run from an explicit --env-file; no default credentials exist.
+# This does not provide production TLS, independent anchoring or restore acceptance.
+name: haip-development
+services:
+  postgres:
+    # Official multi-platform digest verified against registry-1.docker.io on 2026-08-30.
+    image: postgres:17.11-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
+    environment:
+      POSTGRES_USER: haip_dev
+      POSTGRES_DB: haip_dev
+      POSTGRES_PASSWORD: ${HAIP_DEV_POSTGRES_PASSWORD:?Set an explicit development database password}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    # PostgreSQL has no published host port.
+  haip:
+    image: haip:development
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: development
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${HAIP_DEV_PORT:-8080}:8080'
+      - '127.0.0.1:${HAIP_DEV_SANDBOX_PORT:-8081}:8081'
+    environment:
+      HAIP_MODE: development
+      HAIP_LISTEN_HOST: 0.0.0.0
+      HAIP_ORIGIN: 'http://localhost:${HAIP_DEV_PORT:-8080}'
+      HAIP_SANDBOX_ORIGIN: 'http://{scope}.localhost:${HAIP_DEV_SANDBOX_PORT:-8081}'
+      HAIP_DATABASE_URL: postgresql://haip_dev@postgres:5432/haip_dev
+      PGPASSWORD: ${HAIP_DEV_POSTGRES_PASSWORD:?Set an explicit development database password}
+      HAIP_SIGNING_KEY_FILE: /run/haip/signing-key.pem
+      HAIP_SIGNING_KEY_ID: ${HAIP_DEV_SIGNING_KEY_ID:?Set the key ID from your development trust manifest}
+      HAIP_TRUST_MANIFEST_FILE: /run/haip/trust.json
+      HAIP_OIDC_ISSUER: ${HAIP_DEV_OIDC_ISSUER:?Set a development OIDC issuer reachable from the container and browser}
+      HAIP_OIDC_CLIENT_ID: ${HAIP_DEV_OIDC_CLIENT_ID:?Set an explicit development OIDC client ID}
+      HAIP_OIDC_CLIENT_SECRET: ${HAIP_DEV_OIDC_CLIENT_SECRET:?Set an explicit development OIDC client secret}
+      HAIP_OIDC_DISCOVERY: ${HAIP_DEV_OIDC_DISCOVERY:-oidc}
+      HAIP_OIDC_CLIENT_AUTH: ${HAIP_DEV_OIDC_CLIENT_AUTH:-client_secret_post}
+      HAIP_OIDC_LOCAL_HTTP: ${HAIP_DEV_OIDC_LOCAL_HTTP:-false}
+    volumes:
+      # Mount individual files, readable by the image's unprivileged UID 1000.
+      # Parent directories can remain private on the host. Missing files are errors.
+      - type: bind
+        source: ${HAIP_DEV_SIGNING_KEY_FILE:?Set an absolute path to a development Ed25519 private key}
+        target: /run/haip/signing-key.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HAIP_DEV_TRUST_MANIFEST_FILE:?Set an absolute path to the development trust manifest}
+        target: /run/haip/trust.json
+        read_only: true
+        bind:
+          create_host_path: false
+volumes:
+  database:

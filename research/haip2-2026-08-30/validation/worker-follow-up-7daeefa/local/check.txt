@@ -1,0 +1,131 @@
+
+> haip-workspace@2.0.0-draft.1 check
+> npm run build && node scripts/check-integrity.mjs && npm test
+
+
+> haip-workspace@2.0.0-draft.1 build
+> npm run generate && npm run build --workspaces && tsc -p haip-server/tsconfig.browser.json && node scripts/build-browser.mjs
+
+
+> haip-workspace@2.0.0-draft.1 generate
+> node scripts/generate.mjs && node scripts/openapi.mjs
+
+
+> @haip/protocol@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/sdk@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/server@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+
+> @haip/cli@2.0.0-draft.1 build
+> tsc -p tsconfig.json
+
+Draft identity, dependency pins and evaluation-integrity checks passed
+
+> haip-workspace@2.0.0-draft.1 test
+> node --import tsx --test --test-concurrency=1 tests/*.test.ts
+
+✔ a real cross-site attacker callback URL cannot replace another browser session (2764.492833ms)
+✔ normal cross-site OIDC GET redirects retain Lax login and initiating-session cookies during rotation (502.556625ms)
+✔ new pending login generations prevent delayed anonymous and expired-session callbacks replacing a newer sign-in (1396.927042ms)
+✔ a refused newer login does not revive an older claimed generation or retire the existing session (1165.984666ms)
+✔ OIDC state, nonce, PKCE, one-use callbacks and session rotation fail closed through HTTP (1418.111083ms)
+✔ callback requires the same authenticated-cookie state that initiated login, before token exchange (1294.634958ms)
+✔ callback finishing after another login retires its initiating session cannot overwrite the replacement (1174.530208ms)
+✔ logout invalidates a pending rotation while a fresh login can recover from an already expired cookie (1116.11475ms)
+✔ failed authenticated-session insert preserves the old session but consumes login state (1246.875042ms)
+✔ CSRF tokens with equal string lengths but unequal UTF-8 byte lengths return 403 (1236.613ms)
+✔ expiry during anchoring does not restart the grant clock (4014.7255ms)
+✔ uncertain identity temporarily blocks admission without permanently revoking grants (144.657208ms)
+✔ offline authority rejects tampering, stale nonces, clock skew and missing independent anchoring (154.262916ms)
+✔ checkpoint conflict fences every new claim (158.363125ms)
+✔ Azure adapter checks exact versions, retention, conditional duplicate recovery and permanent safety holds (14.270416ms)
+✔ authenticated encrypted backups restore only to an empty database, fence admission and expire after 30 days (1557.177542ms)
+Connecting to 'http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:62782/sandbox/null/forbidden' violates the following Content Security Policy directive: "connect-src 'none'". The action has been blocked.
+Fetch API cannot load http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:62782/sandbox/null/forbidden. Refused to connect because it violates the document's Content Security Policy.
+Blocked opening 'about:blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set.
+Framing 'http://127.0.0.1:62795/' violates the following Content Security Policy directive: "frame-src about:". The request has been blocked.
+
+✔ browser OIDC, app replay, restricted tool bridge, escaped text and trusted confirmation (3307.09075ms)
+✔ hostile proposals cannot overtake a pending candidate, replace frozen review or race confirmation (1822.193542ms)
+✔ dismissal requires a new trusted gesture and every candidate field remains visible (3344.103125ms)
+✔ sandbox accepts only one exact correlated response and rejects method-less spoofing (679.516792ms)
+✔ near-10-MiB payload remains searchable through the last of 1,000 steps (756.126458ms)
+✔ reusable review fixtures operate solely through the public HTTP contract (1810.704083ms)
+✔ public discovery, directory, review, assignment, events and metrics match the published schema (1702.791541ms)
+✔ the public schema binds execution purpose to the execution profile and receipt semantics (1413.873417ms)
+✔ invalid counter authority produces no effect; a crash after fencing is uncertain and never relaunched (3602.662709ms)
+✔ counter reads consume both admission validity and the single window starting at its launch fence (4257.942416ms)
+✔ ordinary HTTP structured review produces an authenticated signed receipt without execution fields (1338.037083ms)
+✔ exclusive claim, fresh admission, outcomes and replays keep one execution identity (322.889125ms)
+✔ tenant, producer and publisher ownership is checked without existence leaks (426.191666ms)
+✔ producer cannot confirm; human separation, CSRF and frozen candidates are enforced (171.834875ms)
+✔ creation idempotency, unsupported profiles and ambiguous JSON reject without downgrade (79.51575ms)
+✔ targeted revocation survives re-adding a reviewer and issued permits remain historical (465.354584ms)
+✔ supersession atomically invalidates old candidates and preserves occurrence identity (79.935083ms)
+✔ independent bounded HTTP counter validates authority and never repeats its effect (287.840083ms)
+✔ HITL browser/poll mapping uses the same authoritative lifecycle and never executes (99.103917ms)
+✔ OAuth metadata discovery and Basic client authentication support provider configuration without a browser SDK (1444.642167ms)
+✔ reassignment and reviewer removal do not reset proposal limits or deadlines (1750.949542ms)
+✔ owner removal and producer deauthorisation are permanent, while unrelated route additions preserve grants (1376.784875ms)
+✔ response fields may use schema keyword names without enabling remote references or patterns (1245.163709ms)
+✔ directory aliases of the same OIDC identity cannot satisfy separation of duties (1153.294125ms)
+✔ trusted pages enter browser isolation and sever a cross-origin opener (2404.032625ms)
+✔ confirmation and claims sample authoritative time after waiting for the tenant lock (5423.279875ms)
+✔ operator metrics expose own pressure, failures, uncertainty and checkpoint lag without other tenant contents (2147.766167ms)
+✔ test SMTP honours recipient quotas and notifies the owner after human sign-out (4248.657333ms)
+✔ webhook destinations reject private, mapped and loopback addresses (1.604958ms)
+✔ more than fifty unconfigured checkpoints cannot starve actual SMTP or TLS webhook deliveries (2413.337541ms)
+✔ a checkpoint covering many decisions is applied in bounded resumable batches without re-opening expired grants (4701.534208ms)
+✔ RFC 8785 property ordering, UTF-16 and number serialisation (0.961792ms)
+✔ rotation preserves original signatures and enforces exclusive key-validity and revocation boundaries (4.215ms)
+✔ RFC 8032 test vector 1 uses the authoritative empty-message signature (0.689708ms)
+✔ unambiguous parser rejects lossy and executable JSON edge cases (1.036458ms)
+✔ bootstrap refuses short or repeated credentials before writing and accepts generated 32-byte credentials (1365.631791ms)
+✔ recovery retires a matching prefix with a lost unanchored tail, clears credentials/private copies and preserves permanent fences (2342.867084ms)
+✔ migration checksums reject altered or newer schema history without renewing existing objects (1177.193333ms)
+✔ upgrading from request-derived quotas blocks new creation for the UTC day but preserves confirmation (1259.91075ms)
+✔ lost independent consumption acknowledgement cannot substitute identity or reopen an occurrence (1524.225375ms)
+✔ unauthenticated, unknown and wrong-role requests are refused before reading unfinished bodies (1149.6095ms)
+✔ authenticated JSON is strict and large-body limits apply only to routes that need them (159.847333ms)
+✔ review CSP permits only its bound sandbox and stored bundle corruption is refused before delivery (90.0095ms)
+✔ an exhausted producer is refused before its next body is buffered while existing review remains available (67.8675ms)
+✔ an isolated PostgreSQL backup missing independently anchored history cannot admit execution (1831.27125ms)
+✔ production cannot admit using a development fixture without independent recovery storage (1283.558625ms)
+✔ private deletion removes response copies and cannot restore a consumed occurrence (1546.2365ms)
+✔ captured deadlines expire immediately and cleanup keeps consumption after audit removal (10486.332875ms)
+✔ creation quotas and fresh keys cannot bypass fatigue limits or prevent existing confirmation (1992.0005ms)
+✔ daily tenant, producer and route quotas survive audit cleanup, retries and key rotation (9834.104541ms)
+✔ exhausted create credentials fail before body preparation or tenant locking; retries and confirmation still work (1391.923334ms)
+✔ request preparation stays outside the write lock and concurrent creation cannot overspend the final daily slot (1176.043792ms)
+✔ captured metadata and provenance limits are checked before signing or reserving a quota slot (1181.925208ms)
+✔ bundle quotas survive key rotation and collection, retain idempotency, and bound publisher and tenant storage (1348.177792ms)
+✔ inbox pages enforce visibility in SQL; reads project expiry without audit writes and retention releases locks between pages (1592.387167ms)
+✔ reserved response space stays available after later bundle storage; extra candidate copies still need quota (1455.509917ms)
+✔ exports verify bundle bytes, manifest identity and compatibility against the accepted request (1925.209209ms)
+✔ exports refuse deleted required bundles but never revive private material after expiry (1195.854792ms)
+✔ audit refuses a missing tenant without signing or inserting a ledger record (1291.22325ms)
+✔ inbox lookahead returns truthful empty, exact and partial pages without counting retained history (1465.687375ms)
+✔ the last allowed inbox page never advertises an offset the service rejects (9777.948875ms)
+✔ production separates registrable sites, including private public-suffix entries (7.049084ms)
+✔ production requires explicit anchor configuration before database access, including bootstrap (2110.524083ms)
+✔ production database TLS cannot be weakened by connection-string parameters or plain PostgreSQL (971.097875ms)
+✔ startup rejects missing, mismatched, expired, revoked or private trust keys and accepts historical public keys (23.184792ms)
+✔ TLS webhook delivery persists before acknowledgement, deduplicates after restart and rejects five-minute replay and altered scopes (1530.918791ms)
+✔ a stalled row and a full stalled page finish their pass without rewriting timestamps or hiding later expiry (1381.058875ms)
+✔ cleanup caps request work, collects once per tenant, and expires sessions once outside tenant locks (3012.746458ms)
+✔ anchored and unanchored drains use tenant and readiness index bounds despite another tenant’s backlog (1671.221417ms)
+ℹ tests 85
+ℹ suites 0
+ℹ pass 85
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 163767.057292

@@ -1,0 +1,463 @@
+[
+  {
+    "id": "@haip/protocol@2.0.0-draft.1",
+    "name": "@haip/protocol",
+    "version": "2.0.0-draft.1",
+    "size": 7916,
+    "unpackedSize": 28649,
+    "shasum": "b05ba4b1332ef1925d97bf22d649170b6d17a526",
+    "integrity": "sha512-c//iDTYChSAP/hLAutHbxrxgSHZcYGRXSNotQNeaJ50IBQ+Vpp/jU2sajFb2YeCgca45ylj3d1Tlsp01LiMTxA==",
+    "filename": "haip-protocol-2.0.0-draft.1.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1068,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 658,
+        "mode": 420
+      },
+      {
+        "path": "dist/crypto.d.ts",
+        "size": 633,
+        "mode": 420
+      },
+      {
+        "path": "dist/crypto.js",
+        "size": 2247,
+        "mode": 420
+      },
+      {
+        "path": "dist/crypto.js.map",
+        "size": 2648,
+        "mode": 420
+      },
+      {
+        "path": "dist/generated.d.ts",
+        "size": 7443,
+        "mode": 420
+      },
+      {
+        "path": "dist/generated.js",
+        "size": 127,
+        "mode": 420
+      },
+      {
+        "path": "dist/generated.js.map",
+        "size": 121,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.ts",
+        "size": 770,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js",
+        "size": 651,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js.map",
+        "size": 719,
+        "mode": 420
+      },
+      {
+        "path": "dist/json.d.ts",
+        "size": 205,
+        "mode": 420
+      },
+      {
+        "path": "dist/json.js",
+        "size": 4965,
+        "mode": 420
+      },
+      {
+        "path": "dist/json.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 794,
+        "mode": 420
+      }
+    ],
+    "entryCount": 15,
+    "bundled": []
+  },
+  {
+    "id": "@haip/sdk@2.0.0-draft.1",
+    "name": "@haip/sdk",
+    "version": "2.0.0-draft.1",
+    "size": 7197,
+    "unpackedSize": 25030,
+    "shasum": "7ad67e27c10bcebde98b26a366058866788734e1",
+    "integrity": "sha512-aOwvWuaPthpnBv8H5hx9UUFAWXIJ7GZqHZrd86myDvGEsaFSaFyJtFNj0GQmd6OscGZDFIyhKx/TJKVKk+JTzA==",
+    "filename": "haip-sdk-2.0.0-draft.1.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1068,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 650,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.ts",
+        "size": 2540,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js",
+        "size": 10168,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js.map",
+        "size": 9947,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 657,
+        "mode": 420
+      }
+    ],
+    "entryCount": 6,
+    "bundled": []
+  },
+  {
+    "id": "@haip/server@2.0.0-draft.1",
+    "name": "@haip/server",
+    "version": "2.0.0-draft.1",
+    "size": 199480,
+    "unpackedSize": 1251227,
+    "shasum": "b710cc287ce3b81c01434c29340c62c8beb503ae",
+    "integrity": "sha512-XCe6MByoL5jVGvq1wRMSV3GDZeNw11ItvsCkD7YSz2BtitfWubB8xjsC4IjLqo/oBcC+Kx4gkzsMtfP8tP2iDQ==",
+    "filename": "haip-server-2.0.0-draft.1.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1068,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 656,
+        "mode": 420
+      },
+      {
+        "path": "dist/admin.d.ts",
+        "size": 1311,
+        "mode": 420
+      },
+      {
+        "path": "dist/admin.js",
+        "size": 7806,
+        "mode": 420
+      },
+      {
+        "path": "dist/admin.js.map",
+        "size": 7752,
+        "mode": 420
+      },
+      {
+        "path": "dist/anchor.d.ts",
+        "size": 1029,
+        "mode": 420
+      },
+      {
+        "path": "dist/anchor.js",
+        "size": 5881,
+        "mode": 420
+      },
+      {
+        "path": "dist/anchor.js.map",
+        "size": 5861,
+        "mode": 420
+      },
+      {
+        "path": "dist/auth.d.ts",
+        "size": 498,
+        "mode": 420
+      },
+      {
+        "path": "dist/auth.js",
+        "size": 7083,
+        "mode": 420
+      },
+      {
+        "path": "dist/auth.js.map",
+        "size": 7201,
+        "mode": 420
+      },
+      {
+        "path": "dist/config.d.ts",
+        "size": 1367,
+        "mode": 420
+      },
+      {
+        "path": "dist/config.js",
+        "size": 45,
+        "mode": 420
+      },
+      {
+        "path": "dist/config.js.map",
+        "size": 104,
+        "mode": 420
+      },
+      {
+        "path": "dist/delivery.d.ts",
+        "size": 178,
+        "mode": 420
+      },
+      {
+        "path": "dist/delivery.js",
+        "size": 2307,
+        "mode": 420
+      },
+      {
+        "path": "dist/delivery.js.map",
+        "size": 2882,
+        "mode": 420
+      },
+      {
+        "path": "dist/errors.d.ts",
+        "size": 303,
+        "mode": 420
+      },
+      {
+        "path": "dist/errors.js",
+        "size": 396,
+        "mode": 420
+      },
+      {
+        "path": "dist/errors.js.map",
+        "size": 483,
+        "mode": 420
+      },
+      {
+        "path": "dist/hitl.d.ts",
+        "size": 2124,
+        "mode": 420
+      },
+      {
+        "path": "dist/hitl.js",
+        "size": 2397,
+        "mode": 420
+      },
+      {
+        "path": "dist/hitl.js.map",
+        "size": 2229,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.ts",
+        "size": 215,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js",
+        "size": 174,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js.map",
+        "size": 235,
+        "mode": 420
+      },
+      {
+        "path": "dist/main.d.ts",
+        "size": 11,
+        "mode": 420
+      },
+      {
+        "path": "dist/main.js",
+        "size": 4735,
+        "mode": 420
+      },
+      {
+        "path": "dist/main.js.map",
+        "size": 4806,
+        "mode": 420
+      },
+      {
+        "path": "dist/server.d.ts",
+        "size": 266,
+        "mode": 420
+      },
+      {
+        "path": "dist/server.js",
+        "size": 10727,
+        "mode": 420
+      },
+      {
+        "path": "dist/server.js.map",
+        "size": 12918,
+        "mode": 420
+      },
+      {
+        "path": "dist/service.d.ts",
+        "size": 11195,
+        "mode": 420
+      },
+      {
+        "path": "dist/service.js",
+        "size": 46704,
+        "mode": 420
+      },
+      {
+        "path": "dist/service.js.map",
+        "size": 47425,
+        "mode": 420
+      },
+      {
+        "path": "dist/store.d.ts",
+        "size": 305,
+        "mode": 420
+      },
+      {
+        "path": "dist/store.js",
+        "size": 1152,
+        "mode": 420
+      },
+      {
+        "path": "dist/store.js.map",
+        "size": 1322,
+        "mode": 420
+      },
+      {
+        "path": "dist/validation.d.ts",
+        "size": 186,
+        "mode": 420
+      },
+      {
+        "path": "dist/validation.js",
+        "size": 1917,
+        "mode": 420
+      },
+      {
+        "path": "dist/validation.js.map",
+        "size": 2118,
+        "mode": 420
+      },
+      {
+        "path": "dist/worker.d.ts",
+        "size": 387,
+        "mode": 420
+      },
+      {
+        "path": "dist/worker.js",
+        "size": 12011,
+        "mode": 420
+      },
+      {
+        "path": "dist/worker.js.map",
+        "size": 8793,
+        "mode": 420
+      },
+      {
+        "path": "migrations/001_review.sql",
+        "size": 3664,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1040,
+        "mode": 420
+      },
+      {
+        "path": "public/host.js",
+        "size": 965888,
+        "mode": 420
+      },
+      {
+        "path": "public/index.html",
+        "size": 2654,
+        "mode": 420
+      },
+      {
+        "path": "public/sandbox.js",
+        "size": 2253,
+        "mode": 420
+      },
+      {
+        "path": "public/style.css",
+        "size": 1655,
+        "mode": 420
+      },
+      {
+        "path": "schema/schema.json",
+        "size": 31139,
+        "mode": 420
+      },
+      {
+        "path": "third-party/ext-apps-1.7.4-LICENSE",
+        "size": 12227,
+        "mode": 420
+      },
+      {
+        "path": "third-party/mcp-sdk-1.29.0-LICENSE",
+        "size": 1071,
+        "mode": 420
+      },
+      {
+        "path": "third-party/README.md",
+        "size": 1073,
+        "mode": 420
+      }
+    ],
+    "entryCount": 54,
+    "bundled": []
+  },
+  {
+    "id": "@haip/cli@2.0.0-draft.1",
+    "name": "@haip/cli",
+    "version": "2.0.0-draft.1",
+    "size": 3166,
+    "unpackedSize": 7826,
+    "shasum": "9c3e1e4385383525fad11bf955e65de2d67bc284",
+    "integrity": "sha512-Mj9/CnARFe8yQUSDOSlidwa7oxzh8J1OgmR/vbRZ22yAhg+pF1ohMOojLOYcJGvf6+PVnZWq4twMfWVIV3gqOw==",
+    "filename": "haip-cli-2.0.0-draft.1.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1068,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 660,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.ts",
+        "size": 31,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js",
+        "size": 2651,
+        "mode": 493
+      },
+      {
+        "path": "dist/index.js.map",
+        "size": 2615,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 801,
+        "mode": 420
+      }
+    ],
+    "entryCount": 6,
+    "bundled": []
+  }
+]

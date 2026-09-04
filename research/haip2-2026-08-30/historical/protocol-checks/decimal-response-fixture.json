@@ -1,0 +1,41 @@
+{
+  "purpose": "Public test data only; primitive compatibility, not protocol conformance",
+  "response_input": {
+    "choice": "approve",
+    "rate": 0.002,
+    "amount": 12.34
+  },
+  "response_canonical_utf8": "{\"amount\":12.34,\"choice\":\"approve\",\"rate\":0.002}",
+  "response_digest": "sha256:aacf9c8ba41dcdaa1314f1b66cc724362e49f5114b7909cd130f73bb9455b28d",
+  "signed_payload": {
+    "profile": "haip.receipt/v2-fixture",
+    "issuer": "https://approval.example.test",
+    "kid": "fixture-rfc8032-1",
+    "request_id": "request-fixture",
+    "request_revision": 1,
+    "approved_object_digest": "sha256:abababababababababababababababababababababababababababababababab",
+    "response_digest": "sha256:aacf9c8ba41dcdaa1314f1b66cc724362e49f5114b7909cd130f73bb9455b28d",
+    "decision": "approve",
+    "execution_id": "execution-fixture",
+    "issued_at": "2026-08-30T12:00:00Z"
+  },
+  "signed_payload_canonical_utf8": "{\"approved_object_digest\":\"sha256:abababababababababababababababababababababababababababababababab\",\"decision\":\"approve\",\"execution_id\":\"execution-fixture\",\"issued_at\":\"2026-08-30T12:00:00Z\",\"issuer\":\"https://approval.example.test\",\"kid\":\"fixture-rfc8032-1\",\"profile\":\"haip.receipt/v2-fixture\",\"request_id\":\"request-fixture\",\"request_revision\":1,\"response_digest\":\"sha256:aacf9c8ba41dcdaa1314f1b66cc724362e49f5114b7909cd130f73bb9455b28d\"}",
+  "signed_payload_sha256": "sha256:d7436b26d9943288ce227946d3cfb8484718ce3471cfe18fa4f7f2ab76903d1c",
+  "public_test_seed_rfc8032_7_1_vector1": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+  "signature_hex": "9fe2dab06ee24dc72ff52f480a64df8c8f0eb16d25a0e3b5e40cbb98273f205e3106c065d14c43aa5a67029e88f185761f5fa9a97b4db4658c57f5bc742d1d08",
+  "checks": [
+    {
+      "name": "decimal_response_RFC8785_Node_Rust",
+      "pass": true
+    },
+    {
+      "name": "receipt_digest_keeps_decimal_outside_safe_integer_envelope",
+      "pass": true
+    },
+    {
+      "name": "changed_decimal_fails_response_digest_binding",
+      "pass": true
+    }
+  ]
+}

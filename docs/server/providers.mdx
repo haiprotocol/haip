@@ -1,0 +1,36 @@
+---
+title: 'Free-first hosting and identity'
+description: 'Prefer free tiers, avoid Amazon services and verify provider limits before deployment.'
+---
+
+HAIP's reference deployment policy is free tiers first, with no Amazon services.
+Local development uses Node/PostgreSQL and needs no cloud account. Cloudflare and
+Clerk are candidates where their limits fit; prefer Azure if a paid service is needed.
+No hosting, storage or identity account is provisioned automatically.
+
+Cloudflare R2 Standard currently includes 10 GB-month of storage, one million Class A
+operations and ten million Class B operations per month, with free egress. It is a
+candidate for private, encrypted backups, with deletion by 30 days. An R2 uploader
+is not included. [R2 pricing](https://developers.cloudflare.com/r2/pricing/).
+
+R2 bucket-lock rules can be removed by administrators. They are not substituted for
+the strict production requirement for independently administered immutable audit
+storage. The optional Azure adapter checks locked retention, exact versions and
+permanent safety holds. It is not assumed free and needs real deployment acceptance.
+[R2 locks](https://developers.cloudflare.com/r2/buckets/bucket-locks/).
+
+Clerk can be configured through the standard server-side OAuth/OIDC flow. Set the
+exact issuer/client/callback, `HAIP_OIDC_DISCOVERY=oauth2` and
+`HAIP_OIDC_CLIENT_AUTH=client_secret_basic` when using its OAuth metadata endpoint.
+HAIP requests `openid`, retains its own secure sessions and requires operator-managed
+identity mappings. The generic flow is tested; an actual Clerk account is not configured.
+[Clerk OAuth](https://clerk.com/docs/guides/configure/auth-strategies/oauth/how-clerk-implements-oauth).
+
+Vercel Hobby is intended for personal, non-commercial use. This reference service
+also needs a persistent Node worker and PostgreSQL; it is not a drop-in serverless
+function. Static documentation can use suitable existing/free hosting independently.
+[Vercel Hobby](https://vercel.com/docs/plans/hobby).
+
+Recheck pricing, quotas and plan terms before deployment. Reaching a free-tier limit
+does not authorise a paid upgrade. See the repository's `PROVIDERS.md` and
+`deployment/acceptance.md` for the full choices and unrun checks.

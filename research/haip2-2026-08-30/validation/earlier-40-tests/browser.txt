@@ -1,0 +1,19 @@
+
+> haip-workspace@2.0.0-draft.1 test:browser
+> node --import tsx --test tests/browser.test.ts
+
+Connecting to 'http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:64013/sandbox/null/forbidden' violates the following Content Security Policy directive: "connect-src 'none'". The action has been blocked.
+Fetch API cannot load http://1ip2p3n1m82dvig3jay3f4qj5qpq4ul0rawpn3bqjp8snujvst.localhost:64013/sandbox/null/forbidden. Refused to connect because it violates the document's Content Security Policy.
+Blocked opening 'about:blank' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set.
+Framing 'http://127.0.0.1:64027/' violates the following Content Security Policy directive: "frame-src about:". The request has been blocked.
+
+✔ browser OIDC, app replay, restricted tool bridge, escaped text and trusted confirmation (3655.139625ms)
+✔ near-10-MiB payload remains searchable through the last of 1,000 steps (635.4705ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7607.524125

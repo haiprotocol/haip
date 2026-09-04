@@ -1,0 +1,20 @@
+---
+title: 'One bounded counter effect'
+description: 'Exercise execution refusal, launch fencing and outcome retries with mock state.'
+---
+
+`examples/http/counter.ts` exports `runCounter`, an executor fixture for exactly one `counter.increment` action with amount one. It accepts only the fixed action, context and policy commitments used by the tests. It is not a general-purpose runner.
+
+After ordinary human authorisation, it obtains an exclusive claim and fresh admission, verifies the original signed records and independent checkpoint acceptance, and creates a durable exclusive fence in a private per-request directory. Only then can it update the counter once. Initial reads count towards the same execution window.
+
+Reinvocation uses a saved result to retry outcome reporting without repeating the effect. A fence without a result is uncertain and must not be relaunched, even if an external operation appears to have failed. Do not delete or share the directory to bypass that rule.
+
+The local regression tests run normal HTTP confirmation with isolated PostgreSQL, OIDC and explicitly non-production storage fixtures:
+
+```sh
+node --import tsx --test tests/http.test.ts tests/counter-refusals.test.ts tests/counter-timing.test.ts
+```
+
+They cover the successful fixed effect, unconfirmed/review-only authority, altered bindings, pending anchoring, revocation, expiry and delays during the initial counter read. They do not validate real provider storage, credentials, Plasm dispatch or production recovery.
+
+Executors must supply a genuine independent acceptance verifier; replacing it with a no-op invalidates the demonstration's safety checks. Read the [execution contract](/protocol/execution) and [SDK verification responsibilities](/sdk/execution) before adapting any part of this fixture.

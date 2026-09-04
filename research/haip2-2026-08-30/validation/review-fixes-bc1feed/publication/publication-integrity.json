@@ -1,0 +1,60 @@
+{
+  "scope": "Exact staged Git blob snapshot; original hashes verified against the recorded baseline commit.",
+  "index_listing_sha256": "07439662fccc8ca4aa228f4bde6b3b12653fdf61c48257798b9b0a4fc452a0ce",
+  "ledger_file_count": 12,
+  "ledger_hashes": [
+    {
+      "path": "research/haip2-2026-08-30/INDEX.md",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/INDEX.md",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/README.txt",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/adapted-sandbox.ts",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/manifest.json",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/browser-replay/upstream-sandbox.ts",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/historical/protocol-checks/check-results.json",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/runners/run.mjs",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-approval-tests.txt",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-policy-tests.txt",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-shuttle-tests.txt",
+      "hashes_match": true
+    },
+    {
+      "path": "research/haip2-2026-08-30/validation/plasm-tests.txt",
+      "hashes_match": true
+    }
+  ],
+  "original_archive_source_files": 128,
+  "original_archive_source_files_unchanged": 128,
+  "historical_remote_files_unchanged": 7,
+  "research_machine_path_files": [],
+  "issues": []
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fixture_classification": "development",
+  "held_out_answers_in_development": false,
+  "symbol_generation": "deterministic_only",
+  "prompt_reflection_changes": "separate_from_symbol_generation",
+  "model_evaluation": {
+    "status": "not_run",
+    "model": null,
+    "prompt_revision": null,
+    "catalogue_revision": null,
+    "cost": null,
+    "failures": []
+  },
+  "harness_revision": "haip-2-draft-1",
+  "production_catalogues_in_invariant_tests": false
+}

@@ -1,0 +1,328 @@
+{
+  "title": "HAIP 2 draft 3 frozen wire vectors",
+  "status": "frozen",
+  "protocol_revision": "2.0.0-draft.3",
+  "authorship": "Internally authored second-language evidence. It is not an independent implementation or external review.",
+  "trust": {
+    "issuer": "https://haip.example",
+    "protocol_revision": "2.0.0-draft.3",
+    "keys": [
+      {
+        "key_id": "rfc8032-1",
+        "algorithm": "Ed25519",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "not_before": "2026-01-01T00:00:00.000Z",
+        "not_after": "2027-01-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "rfc8032": {
+    "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "message_hex": "",
+    "signature_hex": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+  },
+  "vectors": [
+    {
+      "name": "request",
+      "schema": "DecisionRequest",
+      "value": {
+        "id": "request-example-001",
+        "protocol_revision": "2.0.0-draft.3",
+        "purpose": "authorise_execution",
+        "profiles": {
+          "haip.execution": "1-draft.1"
+        },
+        "tenant": "tenant-example",
+        "producer": "producer-example",
+        "requester": {
+          "subject": "requester-example",
+          "source": "operator"
+        },
+        "route": "execution",
+        "authorisation_revision": 7,
+        "summary": "Authorise one counter increment",
+        "review": {
+          "artefact_digest": "sha256:4340e896aeb80e98d5ec629f5cfd9b448759c12de7db99af57039a05edac3ffd",
+          "representation": "application/json",
+          "digest_rules": "rfc8785-sha256",
+          "payload_digest": "sha256:4340e896aeb80e98d5ec629f5cfd9b448759c12de7db99af57039a05edac3ffd",
+          "response_schema_digest": "sha256:b375c1c529fb0a5760fe0434f019fb465c7d85928eb1e10c5c927e3c050eb69b",
+          "document_digest": "sha256:832c789e4712da5fdd25fa682aa77436597186f6860dccd30b7a606977f256b2"
+        },
+        "execution": {
+          "action_occurrence_id": "occurrence-example-001",
+          "proposal_digest": "sha256:4340e896aeb80e98d5ec629f5cfd9b448759c12de7db99af57039a05edac3ffd",
+          "proposal_format": "application/json",
+          "context_digest": "sha256:dbf9055af02b9b74258b26cf8c1ebf2eb01c9199ea3393d4e9962f64c71a65e3",
+          "context_format": "application/json",
+          "policy": {
+            "source": "operator",
+            "revision": "7",
+            "digest": "sha256:2b7fd35882405924215a24d43d2a60b7f56390fc8db3602975888f797c836adb"
+          },
+          "mode": "fixed_mock",
+          "valid_until": "2026-09-03T12:30:00.000Z",
+          "execution_seconds": 60,
+          "provenance": {
+            "profile": "haip.execution",
+            "version": "1-draft.1",
+            "references": {
+              "fixture": "draft-3-wire-v1"
+            }
+          }
+        },
+        "limits": {
+          "bundle_bytes": 5242880,
+          "payload_bytes": 10485760,
+          "response_bytes": 262144,
+          "inline_result_bytes": 2097152,
+          "retained_bytes": 1073741824,
+          "review_seconds": 86400,
+          "grant_seconds": 86400,
+          "execution_seconds": 3600,
+          "reconciliation_seconds": 604800,
+          "audit_seconds": 7776000
+        },
+        "accepted_at": "2026-09-03T12:00:00.000Z",
+        "review_deadline": "2026-09-03T12:20:00.000Z",
+        "private_delete_at": "2026-09-10T12:00:00.000Z",
+        "audit_delete_at": "2026-12-02T12:00:00.000Z",
+        "metadata": {
+          "fixture": "draft-3-wire",
+          "sequence": 3
+        },
+        "authority_namespace": "123e4567-e89b-42d3-a456-426614174000"
+      },
+      "canonical": "{\"accepted_at\":\"2026-09-03T12:00:00.000Z\",\"audit_delete_at\":\"2026-12-02T12:00:00.000Z\",\"authorisation_revision\":7,\"authority_namespace\":\"123e4567-e89b-42d3-a456-426614174000\",\"execution\":{\"action_occurrence_id\":\"occurrence-example-001\",\"context_digest\":\"sha256:dbf9055af02b9b74258b26cf8c1ebf2eb01c9199ea3393d4e9962f64c71a65e3\",\"context_format\":\"application/json\",\"execution_seconds\":60,\"mode\":\"fixed_mock\",\"policy\":{\"digest\":\"sha256:2b7fd35882405924215a24d43d2a60b7f56390fc8db3602975888f797c836adb\",\"revision\":\"7\",\"source\":\"operator\"},\"proposal_digest\":\"sha256:4340e896aeb80e98d5ec629f5cfd9b448759c12de7db99af57039a05edac3ffd\",\"proposal_format\":\"application/json\",\"provenance\":{\"profile\":\"haip.execution\",\"references\":{\"fixture\":\"draft-3-wire-v1\"},\"version\":\"1-draft.1\"},\"valid_until\":\"2026-09-03T12:30:00.000Z\"},\"id\":\"request-example-001\",\"limits\":{\"audit_seconds\":7776000,\"bundle_bytes\":5242880,\"execution_seconds\":3600,\"grant_seconds\":86400,\"inline_result_bytes\":2097152,\"payload_bytes\":10485760,\"reconciliation_seconds\":604800,\"response_bytes\":262144,\"retained_bytes\":1073741824,\"review_seconds\":86400},\"metadata\":{\"fixture\":\"draft-3-wire\",\"sequence\":3},\"private_delete_at\":\"2026-09-10T12:00:00.000Z\",\"producer\":\"producer-example\",\"profiles\":{\"haip.execution\":\"1-draft.1\"},\"protocol_revision\":\"2.0.0-draft.3\",\"purpose\":\"authorise_execution\",\"requester\":{\"source\":\"operator\",\"subject\":\"requester-example\"},\"review\":{\"artefact_digest\":\"sha256:4340e896aeb80e98d5ec629f5cfd9b448759c12de7db99af57039a05edac3ffd\",\"digest_rules\":\"rfc8785-sha256\",\"document_digest\":\"sha256:832c789e4712da5fdd25fa682aa77436597186f6860dccd30b7a606977f256b2\",\"payload_digest\":\"sha256:4340e896aeb80e98d5ec629f5cfd9b448759c12de7db99af57039a05edac3ffd\",\"representation\":\"application/json\",\"response_schema_digest\":\"sha256:b375c1c529fb0a5760fe0434f019fb465c7d85928eb1e10c5c927e3c050eb69b\"},\"review_deadline\":\"2026-09-03T12:20:00.000Z\",\"route\":\"execution\",\"summary\":\"Authorise one counter increment\",\"tenant\":\"tenant-example\"}",
+      "digest": "sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e"
+    },
+    {
+      "name": "candidate",
+      "schema": "DecisionCandidate",
+      "value": {
+        "id": "candidate-example-001",
+        "request_id": "request-example-001",
+        "request_digest": "sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e",
+        "reviewer": "reviewer-example",
+        "revision": 1,
+        "response": {
+          "authorised": true,
+          "note": "Proceed once"
+        },
+        "response_canonical": "{\"authorised\":true,\"note\":\"Proceed once\"}",
+        "response_digest": "sha256:9fc7cc66666dd171b840edf2dff4971b0bf41b0aa9bc923383360b39849602d8",
+        "decision": "authorise",
+        "created_at": "2026-09-03T12:04:00.000Z"
+      },
+      "canonical": "{\"created_at\":\"2026-09-03T12:04:00.000Z\",\"decision\":\"authorise\",\"id\":\"candidate-example-001\",\"request_digest\":\"sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e\",\"request_id\":\"request-example-001\",\"response\":{\"authorised\":true,\"note\":\"Proceed once\"},\"response_canonical\":\"{\\\"authorised\\\":true,\\\"note\\\":\\\"Proceed once\\\"}\",\"response_digest\":\"sha256:9fc7cc66666dd171b840edf2dff4971b0bf41b0aa9bc923383360b39849602d8\",\"reviewer\":\"reviewer-example\",\"revision\":1}",
+      "digest": "sha256:f62979236dfb3b6811c8f7f8ea4876840813b64ae149876caf370cb83e2cee12"
+    },
+    {
+      "name": "receipt",
+      "schema": "SignedRecord",
+      "payload_schema": "DecisionReceipt",
+      "value": {
+        "protected": {
+          "type": "DecisionReceipt",
+          "protocol_revision": "2.0.0-draft.3",
+          "purpose": "authorise_execution",
+          "profiles": {
+            "haip.execution": "1-draft.1"
+          },
+          "issuer": "https://haip.example",
+          "audience": "producer-example",
+          "tenant": "tenant-example",
+          "key_id": "rfc8032-1",
+          "issued_at": "2026-09-03T12:05:00.000Z"
+        },
+        "payload": {
+          "purpose": "authorise_execution",
+          "request_id": "request-example-001",
+          "request_digest": "sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e",
+          "candidate_id": "candidate-example-001",
+          "candidate_digest": "sha256:f62979236dfb3b6811c8f7f8ea4876840813b64ae149876caf370cb83e2cee12",
+          "reviewer": "reviewer-example",
+          "requester": "requester-example",
+          "response_digest": "sha256:9fc7cc66666dd171b840edf2dff4971b0bf41b0aa9bc923383360b39849602d8",
+          "decision": "authorise",
+          "confirmed_at": "2026-09-03T12:05:00.000Z",
+          "grant_deadline": "2026-09-03T12:25:00.000Z"
+        },
+        "signature": "IP2p_Ft76D0kUsDzObtk6fLHE_skm8OmCFIUuqzC625cnAMhEcM_ZjHCKAfz9CIuCWNOmI1-GDsQYDoF43AtDQ"
+      },
+      "canonical": "{\"payload\":{\"candidate_digest\":\"sha256:f62979236dfb3b6811c8f7f8ea4876840813b64ae149876caf370cb83e2cee12\",\"candidate_id\":\"candidate-example-001\",\"confirmed_at\":\"2026-09-03T12:05:00.000Z\",\"decision\":\"authorise\",\"grant_deadline\":\"2026-09-03T12:25:00.000Z\",\"purpose\":\"authorise_execution\",\"request_digest\":\"sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e\",\"request_id\":\"request-example-001\",\"requester\":\"requester-example\",\"response_digest\":\"sha256:9fc7cc66666dd171b840edf2dff4971b0bf41b0aa9bc923383360b39849602d8\",\"reviewer\":\"reviewer-example\"},\"protected\":{\"audience\":\"producer-example\",\"issued_at\":\"2026-09-03T12:05:00.000Z\",\"issuer\":\"https://haip.example\",\"key_id\":\"rfc8032-1\",\"profiles\":{\"haip.execution\":\"1-draft.1\"},\"protocol_revision\":\"2.0.0-draft.3\",\"purpose\":\"authorise_execution\",\"tenant\":\"tenant-example\",\"type\":\"DecisionReceipt\"},\"signature\":\"IP2p_Ft76D0kUsDzObtk6fLHE_skm8OmCFIUuqzC625cnAMhEcM_ZjHCKAfz9CIuCWNOmI1-GDsQYDoF43AtDQ\"}",
+      "digest": "sha256:3e51d38564cec9b5d289c9107ccaa3d7efaa1558edfefa7ab591326bbf8031af",
+      "expected": {
+        "issuer": "https://haip.example",
+        "audience": "producer-example",
+        "tenant": "tenant-example",
+        "purpose": "authorise_execution",
+        "type": "DecisionReceipt"
+      }
+    },
+    {
+      "name": "event",
+      "schema": "SignedRecord",
+      "payload_schema": "RequestChangedEvent",
+      "value": {
+        "protected": {
+          "type": "RequestChangedEvent",
+          "protocol_revision": "2.0.0-draft.3",
+          "purpose": "authorise_execution",
+          "profiles": {
+            "haip.execution": "1-draft.1"
+          },
+          "issuer": "https://haip.example",
+          "audience": "producer-example",
+          "tenant": "tenant-example",
+          "key_id": "rfc8032-1",
+          "issued_at": "2026-09-03T12:05:00.000Z"
+        },
+        "payload": {
+          "event_id": "event-example-001",
+          "type": "haip.request.changed",
+          "request_id": "request-example-001",
+          "revision": 2,
+          "reason": "decision",
+          "state": {
+            "audit": "anchored",
+            "decision": "confirmed",
+            "execution": "none",
+            "grant": "available"
+          },
+          "deadline": "2026-09-03T12:25:00.000Z",
+          "status_ref": "https://haip.example/v2/requests/request-example-001"
+        },
+        "signature": "WXAPLAsSTQ69Qzz792YzrCnuHuBf4X1F3JTqkSociHvyXraz8gymCz-u_mcifrnAcqMwbsbxwGWNjrMdWCheDQ"
+      },
+      "canonical": "{\"payload\":{\"deadline\":\"2026-09-03T12:25:00.000Z\",\"event_id\":\"event-example-001\",\"reason\":\"decision\",\"request_id\":\"request-example-001\",\"revision\":2,\"state\":{\"audit\":\"anchored\",\"decision\":\"confirmed\",\"execution\":\"none\",\"grant\":\"available\"},\"status_ref\":\"https://haip.example/v2/requests/request-example-001\",\"type\":\"haip.request.changed\"},\"protected\":{\"audience\":\"producer-example\",\"issued_at\":\"2026-09-03T12:05:00.000Z\",\"issuer\":\"https://haip.example\",\"key_id\":\"rfc8032-1\",\"profiles\":{\"haip.execution\":\"1-draft.1\"},\"protocol_revision\":\"2.0.0-draft.3\",\"purpose\":\"authorise_execution\",\"tenant\":\"tenant-example\",\"type\":\"RequestChangedEvent\"},\"signature\":\"WXAPLAsSTQ69Qzz792YzrCnuHuBf4X1F3JTqkSociHvyXraz8gymCz-u_mcifrnAcqMwbsbxwGWNjrMdWCheDQ\"}",
+      "digest": "sha256:be3024233cffeb04019b84f28e5041c1043aca23c43d09e7aac4ac00c2eafa75",
+      "expected": {
+        "issuer": "https://haip.example",
+        "audience": "producer-example",
+        "tenant": "tenant-example",
+        "purpose": "authorise_execution",
+        "type": "RequestChangedEvent"
+      }
+    },
+    {
+      "name": "claim",
+      "schema": "SignedRecord",
+      "payload_schema": "ExecutionClaim",
+      "value": {
+        "protected": {
+          "type": "ExecutionClaim",
+          "protocol_revision": "2.0.0-draft.3",
+          "purpose": "authorise_execution",
+          "profiles": {
+            "haip.execution": "1-draft.1"
+          },
+          "issuer": "https://haip.example",
+          "audience": "producer-example",
+          "tenant": "tenant-example",
+          "key_id": "rfc8032-1",
+          "issued_at": "2026-09-03T12:06:00.000Z"
+        },
+        "payload": {
+          "id": "123e4567-e89b-42d3-a456-426614174001",
+          "request_id": "request-example-001",
+          "request_digest": "sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e",
+          "receipt_digest": "sha256:3e51d38564cec9b5d289c9107ccaa3d7efaa1558edfefa7ab591326bbf8031af",
+          "execution_identity": "executor-example",
+          "action_occurrence_id": "occurrence-example-001",
+          "execution_binding_digest": "sha256:da5987ddc11792746ef055eeb75a562c14b448ce20c73b5aa24d8153edcb9f16",
+          "claimed_at": "2026-09-03T12:06:00.000Z",
+          "dispatch_before": "2026-09-03T12:25:00.000Z",
+          "execution_seconds": 60
+        },
+        "signature": "M-vZkGyHfNBszuQ_NGj_U2CInlUXOpa8mhKHdZVmom3T-DAB4BMTorFuPDp_0O6IIB6L1XUshPUK_8chezOjBg"
+      },
+      "canonical": "{\"payload\":{\"action_occurrence_id\":\"occurrence-example-001\",\"claimed_at\":\"2026-09-03T12:06:00.000Z\",\"dispatch_before\":\"2026-09-03T12:25:00.000Z\",\"execution_binding_digest\":\"sha256:da5987ddc11792746ef055eeb75a562c14b448ce20c73b5aa24d8153edcb9f16\",\"execution_identity\":\"executor-example\",\"execution_seconds\":60,\"id\":\"123e4567-e89b-42d3-a456-426614174001\",\"receipt_digest\":\"sha256:3e51d38564cec9b5d289c9107ccaa3d7efaa1558edfefa7ab591326bbf8031af\",\"request_digest\":\"sha256:104f5298c2310cdfd563030f5fb4ea48f4016a4ea9ec1200d49c29e3e6f4704e\",\"request_id\":\"request-example-001\"},\"protected\":{\"audience\":\"producer-example\",\"issued_at\":\"2026-09-03T12:06:00.000Z\",\"issuer\":\"https://haip.example\",\"key_id\":\"rfc8032-1\",\"profiles\":{\"haip.execution\":\"1-draft.1\"},\"protocol_revision\":\"2.0.0-draft.3\",\"purpose\":\"authorise_execution\",\"tenant\":\"tenant-example\",\"type\":\"ExecutionClaim\"},\"signature\":\"M-vZkGyHfNBszuQ_NGj_U2CInlUXOpa8mhKHdZVmom3T-DAB4BMTorFuPDp_0O6IIB6L1XUshPUK_8chezOjBg\"}",
+      "digest": "sha256:0b54426daff4022128e940f4e7b7d08e7a8298fb177393b0fa26ef4d12b5959f",
+      "expected": {
+        "issuer": "https://haip.example",
+        "audience": "producer-example",
+        "tenant": "tenant-example",
+        "purpose": "authorise_execution",
+        "type": "ExecutionClaim"
+      }
+    },
+    {
+      "name": "admission",
+      "schema": "SignedRecord",
+      "payload_schema": "AdmissionStatus",
+      "value": {
+        "protected": {
+          "type": "AdmissionStatus",
+          "protocol_revision": "2.0.0-draft.3",
+          "purpose": "authorise_execution",
+          "profiles": {
+            "haip.execution": "1-draft.1"
+          },
+          "issuer": "https://haip.example",
+          "audience": "producer-example",
+          "tenant": "tenant-example",
+          "key_id": "rfc8032-1",
+          "issued_at": "2026-09-03T12:07:00.000Z"
+        },
+        "payload": {
+          "claim_id": "123e4567-e89b-42d3-a456-426614174001",
+          "claim_digest": "sha256:0b54426daff4022128e940f4e7b7d08e7a8298fb177393b0fa26ef4d12b5959f",
+          "request_id": "request-example-001",
+          "execution_identity": "executor-example",
+          "execution_binding_digest": "sha256:da5987ddc11792746ef055eeb75a562c14b448ce20c73b5aa24d8153edcb9f16",
+          "checked_at": "2026-09-03T12:07:00.000Z",
+          "dispatch_before": "2026-09-03T12:25:00.000Z",
+          "execution_seconds": 60,
+          "nonce": "nonce-example-0001",
+          "anchor": {
+            "checkpoint_digest": "sha256:05b25b001bca4b8d7bfcc444aceb80322601c4e4151f6ae80b619f432bee8e46",
+            "sequence": 42
+          }
+        },
+        "signature": "dIqKPmjwwIgNMNBR0-Lq6M7cQ95EwNYdEojY5OOw7BN7_H2GomNZJx_WlKzSXUrAjueTJ_ycbungqbIwJ_BKCw"
+      },
+      "canonical": "{\"payload\":{\"anchor\":{\"checkpoint_digest\":\"sha256:05b25b001bca4b8d7bfcc444aceb80322601c4e4151f6ae80b619f432bee8e46\",\"sequence\":42},\"checked_at\":\"2026-09-03T12:07:00.000Z\",\"claim_digest\":\"sha256:0b54426daff4022128e940f4e7b7d08e7a8298fb177393b0fa26ef4d12b5959f\",\"claim_id\":\"123e4567-e89b-42d3-a456-426614174001\",\"dispatch_before\":\"2026-09-03T12:25:00.000Z\",\"execution_binding_digest\":\"sha256:da5987ddc11792746ef055eeb75a562c14b448ce20c73b5aa24d8153edcb9f16\",\"execution_identity\":\"executor-example\",\"execution_seconds\":60,\"nonce\":\"nonce-example-0001\",\"request_id\":\"request-example-001\"},\"protected\":{\"audience\":\"producer-example\",\"issued_at\":\"2026-09-03T12:07:00.000Z\",\"issuer\":\"https://haip.example\",\"key_id\":\"rfc8032-1\",\"profiles\":{\"haip.execution\":\"1-draft.1\"},\"protocol_revision\":\"2.0.0-draft.3\",\"purpose\":\"authorise_execution\",\"tenant\":\"tenant-example\",\"type\":\"AdmissionStatus\"},\"signature\":\"dIqKPmjwwIgNMNBR0-Lq6M7cQ95EwNYdEojY5OOw7BN7_H2GomNZJx_WlKzSXUrAjueTJ_ycbungqbIwJ_BKCw\"}",
+      "digest": "sha256:04f7997f619cea446c748c1edd6550f23cc8e4fe46bba908f1a3082206c5f4d3",
+      "expected": {
+        "issuer": "https://haip.example",
+        "audience": "producer-example",
+        "tenant": "tenant-example",
+        "purpose": "authorise_execution",
+        "type": "AdmissionStatus"
+      }
+    }
+  ],
+  "tamper_cases": [
+    {
+      "name": "candidate response change",
+      "vector": "candidate",
+      "path": ["response", "note"],
+      "replacement": "Proceed twice"
+    },
+    {
+      "name": "receipt decision change",
+      "vector": "receipt",
+      "path": ["payload", "decision"],
+      "replacement": "refuse"
+    },
+    {
+      "name": "event reason change",
+      "vector": "event",
+      "path": ["payload", "reason"],
+      "replacement": "revoked"
+    },
+    {
+      "name": "claim executor change",
+      "vector": "claim",
+      "path": ["payload", "execution_identity"],
+      "replacement": "executor-other"
+    },
+    {
+      "name": "admission nonce change",
+      "vector": "admission",
+      "path": ["payload", "nonce"],
+      "replacement": "nonce-example-0002"
+    }
+  ]
+}

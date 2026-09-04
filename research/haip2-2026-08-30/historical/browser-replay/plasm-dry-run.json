@@ -1,0 +1,162 @@
+{
+  "toolName": "plasm",
+  "isError": false,
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://plasm/plan-review",
+      "plasm": {
+        "comp": {
+          "version": 1,
+          "steps": {
+            "r1": {
+              "kind": "invoke",
+              "plan_kind": "query",
+              "operation": "query e1{p7=Repository(owner=\"PlasmTools\", repo=\"plasm\"), p46=open}"
+            },
+            "items": {
+              "kind": "map",
+              "plan_kind": "compute",
+              "operation": "limit 3 ← r1",
+              "dependencies": ["r1"]
+            }
+          },
+          "bind": {
+            "topo": ["r1", "items"],
+            "deps": { "items": ["r1"] }
+          },
+          "return": { "kind": "step", "step": "items" },
+          "returns": ["items"]
+        },
+        "plan_ux_reflection": {
+          "schema_version": 3,
+          "layout": "sequential",
+          "steps": [
+            {
+              "id": "r1",
+              "ordinal": 1,
+              "widget": "read_surface",
+              "entry_id": "github",
+              "entity": "Issue",
+              "operation": "query e1{p7=Repository(owner=\"PlasmTools\", repo=\"plasm\"), p46=open}",
+              "effect_class": "read",
+              "approval_gate": false,
+              "headline": "r1"
+            },
+            {
+              "id": "items",
+              "ordinal": 2,
+              "widget": "compute",
+              "operation": "limit 3 ← r1",
+              "effect_class": "read",
+              "approval_gate": false,
+              "headline": "items"
+            }
+          ],
+          "review": {
+            "verdict": "review",
+            "write_count": 0,
+            "read_count": 2,
+            "warnings": "project list reads"
+          },
+          "flow": {
+            "schema_version": 2,
+            "verdict": "clean",
+            "counts": { "allow": 2, "approve": 0, "review": 0, "deny": 0 },
+            "catalog_has_labels": true,
+            "data_classes": {
+              "untrusted": { "severity": "untrusted", "description": "User-authored or externally sourced text." }
+            },
+            "violations": [],
+            "trace": [
+              { "id": "r1", "ordinal": 1, "disposition": "allow", "labels_in": [], "labels_out": ["untrusted"] },
+              { "id": "items", "ordinal": 2, "disposition": "allow", "labels_in": ["untrusted"], "labels_out": ["untrusted"] }
+            ]
+          }
+        }
+      }
+    },
+    "plasm": {
+      "dry_run": true,
+      "logical_session_ref": "l_AAAAAAAAQACAAAAAAAAAAQ",
+      "run_ref": "pc1",
+      "dry_verdict": "review"
+    }
+  },
+  "structuredContent": {
+    "plasm": {
+      "dry_run": true,
+      "logical_session_ref": "l_AAAAAAAAQACAAAAAAAAAAQ",
+      "run_ref": "pc1",
+      "dry_verdict": "review",
+      "comp": {
+        "version": 1,
+        "steps": {
+          "r1": {
+            "kind": "invoke",
+            "plan_kind": "query",
+            "operation": "query e1{p7=Repository(owner=\"PlasmTools\", repo=\"plasm\"), p46=open}"
+          },
+          "items": {
+            "kind": "map",
+            "plan_kind": "compute",
+            "operation": "limit 3 ← r1",
+            "dependencies": ["r1"]
+          }
+        },
+        "bind": {
+          "topo": ["r1", "items"],
+          "deps": { "items": ["r1"] }
+        },
+        "return": { "kind": "step", "step": "items" },
+        "returns": ["items"]
+      },
+      "plan_ux_reflection": {
+        "schema_version": 3,
+        "layout": "sequential",
+        "steps": [
+          {
+            "id": "r1",
+            "ordinal": 1,
+            "widget": "read_surface",
+            "entry_id": "github",
+            "entity": "Issue",
+            "operation": "query e1{p7=Repository(owner=\"PlasmTools\", repo=\"plasm\"), p46=open}",
+            "effect_class": "read",
+            "approval_gate": false,
+            "headline": "r1"
+          },
+          {
+            "id": "items",
+            "ordinal": 2,
+            "widget": "compute",
+            "operation": "limit 3 ← r1",
+            "effect_class": "read",
+            "approval_gate": false,
+            "headline": "items"
+          }
+        ],
+        "review": {
+          "verdict": "review",
+          "write_count": 0,
+          "read_count": 2,
+          "warnings": "project list reads"
+        },
+        "flow": {
+          "schema_version": 2,
+          "verdict": "clean",
+          "counts": { "allow": 2, "approve": 0, "review": 0, "deny": 0 },
+          "catalog_has_labels": true,
+          "data_classes": {
+            "untrusted": { "severity": "untrusted", "description": "User-authored or externally sourced text." }
+          },
+          "violations": [],
+          "trace": [
+            { "id": "r1", "ordinal": 1, "disposition": "allow", "labels_in": [], "labels_out": ["untrusted"] },
+            { "id": "items", "ordinal": 2, "disposition": "allow", "labels_in": ["untrusted"], "labels_out": ["untrusted"] }
+          ]
+        }
+      }
+    }
+  },
+  "content": [{ "type": "text", "text": "```text\nplan review · 2n 1r → items\n```" }]
+}

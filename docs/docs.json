@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "HAIProtocol (HAIP)",
+  "name": "HAIP \u2014 Human-Agent Interaction Protocol",
   "colors": {
     "primary": "#EAB308",
     "light": "#FCD34D",
@@ -11,69 +11,67 @@
   "navigation": {
     "groups": [
       {
-        "group": "Getting Started",
+        "group": "HAIP 2 draft",
         "pages": [
           "index",
           "quickstart",
-          "technical_overview"        ]
+          "technical_overview"
+        ]
       },
       {
         "group": "Protocol",
         "pages": [
           "protocol/overview",
+          "protocol/review",
+          "protocol/execution",
+          "protocol/essentials/transport",
+          "protocol/essentials/error-handling",
           "protocol/openapi"
-
         ]
       },
       {
-        "group": "Examples",
+        "group": "Reference service",
         "pages": [
-          "examples/basic-chat",
-          "examples/using-cli",
-          "examples/audio-streaming",
-          "examples/flow-control"
+          "server/overview",
+          "server/authentication",
+          "server/configuration",
+          "server/deployment",
+          "server/monitoring",
+          "server/providers"
         ]
       },
       {
         "group": "TypeScript SDK",
         "pages": [
           "sdk/overview",
-          "sdk/installation",
-          "sdk/quickstart",
-          "sdk/client",
-          "sdk/transports",
+          "sdk/api-reference",
           "sdk/authentication",
-          "sdk/messaging",
-          "sdk/tools",
-          "sdk/flow-control",
           "sdk/error-handling",
-          "sdk/api-reference"
+          "sdk/execution",
+          "sdk/webhooks",
+          "sdk/view"
         ]
       },
       {
-        "group": "HAIP Server",
-        "pages": [
-          "server/overview",
-          "server/installation",
-          "server/quickstart",
-          "server/configuration",
-          "server/transports",
-          "server/tools",
-          "server/authentication",
-          "server/monitoring",
-          "server/deployment",
-          "server/api-reference"
-        ]
-      },
-      {
-        "group": "HAIP CLI",
+        "group": "Command line",
         "pages": [
           "cli/overview",
-          "cli/installation",
-          "cli/quickstart",
           "cli/commands",
-          "cli/configuration",
-          "cli/api-reference"
+          "cli/configuration"
+        ]
+      },
+      {
+        "group": "Local examples",
+        "pages": [
+          "examples/review",
+          "examples/using-cli",
+          "examples/counter"
+        ]
+      },
+      {
+        "group": "Unsupported HAIP 1 archive",
+        "pages": [
+          "archive/v1/index"
         ]
       }
     ]
@@ -81,5 +79,212 @@
   "logo": {
     "light": "light.svg",
     "dark": "dark.svg"
-  }
-} 
+  },
+  "redirects": [
+    {
+      "source": "/cli/api-reference",
+      "destination": "/cli/commands",
+      "permanent": true
+    },
+    {
+      "source": "/cli/installation",
+      "destination": "/cli/overview",
+      "permanent": true
+    },
+    {
+      "source": "/cli/quickstart",
+      "destination": "/examples/using-cli",
+      "permanent": true
+    },
+    {
+      "source": "/examples/audio-streaming",
+      "destination": "/archive/v1/examples/audio-streaming",
+      "permanent": true
+    },
+    {
+      "source": "/examples/basic-chat",
+      "destination": "/archive/v1/examples/basic-chat",
+      "permanent": true
+    },
+    {
+      "source": "/examples/flow-control",
+      "destination": "/archive/v1/examples/flow-control",
+      "permanent": true
+    },
+    {
+      "source": "/examples/using-cli.mdx.old",
+      "destination": "/archive/v1/examples/using-cli",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/authentication",
+      "destination": "/server/authentication",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/binary-frames",
+      "destination": "/archive/v1/protocol/essentials/binary-frames",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/flow-control",
+      "destination": "/archive/v1/protocol/essentials/flow-control",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/http-streaming",
+      "destination": "/archive/v1/protocol/essentials/http-streaming",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/messaging",
+      "destination": "/archive/v1/protocol/essentials/messaging",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/sse",
+      "destination": "/archive/v1/protocol/essentials/sse",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/tools",
+      "destination": "/archive/v1/protocol/essentials/tools",
+      "permanent": true
+    },
+    {
+      "source": "/protocol/essentials/websocket",
+      "destination": "/archive/v1/protocol/essentials/websocket",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/client",
+      "destination": "/sdk/overview",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/flow-control",
+      "destination": "/archive/v1/sdk/flow-control",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/installation",
+      "destination": "/sdk/overview",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/messaging",
+      "destination": "/archive/v1/sdk/messaging",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/quickstart",
+      "destination": "/quickstart",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/tools",
+      "destination": "/archive/v1/sdk/tools",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/transports",
+      "destination": "/protocol/essentials/transport",
+      "permanent": true
+    },
+    {
+      "source": "/server/api-reference",
+      "destination": "/protocol/openapi",
+      "permanent": true
+    },
+    {
+      "source": "/server/installation",
+      "destination": "/server/deployment",
+      "permanent": true
+    },
+    {
+      "source": "/server/quickstart",
+      "destination": "/quickstart",
+      "permanent": true
+    },
+    {
+      "source": "/server/tools",
+      "destination": "/archive/v1/server/tools",
+      "permanent": true
+    },
+    {
+      "source": "/server/transports",
+      "destination": "/protocol/essentials/transport",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/openapi",
+      "destination": "/archive/v1/protocol/openapi",
+      "permanent": true
+    },
+    {
+      "source": "/cli/examples",
+      "destination": "/archive/v1/examples/using-cli",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/authentication",
+      "destination": "/archive/v1/protocol/essentials/authentication",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/binary-frames",
+      "destination": "/archive/v1/protocol/essentials/binary-frames",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/error-handling",
+      "destination": "/archive/v1/protocol/essentials/error-handling",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/flow-control",
+      "destination": "/archive/v1/protocol/essentials/flow-control",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/http-streaming",
+      "destination": "/archive/v1/protocol/essentials/http-streaming",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/messaging",
+      "destination": "/archive/v1/protocol/essentials/messaging",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/monitoring",
+      "destination": "/archive/v1/server/monitoring",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/sse",
+      "destination": "/archive/v1/protocol/essentials/sse",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/tools",
+      "destination": "/archive/v1/protocol/essentials/tools",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/transport",
+      "destination": "/archive/v1/protocol/essentials/transport",
+      "permanent": true
+    },
+    {
+      "source": "/essentials/websocket",
+      "destination": "/archive/v1/protocol/essentials/websocket",
+      "permanent": true
+    },
+    {
+      "source": "/sdk/types",
+      "destination": "/archive/v1/sdk/api-reference",
+      "permanent": true
+    }
+  ]
+}

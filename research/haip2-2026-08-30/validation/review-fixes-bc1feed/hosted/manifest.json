@@ -1,0 +1,119 @@
+{
+  "recorded_at": "2026-08-30T22:30:36.105868+00:00",
+  "scope": "Hosted review-regression checks and development-container smoke; isolated fixtures, not deployment acceptance",
+  "repository": "haiprotocol/haip",
+  "pull_request_url": "https://github.com/haiprotocol/haip/pull/5",
+  "run": {
+    "id": 33339089387,
+    "run_attempt": 1,
+    "html_url": "https://github.com/haiprotocol/haip/actions/runs/33339089387",
+    "event": "pull_request",
+    "head_branch": "l/haip-2",
+    "head_sha": "bc1feed4aac1dbe5ea6e47d2c9ad5ce8dd9f9fcd",
+    "created_at": "2026-08-30T22:25:01Z",
+    "run_started_at": "2026-08-30T22:25:01Z",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "checked_out_merge_sha": "165ec0b59de690907820150060bab5bc569c6e30",
+  "base_sha": "f04a2f362ee02e09fd23819a5409e78b82a7be8b",
+  "checked_out_tree_sha": "4b689e8c54625feec1bbce8847ee11cb1cf3471b",
+  "checked_out_tree_matches_clean_snapshot": true,
+  "workflow_sha256": "6e62ef860f7ad16adda41d1b49af8ef1374b04d8f431f83d520d5c4d92153abe",
+  "runner": {
+    "label": "ubuntu-24.04"
+  },
+  "runtimes": {
+    "node": "v24.19.0",
+    "python": "Python 3.12.14",
+    "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "postgresql": "PostgreSQL 16.15 (Ubuntu 16.15-1.pgdg24.04+2)"
+  },
+  "validation": {
+    "npm ci": "passed",
+    "npm run check": {
+      "tests": 68,
+      "pass": 68,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 105893.500949
+    },
+    "npm run test:cross-language": {
+      "passed": 25,
+      "scope": "Primitive cross-language evidence, not full protocol or Plasm conformance"
+    },
+    "npm audit --omit=dev": {
+      "known_production_dependency_vulnerabilities": 0
+    },
+    "npm run pack:check": {
+      "draft_package_dry_runs": 4,
+      "publication_performed": false
+    },
+    "development_container_build": "passed",
+    "development_container_smoke": {
+      "passed": 9,
+      "production_acceptance": false,
+      "runtime": {
+        "node": "v24.20.0",
+        "uid": 1000
+      },
+      "postgresql": "postgres (PostgreSQL) 17.11 (Debian 17.11-1.pgdg12+2)",
+      "compose_scope": "configuration validation only; runtime checks use disposable Docker containers"
+    },
+    "git diff --exit-code": "passed"
+  },
+  "job": {
+    "id": 99331291664,
+    "html_url": "https://github.com/haiprotocol/haip/actions/runs/33339089387/job/99331291664",
+    "started_at": "2026-08-30T22:25:03Z",
+    "completed_at": "2026-08-30T22:28:26Z",
+    "conclusion": "success"
+  },
+  "artifact": {
+    "id": 9739996470,
+    "name": "draft-fixture-evidence",
+    "size_in_bytes": 425300,
+    "digest": "sha256:b8715ad4457be81d4e122feec8c96462998ebd151d6181502c0c13bd3f31afdf",
+    "created_at": "2026-08-30T22:28:22Z",
+    "expires_at": "2026-09-06T22:28:21Z"
+  },
+  "artifact_digest_verified_locally": true,
+  "evidence_processing": [
+    "Selected job logs omit GitHub command/environment headers, ANSI colour sequences, trailing whitespace and per-line transport timestamps; the hosted workspace root is replaced by <workspace>. Raw selected logs are hashed below.",
+    "Artifact files are retained byte-for-byte; log extensions change to .txt so Git retains them."
+  ],
+  "original_selected_job_log_sha256": {
+    "reference/6_Record runtime versions.txt": "23b9312e75875fb8337197edb2598a680a089fda82b3b2d3b9c76d2706d9fe9d",
+    "reference/7_Run npm ci.txt": "b2f8020ac319e514241abb3c216bf0b73515d94e2aace391c51d623712094d7f",
+    "reference/9_Run npm run check.txt": "d1cff24f26a29bc4bb0da6fb58a423b294987cbe8347f10085f1cdacc89f572a",
+    "reference/11_Run npm run testcross-language.txt": "392af116f6b76bb326af7a68ea9a9ed331ecc4b88cd69b4f62733cd94d7a8aab",
+    "reference/12_Run npm audit --omit=dev && npm run packcheck.txt": "ef990b6068e9dce503344eaa3619c162423ed0ecae2de075f181dd5a47482750",
+    "reference/13_Build the development container.txt": "32d9f5eacb58746669ad76f7de4cd41af9964a7e9ccf846a0f58c56dcb8136ca",
+    "reference/14_Check the packaged development service.txt": "56b01be7288c348192b0a938b59548b5952b3153ac62305ca0d2e31046700d82",
+    "reference/15_Verify checks preserve committed files.txt": "2a6b3fcecc058f1c6ac48ad9926ce9efd45508dc4621e529781d40da7a9adf76"
+  },
+  "limitations": [
+    "The development image ran as UID 1000 with disposable PostgreSQL and an OIDC fixture. It was not published.",
+    "Compose configuration was validated; runtime smoke used disposable Linux Docker containers and host networking, not docker compose up.",
+    "Local and hosted suites use different recorded Node/PostgreSQL versions. The container has its own pinned Node/PostgreSQL versions recorded in container-smoke.json.",
+    "No real OIDC account, independently administered immutable Azure storage, restricted production database role, deployed restore rehearsal or Plasm integration was validated.",
+    "No merge, package publication or deployment was performed."
+  ],
+  "retained_evidence_sha256": {
+    "audit-and-pack.txt": "e258770b3a90df1e69ac0c1610793961135b2b584ea4e1d913c297cd96d099b8",
+    "check.txt": "f6c26d362621c9674c8a88e4766d7666f5b13a7016f5cdbbf81dba7540b28ae7",
+    "container-build.txt": "1f430e27304576092ac7064e5759a14e9a3e18499d18a390da6626326d569752",
+    "container-postgres.txt": "022894549e844466941221377cc3dde1ea4b44ccc5c32505f9debd7964f8451e",
+    "container-server.txt": "26f996166984d3285b2d53cea4379c36d10fee8f02d11151eef7360555998cd1",
+    "container-smoke.json": "e7de5bb8ddbefe0004dfcab0f61ce7cf92bc0a59498102ba36556a4465747f00",
+    "container-smoke.txt": "bb3bcb0e0812e598b38aeb82d5fd663ebd3ed47731925a70c183795f4d48b0f7",
+    "cross-language-results.json": "746385f294d61b55b43edcdb7ff0452b2e32aabcfe0f8184c09fc79ee14a97cd",
+    "cross-language.txt": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3",
+    "frozen-confirmation.png": "999ba729f9ed168170568c03188a81a7b21dbd8edbd94c16e4e3ffc8616a8383",
+    "install.txt": "fd28ea70c917791b1b330c6618b1ac4f240e103bbbbdb217d31e52a6058bc0d5",
+    "pack-check.json": "63d8d8db7e6d99fa456b2da31ca62b57aefbf7c146ea057f16007fd9dfa76321",
+    "runtime-versions.txt": "6894397572b2059ff5a4e5f175f4bb559c8439d786585ce86484268735cdd772",
+    "tracked-files-check.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "trusted-review.png": "d677497b7e0d94c5f599dddbe99dfabdfbea6ca0f27aa58df835644ad18e13f0"
+  }
+}

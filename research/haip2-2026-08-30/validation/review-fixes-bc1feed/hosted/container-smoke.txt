@@ -1,0 +1,1 @@
+Development container smoke passed (9 checks). No production acceptance is claimed.

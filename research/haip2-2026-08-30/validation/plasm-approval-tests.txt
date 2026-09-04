@@ -1,0 +1,15 @@
+# Publication copy: machine-specific checkout roots are redacted.
+# Original and retained byte hashes are recorded in ../publication-edits.json.
+   Compiling plasm-agent-core v0.4.45 ([PLASM_WORKTREE]/plasm-oss/crates/plasm-agent-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.22s
+     Running unittests src/lib.rs ([PLASM_CHECKOUT]/target/debug/deps/plasm_agent_core-fc953de0332d973f)
+
+running 5 tests
+test plasm_plan_run::tests::approval_policy::haip_required_approval_has_no_automatic_receipt ... ok
+test plasm_plan_run::tests::approval_policy::for_each_plan_eval_env_interpolates_row_and_cross_binding_strings ... ok
+test plasm_plan_run::tests::approval_policy::mutating_surface_gate_with_approve_policy ... ok
+test plasm_plan_run::tests::approval_policy::mutating_for_each_infers_approval_without_agent_label ... ok
+test plasm_plan_run::tests::approval_policy::create_template_approval_uses_create_operation_not_description_text ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 894 filtered out; finished in 0.03s
+

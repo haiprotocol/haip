@@ -1,0 +1,45 @@
+{
+  "experiment": "HAIP stored Plasm MCP App replay, isolated browser",
+  "scope": "Feasibility only: two-node read-only fixture; not production host or hostile-bundle conformance",
+  "upstream_ext_apps": "v1.7.4",
+  "ext_apps": "1.7.4",
+  "sdk": "1.29.0",
+  "node": "v24.15.0",
+  "esbuild": "0.27.7",
+  "asset_sha256": "af30a4f03944e2eb60e71894be04b94cfe2892c7e0828137838cae482201cba0",
+  "fixture_sha256": "3b1143a8f55cf2006ae392d0e38ac68f8e61d9bd79caaf84b7d8e77aadff6b31",
+  "upstream_proxy_sha256": "41badf3e939ff62e952d30ebe3a5731d7f8c54f2f6021f47ef759ea857d0d88a",
+  "adapted_proxy_sha256": "acabbd1d2d901a2454dad58621f0a1c3b05d4af11c045b71cf2718bd0490b062",
+  "proxy_adaptations": [
+    "inner sandbox allow-scripts only from creation",
+    "require exact source window and opaque null origin",
+    "use srcdoc unconditionally"
+  ],
+  "hostOrigin": "http://127.0.0.1:54682",
+  "proxyOrigin": "http://127.0.0.1:54681",
+  "started_at": "2026-08-30T12:33:30.884Z",
+  "plasm_parent_commit": "f88a7cc202c0670eddb239748f72b0d3b44cefe9",
+  "plasm_core_commit": "b089557f809645378366fcd3258e710133bbf4ac",
+  "recorded_failures": [
+    "Initial new harness startup omitted an explicit body before its inline proxy script; corrected before successful replay.",
+    "Initial check collector assumed the browser automation frame URL would be about:srcdoc; this browser reports about:blank while in-frame location.href is about:srcdoc. Collector now uses the observed frame hierarchy and checks in-frame location.",
+    "The browser automation evaluation sandbox did not provide the URL global; origin comparison was corrected before recording successful checks."
+  ],
+  "checks_scope": "18 rendering and isolation checks per payload layout. These are not the separate 36 cryptographic primitive assertions, and are not production protocol conformance.",
+  "retention": "Temporary local experiment files, not repository artefacts. Review and import before implementation acceptance.",
+  "publication": {
+    "scope": "Retained feasibility evidence, not a new experiment or production conformance result.",
+    "source_revision": "ca1d29894fabbd1558885a9ec8620dcb01d7457e",
+    "source_path": "examples/basic-host/src/sandbox.ts",
+    "source_url": "https://github.com/modelcontextprotocol/ext-apps/blob/ca1d29894fabbd1558885a9ec8620dcb01d7457e/examples/basic-host/src/sandbox.ts",
+    "licence_identifier": "LicenseRef-MCP-1.7.4-Transition",
+    "licence_text": "../../../../third-party/ext-apps-1.7.4-LICENSE",
+    "licence_sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
+    "original_proxy_hash_fields": "upstream_proxy_sha256 and adapted_proxy_sha256 continue to identify the experiment bytes before the added publication headers.",
+    "retained_source_sha256": {
+      "upstream-sandbox.ts": "cabe14827e4992f7a2175f0b2cd72d9e8049bac7f657aa64e07b5b274e47cd62",
+      "adapted-sandbox.ts": "074974eade07995df4429181559e435ae1e7ddbc5e9ce8ab1f476ee0e41ef381"
+    },
+    "edits_manifest": "../../publication-edits.json"
+  }
+}

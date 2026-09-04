@@ -1,0 +1,4 @@
+> haip-workspace@2.0.0-draft.1 test:cross-language
+> node research/haip2-2026-08-30/runners/run.mjs
+
+25 cross-language checks passed

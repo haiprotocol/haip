@@ -1,0 +1,28 @@
+{
+  "classification": "development_container_smoke",
+  "production_acceptance": false,
+  "image": "haip:development",
+  "postgres_image": "postgres:17.11-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+  "networking": "Linux host networking, HAIP and identity listeners restricted to loopback",
+  "compose": "configuration validation only; runtime checks use disposable Docker containers",
+  "passed": true,
+  "checks": [
+    "non-root runtime, compiled entry point, schemas, migrations, browser assets and licences; excluded source/evidence paths",
+    "Docker build context rejects synthetic .env/key files, nested local/dependency directories, archives and evidence",
+    "pinned PostgreSQL image starts with disposable storage and a loopback-only host port",
+    "development Compose configuration validates with explicit ephemeral settings",
+    "built main applies migrations and bootstraps only explicitly supplied local credentials",
+    "health, discovery and trust contracts; authentication before parsing; trusted-host response headers",
+    "existing local OIDC fixture completes state/nonce/PKCE exchange through the packaged server",
+    "schema-validated request, candidate, exact confirmation and signature; unanchored audit remains pending",
+    "packaged browser assets and review page; sandbox success/error responses retain isolation headers"
+  ],
+  "docker": "28.0.4",
+  "image_id": "sha256:b960b1187f3ee7abe04792efb3767613b8a55f1bcc74c675f51b8b148d678ae9",
+  "runtime": {
+    "node": "v24.20.0",
+    "uid": 1000
+  },
+  "postgres_version": "postgres (PostgreSQL) 17.11 (Debian 17.11-1.pgdg12+2)",
+  "completed_at": "2026-08-30T23:38:08.845Z"
+}

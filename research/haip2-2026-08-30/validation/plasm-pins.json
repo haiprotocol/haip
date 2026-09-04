@@ -1,0 +1,44 @@
+[
+  {
+    "app": "mcp-appliance-shell",
+    "ext_apps": "1.7.4",
+    "mcp_sdk_resolutions": [
+      "1.29.0"
+    ]
+  },
+  {
+    "app": "mcp-ui-host",
+    "ext_apps": "1.7.4",
+    "mcp_sdk_resolutions": [
+      "1.29.0"
+    ]
+  },
+  {
+    "app": "plan-mcp-app",
+    "ext_apps": "1.7.4",
+    "mcp_sdk_resolutions": [
+      "1.29.0"
+    ]
+  },
+  {
+    "app": "plan-ui",
+    "ext_apps": "1.7.4",
+    "mcp_sdk_resolutions": [
+      "1.29.0"
+    ]
+  },
+  {
+    "app": "run-explorer-mcp-app",
+    "ext_apps": "1.7.4",
+    "mcp_sdk_resolutions": [
+      "1.29.0"
+    ]
+  },
+  {
+    "app": "workflow-mcp-app",
+    "ext_apps": "1.7.4",
+    "mcp_sdk_resolutions": [
+      "1.29.0"
+    ]
+  }
+]

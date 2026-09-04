@@ -1,0 +1,75 @@
+{
+  "recorded_at": "2026-08-30T22:26:20.099665+00:00",
+  "classification": "clean_copy_review_regression_validation",
+  "repository": "haiprotocol/haip",
+  "source_commit": "bc1feed4aac1dbe5ea6e47d2c9ad5ce8dd9f9fcd",
+  "source_tree": "4b689e8c54625feec1bbce8847ee11cb1cf3471b",
+  "snapshot": "Fresh directory exported from the Git index before committing; not an existing working tree.",
+  "tracked_files_verified_unchanged_after_checks": 416,
+  "runtimes": {
+    "node": "v24.15.0",
+    "python": "Python 3.9.6",
+    "rust": "rustc 1.93.0 (254b59607 2026-01-19)",
+    "postgresql": "PostgreSQL 17.10 (Homebrew)"
+  },
+  "validation": {
+    "npm ci": "passed",
+    "npm run check": {
+      "tests": 68,
+      "pass": 68,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 109139.253375
+    },
+    "npm run test:cross-language": {
+      "passed": 25,
+      "scope": "Primitive cross-language evidence, not full protocol or Plasm conformance"
+    },
+    "npm audit --omit=dev": {
+      "known_production_dependency_vulnerabilities": 0
+    },
+    "npm run pack:check": {
+      "draft_package_dry_runs": 4,
+      "publication_performed": false
+    },
+    "secret_review": "secret-review.json"
+  },
+  "source_sha256": {
+    "package-lock.json": "7dcff129f29cdb15ca69b94d177dd667f021c60bd1e4b7a60d83bf955d4a4a8e",
+    ".github/workflows/check.yml": "6e62ef860f7ad16adda41d1b49af8ef1374b04d8f431f83d520d5c4d92153abe",
+    "Dockerfile": "36f43aede98b722350660a570983a43a6cce176d891fdc888bd1ccb0d0fbe763",
+    ".dockerignore": "6b636db1f008026a29893b0c893ccaf73d5ea512ac34340f0a01764dda194320",
+    "deployment/compose.dev.yml": "4079273c8d043925f1431fd6195489450ae2904f50e4d04dcfee6daa6d6e4784",
+    "scripts/smoke-container.ts": "84fda380226773c55ebc1c92f57025c526dcaecfe2a605a7286d12d79184f7c5"
+  },
+  "redactions": [
+    "Host-specific clean-copy/workspace roots are replaced by <clean-copy>/<workspace>; test results are unchanged. Original local bytes are hashed below."
+  ],
+  "original_local_evidence_sha256": {
+    "install.txt": "c5351ec978b7581abcc6ac311a0db357ef43a66cdd9f9aa011f8694664118a69",
+    "check.txt": "722b2d26c8d861fdc5d9059e3daa35a941cdf5d743fe3ecbbb38d0e0b6e69de8",
+    "audit.json": "a15df6fce68cf7f8b794f1945c6cae93392b21fae42fcd89afdcdcf223948aea",
+    "cross-language.txt": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3",
+    "cross-language-results.json": "f5cdd6d9e50c5b3f079138ef0073efb196c9727338cad44c847d166b16504d9a",
+    "trusted-review.png": "f1da4b32e44aa2e97877ef55a0873eaaed87cbd89fededdd18bf7d79168a9b0d",
+    "frozen-confirmation.png": "f6dd95368a90fb815eeb8f70e2be4587977d5f9be749d8d37fe41da45ad93367",
+    "container-static.json": "db42f199777bacb95bb8478a4500556c78359ba7f69ccf573f2c081d1b24fe4d"
+  },
+  "limitations": [
+    "Local Docker execution was unavailable. container-static.json records static and isolated native build checks only; hosted container evidence is separate.",
+    "These tests use isolated PostgreSQL, browser, OIDC, SMTP, TLS and storage fixtures; they do not prove production permissions, independent Azure administration, deployment recovery or Plasm integration.",
+    "No merge, package publication or deployment was performed."
+  ],
+  "retained_evidence_sha256": {
+    "audit.json": "a15df6fce68cf7f8b794f1945c6cae93392b21fae42fcd89afdcdcf223948aea",
+    "check.txt": "722b2d26c8d861fdc5d9059e3daa35a941cdf5d743fe3ecbbb38d0e0b6e69de8",
+    "container-static.json": "db42f199777bacb95bb8478a4500556c78359ba7f69ccf573f2c081d1b24fe4d",
+    "cross-language-results.json": "f5cdd6d9e50c5b3f079138ef0073efb196c9727338cad44c847d166b16504d9a",
+    "cross-language.txt": "2e06c9975b07c8fd1488e378487da974add4ea2131effdd0f66605ba8e3324b3",
+    "frozen-confirmation.png": "f6dd95368a90fb815eeb8f70e2be4587977d5f9be749d8d37fe41da45ad93367",
+    "install.txt": "c5351ec978b7581abcc6ac311a0db357ef43a66cdd9f9aa011f8694664118a69",
+    "pack-check.json": "e9b60f9401079e2421b30bf944b870793c5ca2d7ad551c0fade6856323d2ef70",
+    "secret-review.json": "11cbeb35de5e130ceac1d18a534d183da22f44180106cb82ffaff01a7f5f78bb",
+    "trusted-review.png": "f1da4b32e44aa2e97877ef55a0873eaaed87cbd89fededdd18bf7d79168a9b0d"
+  }
+}

@@ -1,43 +1,26 @@
 ---
-title: "Example CLI Use"
-description: "Usage examples and patterns for the HAIP CLI"
+title: 'Review from the CLI'
+description: 'Submit the fixed example, confirm in the browser and retrieve its evidence.'
 ---
 
-This page provides comprehensive examples of how to use the HAIP CLI for various scenarios and use cases.
+Build the checkout and start `npm run demo` as described in the [local walkthrough](/quickstart). In another private terminal set the printed origin and producer credential as `HAIP_URL` and `HAIP_TOKEN`, with `HAIP_LOCAL_HTTP=true`.
 
-<Card
-  title="Install the SDK"
-  icon="download"
-  href="/cli/installation"
-  horizontal
->
-  You need the CLI Installed
-</Card>
+Create the repository's fixed review request. Keep the same key if this command loses its response and needs retrying:
 
-## Basic Examples
-
-### Server Health Check
-
-```bash
-# Check if server is running
-haip health
-
-# Check specific server
-haip health --url http://my-server:8080
-
-# Get detailed health information
-haip health --format json
+```sh
+node haip-cli/dist/index.js create examples/http/review.json cli-review-1
 ```
 
-### Send Messages
+Copy the returned request ID for subsequent commands. Open its review link in a browser, sign in as `reviewer`, inspect the stored material and confirm an exact response. The CLI does not carry out that confirmation.
 
-```bash
-# Send open a chat with the echo tool
-haip chat
-
-# Send open a chat with the llm tool
-haip chat --tool llm
-
-# Choose a server to send the command to
-haip chat --url ws://localhost:8080
+```sh
+node haip-cli/dist/index.js status REQUEST_ID
+node haip-cli/dist/index.js events 0
+node haip-cli/dist/index.js export REQUEST_ID review-audit.json
 ```
+
+The status separates decision, audit, grant and execution state. For this review-only example, grant and execution are not applicable even when the person chooses accept. The export uses private permissions and refuses to overwrite an existing file.
+
+Persist the returned event cursor after processing its page. A notification is not execution authority; fetch current status when using it. Keep exported material private and remove the disposable fixture after the walkthrough.
+
+The [command reference](/cli/commands) also covers cancellation and offline verification. The old streaming/chat CLI example remains in the [HAIP 1 archive](/archive/v1/examples/using-cli).

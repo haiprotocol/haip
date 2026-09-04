@@ -1,0 +1,19 @@
+{
+  "source_pin": "BrightbeamAI/chap@5cc294bdf828a653cb20f997801907bcc99a6978",
+  "tooling": "Node 24.15.0 + Python 3 + cached Rust jcs-canonicalize 0.2.1 / ed25519-dalek 2.2.0",
+  "checks_total": 36,
+  "checks_passed": 36,
+  "failures": [],
+  "upstream_accept_vectors": 15,
+  "upstream_reject_vectors": 6,
+  "published_doc_discrepancies": {
+    "sample_rejected_by_current_chap_number_policy": true,
+    "sample_matches_current_rust_jcs": false,
+    "published_canonical_hash": "sha256:3e2ca14b18d9c883ac22cc66c6b4b2a28012912212c5dd49b07b1fea8c1f52df",
+    "computed_hash_of_published_bytes": "sha256:d3f8f837af5207d722f1b33c8af8cda228eec692360f2dbd937b490e64e74159",
+    "published_ed25519_signature_hex_length": 128,
+    "published_ed25519_signature_matches_RFC8032": false
+  },
+  "approval_fixture_sha256": "b37b72e35e65f96dde04468cc0ef852ab094463da196469fcc411d433285ad4e",
+  "decimal_response_fixture": "[HISTORICAL_PROTOCOL_WORKDIR]/decimal-response-fixture.json"
+}
