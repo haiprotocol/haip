@@ -1,0 +1,55 @@
+SECURITY-REVIEW.md
+  s_08f73032aa8e41::t_f8d4178c10acd6 8
+  s_08f73032aa8e41::t_3730bb66ffd3e2 9,82,91
+  s_08f73032aa8e41::t_5f48daca6bc37e 29-35,39-49,54-55,57-59,65-71
+  s_08f73032aa8e41::t_f6b9a71efa7786 7
+  s_08f73032aa8e41::t_10cfecc35f695f 50
+  s_08f73032aa8e41::t_dfab36bd9683c8 56,63,95
+  s_08f73032aa8e41::t_a6e1589520f82b 1-6,10-28,36-38,51-53,60-62,64,72-81,83-90,92-94
+security/THREAT-MODEL.md
+  s_08f73032aa8e41::t_5180668caba97c 23
+  s_08f73032aa8e41::t_dfab36bd9683c8 51-52
+  s_08f73032aa8e41::t_5f48daca6bc37e 60-68,73-84,88-101,108
+  s_08f73032aa8e41::t_3730bb66ffd3e2 105-107
+  s_08f73032aa8e41::t_a6e1589520f82b 1-22,24-50,53-59,69-72,85-87,102-104
+ACCEPTANCE.md
+  s_08f73032aa8e41::t_21d1fd73a115c7 13-14,17,24
+  s_08f73032aa8e41::t_87afbf49eb18b4 3
+  s_08f73032aa8e41::t_244771bf6efe2f 9
+  s_08f73032aa8e41::t_cf3ce5da945266 40,46-47
+  s_08f73032aa8e41::t_586c46b862e20a 11-12,15-16,18-23,25-39,41-45
+  s_08f73032aa8e41::t_5d9925f2711b45 49
+  s_08f73032aa8e41::t_eeaee49d759b44 48
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_5d9925f2711b45 9,22,35,46,53
+  s_08f73032aa8e41::t_18515245e5ef78 15
+  s_08f73032aa8e41::t_10cfecc35f695f 17,20,40
+  s_08f73032aa8e41::t_87afbf49eb18b4 26,52
+  s_08f73032aa8e41::t_cf3ce5da945266 14,51
+  s_08f73032aa8e41::t_39a4ed63866189 44,50
+  s_08f73032aa8e41::t_244771bf6efe2f 3,34
+  s_08f73032aa8e41::t_e54e3bb1a49dcc 21
+RELEASE.md
+  s_08f73032aa8e41::t_10cfecc35f695f 13
+  s_08f73032aa8e41::t_244771bf6efe2f 3,11
+  s_08f73032aa8e41::t_0ca6b4edb642dc 28
+  s_08f73032aa8e41::t_cf3ce5da945266 32
+  s_08f73032aa8e41::t_5d9925f2711b45 17,21,23-24,26,30,36,38
+  s_08f73032aa8e41::t_1d65f5084574aa 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "48863535b57a40f51a7a52197fb86d65505bdd7f",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
