@@ -45,19 +45,20 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
     sequence: 1,
     head: 'sha256:' + '1'.repeat(64),
   });
-  const anchor = new AzureAnchor('https://fixture.blob.core.windows.net', 'test', 'test', trust);
+  const anchor = new AzureAnchor('https://fixture.blob.core.windows.net/', 'test', 'test', trust);
   const safety = new AzureSafetyStore(
     'https://fixture.blob.core.windows.net',
-    'test',
+    'safety',
     'test',
     trust,
   );
-  const objects = new Map<string, any>();
+  const checkpoints = new Map<string, any>(),
+    safetyRecords = new Map<string, any>();
   let duplicate = false,
     marker = false,
     shortRetention = false,
-    hold = true;
-  const container = {
+    safetyHold = true;
+  const inheritedContainer = (objects: Map<string, any>, legalHold: () => boolean) => ({
     async *listBlobsFlat(options: any) {
       const rows = [...objects.values()].filter((o) => o.name.startsWith(options.prefix));
       for (const o of duplicate ? [...rows, ...rows] : rows)
@@ -73,14 +74,16 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
       return {
         async upload(body: string, length: number, options: any) {
           assert.equal(options.conditions.ifNoneMatch, '*');
-          assert.equal(options.immutabilityPolicy.policyMode, 'Locked');
+          assert.equal(options.blobHTTPHeaders.blobContentType, 'application/json');
+          assert.equal('immutabilityPolicy' in options, false);
+          assert.equal('legalHold' in options, false);
           assert.equal(length, Buffer.byteLength(body));
           if (objects.has(name)) throw { statusCode: 412 };
           objects.set(name, {
             name,
             body,
             version: randomUUID(),
-            retention: options.immutabilityPolicy.expiriesOn,
+            retention: new Date(Date.now() + 90 * 86400000 + 1000),
           });
         },
       };
@@ -96,7 +99,7 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
                 versionId: version,
                 immutabilityPolicyMode: 'Locked',
                 immutabilityPolicyExpiresOn: shortRetention ? new Date(0) : object.retention,
-                legalHold: hold,
+                legalHold: legalHold(),
               };
             },
             async downloadToBuffer() {
@@ -106,10 +109,10 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
         },
       };
     },
-  };
-  // This transport exercises adapter decisions, not a live Azure account or RBAC policy.
-  (anchor as any).container = container;
-  (safety as any).container = container;
+  });
+  // These transports model the checkpoint default policy and safety container policy, not a live Azure account or RBAC policy.
+  (anchor as any).container = inheritedContainer(checkpoints, () => false);
+  (safety as any).container = inheritedContainer(safetyRecords, () => safetyHold);
   const first = await anchor.accept(checkpoint);
   assert.deepEqual(await anchor.accept(checkpoint), first);
   assert.deepEqual(await anchor.history(ledger, generation), [
@@ -132,6 +135,6 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
     record = signed('RecoveryFence', key, 'haip.recovery', { key, value: { retired: true } });
   assert.equal(canonicalise(await safety.create(key, record)), canonicalise(record));
   assert.equal(canonicalise(await safety.create(key, record)), canonicalise(record));
-  hold = false;
+  safetyHold = false;
   await assert.rejects(safety.read(key), /recovery_hold_missing/);
 });

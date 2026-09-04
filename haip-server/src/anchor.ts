@@ -15,7 +15,7 @@ export interface AnchorStore {
   accept(record: SignedRecord): Promise<AnchorAcceptance>;
   history(ledger: string, generation: string): Promise<{ sequence: number; head: string }[]>;
 }
-/** Optional production backend. No cloud account is needed for local development/review. */
+/** Optional production backend using policies inherited from its container. */
 export class AzureAnchor implements AnchorStore {
   readonly production = true;
   readonly container: ContainerClient;
@@ -28,7 +28,7 @@ export class AzureAnchor implements AnchorStore {
     const url = new URL(accountUrl);
     requireThat(
       url.protocol === 'https:' &&
-        url.origin === accountUrl &&
+        (accountUrl === url.origin || accountUrl === `${url.origin}/`) &&
         !url.username &&
         !url.password &&
         /^[a-z0-9]+\.blob\.core\.windows\.net$/.test(url.hostname),
@@ -40,7 +40,15 @@ export class AzureAnchor implements AnchorStore {
       400,
       'anchor_prefix_invalid',
     );
-    this.container = new BlobServiceClient(accountUrl, new DefaultAzureCredential(), {
+    requireThat(
+      container.length >= 3 &&
+        container.length <= 63 &&
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(container) &&
+        !container.includes('--'),
+      400,
+      'azure_container_invalid',
+    );
+    this.container = new BlobServiceClient(url.origin, new DefaultAzureCredential(), {
       retryOptions: { maxTries: 1, tryTimeoutInMs: 10000 },
     }).getContainerClient(container);
   }
@@ -95,8 +103,6 @@ export class AzureAnchor implements AnchorStore {
       await this.container.getBlockBlobClient(key).upload(body, Buffer.byteLength(body), {
         conditions: { ifNoneMatch: '*' },
         blobHTTPHeaders: { blobContentType: 'application/json' },
-        immutabilityPolicy: { policyMode: 'Locked', expiriesOn: retention },
-        ...(permanent ? { legalHold: true } : {}),
       });
     } catch (error) {
       const e = error as { statusCode?: number; code?: string };

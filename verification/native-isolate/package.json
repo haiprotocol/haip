@@ -9,7 +9,8 @@
     "adm-zip": "0.6.0"
   },
   "scripts": {
-    "check": "quint typecheck quint/scenarios.qnt",
+    "check": "npm run check:contract && quint typecheck quint/scenarios.qnt",
+    "check:contract": "node scripts/check-current-contract.mjs",
     "typecheck": "npm run check",
     "test": "quint test quint/scenarios.qnt --main scenarios --match '.*Test'",
     "simulate": "quint run quint/scenarios.qnt --main scenarios --invariants haipSafety boundedState --max-samples=500 --max-steps=30 --seed=0x5eed2026 --verbosity=0",

@@ -1,0 +1,44 @@
+{
+	admin off
+}
+
+{$HAIP_TRUSTED_HOST} {
+	tls {$HAIP_TRUSTED_CERT_FILE} {$HAIP_TRUSTED_KEY_FILE}
+	header {
+		-Server
+		Cross-Origin-Embedder-Policy "require-corp"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+	reverse_proxy 127.0.0.1:{$PORT:8080} {
+		header_up Host {host}
+	}
+	handle_errors {
+		header Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		respond "Service unavailable" {err.status_code}
+	}
+}
+
+*.{$HAIP_SANDBOX_SITE} {
+	tls {$HAIP_SANDBOX_CERT_FILE} {$HAIP_SANDBOX_KEY_FILE}
+	header {
+		-Server
+		Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors https://{$HAIP_TRUSTED_HOST}"
+		Cross-Origin-Embedder-Policy "require-corp"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "cross-origin"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+	}
+	reverse_proxy 127.0.0.1:{$HAIP_SANDBOX_PORT:8081} {
+		header_up Host {host}
+	}
+	handle_errors {
+		respond "Service unavailable" {err.status_code}
+	}
+}

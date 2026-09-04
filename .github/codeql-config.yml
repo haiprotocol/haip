@@ -1,0 +1,8 @@
+name: HAIP source
+paths-ignore:
+  - archive/**
+  - research/**
+  - output/**
+  - '**/dist/**'
+  - haip-server/public/host.js
+  - haip-server/public/sandbox.js

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { randomUUID } from 'node:crypto';
+import { digest } from '@haip/protocol/crypto';
 import type { ReviewService, RequestRow } from './service.js';
 import type { Principal } from './config.js';
 import type { AnchorStore } from './anchor.js';
@@ -11,6 +12,36 @@ import type { Tx } from './store.js';
 const maintenancePageSize = 50;
 const maintenancePageLimit = 10;
 const collectionLimit = 500;
+const deliveryClaimSeconds = 300;
+interface OutboxItem {
+  id: string;
+  tenant: string;
+  producer: string | null;
+  request_id: string | null;
+  kind: 'checkpoint' | 'webhook' | 'smtp';
+  destination: string | null;
+  body: any;
+  state: string;
+  attempts: number;
+  next_at: Date;
+  created_at: Date;
+  accepted: unknown;
+  error: string | null;
+  claim_generation: number;
+  claim_until: Date | null;
+  claim_revision: string | null;
+}
+interface DestinationState {
+  authorised: boolean;
+  revision: string;
+  principal?: Principal;
+}
+interface ClaimedJob {
+  item: OutboxItem;
+  generation: number;
+  revision: string;
+  delivery?: unknown;
+}
 interface MaintenanceCursor {
   at: string;
   id: string;
@@ -108,198 +139,306 @@ export class OutboxWorker {
     const s = this.service;
     const jobs = (
       await s.store.pool.query(
-        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending' AND next_at<=statement_timestamp()
-         ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"} ORDER BY next_at,created_at,id LIMIT 50`,
+        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending'
+         AND GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz))<=statement_timestamp()
+         ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"}
+         ORDER BY GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz)),created_at,id LIMIT 50`,
         [tenant],
       )
     ).rows;
     let completed = 0;
-    for (const job of jobs)
-      await s.store.transaction(job.tenant, async (tx, now) => {
-        const item = (
+    for (const job of jobs) {
+      const claim = await this.claim(job.tenant, job.id);
+      if (!claim) continue;
+      let acceptance: unknown;
+      let error: unknown;
+      try {
+        acceptance = await this.deliver(claim);
+      } catch (caught) {
+        error = caught;
+      }
+      completed += await this.finalise(claim, acceptance, error);
+    }
+    return completed;
+  }
+  private async destinationState(tx: Tx, item: OutboxItem): Promise<DestinationState> {
+    if (item.kind === 'checkpoint') {
+      const generation = (
+        await tx.query('SELECT generation FROM haip_tenants WHERE id=$1', [item.tenant])
+      ).rows[0]?.generation;
+      return {
+        authorised: !!this.anchor && !!generation,
+        revision: digest({
+          kind: item.kind,
+          generation: String(generation ?? ''),
+          body: digest(item.body),
+        }),
+      };
+    }
+    if (item.kind === 'webhook') {
+      const principal = (
+        await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
+          item.tenant,
+          item.producer,
+        ])
+      ).rows[0] as Principal | undefined;
+      const revision = digest({
+        kind: item.kind,
+        producer: item.producer,
+        destination: item.destination,
+        body: digest(item.body),
+        enabled: principal?.config.enabled ?? false,
+        webhook: principal?.config.webhook ?? null,
+      });
+      return {
+        authorised: !!principal?.config.enabled && principal.config.webhook === item.destination,
+        revision,
+        principal,
+      };
+    }
+    const directory = (
+      await tx.query(
+        "SELECT id,config FROM haip_principals WHERE tenant=$1 AND kind='human' AND config->>'email'=$2 ORDER BY id",
+        [item.tenant, item.destination],
+      )
+    ).rows as { id: string; config: Principal['config'] }[];
+    return {
+      authorised: directory.some((row) => row.config.enabled && row.config.email_verified === true),
+      revision: digest({
+        kind: item.kind,
+        destination: item.destination,
+        body: digest(item.body),
+        directory: directory.map((row) => ({
+          id: row.id,
+          enabled: row.config.enabled,
+          email_verified: row.config.email_verified === true,
+        })),
+      }),
+    };
+  }
+  private async claim(tenant: string, id: string): Promise<ClaimedJob | undefined> {
+    return this.service.store.transaction(tenant, async (tx, now) => {
+      const item = (
+        await tx.query(
+          "SELECT * FROM haip_outbox WHERE id=$1 AND tenant=$2 AND state='pending' AND next_at<=clock_timestamp() AND (claim_until IS NULL OR claim_until<=clock_timestamp()) FOR UPDATE",
+          [id, tenant],
+        )
+      ).rows[0] as OutboxItem | undefined;
+      if (!item) return;
+      if (item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000) {
+        await tx.query(
+          "UPDATE haip_outbox SET state='failed',error='delivery_window_expired',claim_until=NULL,claim_revision=NULL WHERE id=$1",
+          [item.id],
+        );
+        return;
+      }
+      const destination = await this.destinationState(tx, item);
+      if (!destination.authorised || (item.kind === 'smtp' && !this.service.config.smtp)) {
+        await this.retry(tx, item, now, new Error('destination_unavailable'));
+        return;
+      }
+      if (item.kind === 'smtp') {
+        const hour = new Date(now);
+        hour.setUTCMinutes(0, 0, 0);
+        const counter = (
           await tx.query(
-            "SELECT * FROM haip_outbox WHERE id=$1 AND state='pending' AND next_at<=clock_timestamp() FOR UPDATE",
-            [job.id],
+            'SELECT count FROM haip_notification_windows WHERE tenant=$1 AND recipient=$2 AND hour=$3',
+            [tenant, item.destination, hour],
           )
         ).rows[0];
-        if (!item) return;
-        if (item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000) {
-          await tx.query(
-            "UPDATE haip_outbox SET state='failed',error='delivery_window_expired' WHERE id=$1",
-            [item.id],
-          );
+        if (counter?.count >= 10) {
+          await tx.query('UPDATE haip_outbox SET next_at=$2 WHERE id=$1', [
+            item.id,
+            new Date(hour.getTime() + 3600000),
+          ]);
           return;
         }
-        try {
-          let acceptance: unknown = null;
-          if (item.kind === 'checkpoint') {
-            // Unconfigured checkpoints remain visible and resumable but cannot occupy delivery slots.
-            requireThat(this.anchor, 503, 'independent_anchor_required');
-            acceptance = await this.anchor.accept(item.body);
-            now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
-            const seq = item.body.payload.sequence;
-            const rows = (
-              await tx.query(
-                `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
-                 WHERE tenant=$1 AND data->>'audit_state'='pending'
-                 AND (data->>'decision_sequence')::bigint <= $2
-                 ORDER BY (data->>'decision_sequence')::bigint,id LIMIT 50`,
-                [job.tenant, seq],
-              )
-            ).rows as RequestRow[];
-            for (const row of rows) {
-              const p = (
-                await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
-                  job.tenant,
-                  row.producer,
-                ])
-              ).rows[0] as Principal;
-              row.data.audit_state = 'anchored';
-              row.data.anchor = {
-                checkpoint: item.body,
-                acceptance,
-                proof: (
-                  await tx.query(
-                    'SELECT sequence,previous_head,record_digest,head FROM haip_audit WHERE tenant=$1 AND sequence BETWEEN $2 AND $3 ORDER BY sequence',
-                    [job.tenant, row.data.decision_sequence, seq],
-                  )
-                ).rows.map((r) => ({ ...r, sequence: Number(r.sequence) })),
-              };
-              if (row.data.grant_state === 'pending_anchor')
-                row.data.grant_state =
-                  !row.data.invalidated && now.getTime() < Date.parse(row.data.grant_deadline!)
-                    ? 'available'
-                    : 'expired';
-              await s.event(tx, p, row, now, 'anchor_accepted');
-              if (row.data.grant_state === 'available')
-                await s.notifications(tx, p, row, now, [row.data.request.requester.subject]);
-              await s.save(tx, row);
-            }
-            const remaining = await tx.query(
-              `SELECT 1 FROM haip_requests WHERE tenant=$1 AND data->>'audit_state'='pending'
-               AND (data->>'decision_sequence')::bigint <= $2 LIMIT 1`,
-              [job.tenant, seq],
-            );
-            if (remaining.rowCount) {
-              // A newer checkpoint may cover a backlog; finish it in bounded transactions.
-              // The receipt is diagnostic only: the next page re-verifies independent storage.
-              await tx.query(
-                "UPDATE haip_outbox SET attempts=attempts+1,accepted=$2,error=NULL,next_at=clock_timestamp()+interval '30 seconds' WHERE id=$1",
-                [item.id, JSON.stringify(acceptance)],
-              );
-              completed += rows.length;
-              return;
-            }
-          } else if (item.kind === 'webhook') {
-            const p = (
-              await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
-                job.tenant,
-                item.producer,
-              ])
-            ).rows[0] as Principal;
-            requireThat(
-              p.config.enabled && p.config.webhook === item.destination,
-              409,
-              'destination_changed',
-            );
-            const delivery = s.signed(
-              'WebhookDelivery',
-              {
-                delivery_id: randomUUID(),
-                event_id: item.body.payload.event_id,
-                timestamp: now.toISOString(),
-                event: item.body,
-              },
-              p,
-              now,
-            );
-            await deliverWebhook(
-              item.destination,
-              delivery,
-              s.config.webhookHosts,
-              this.delivery.webhookTransport,
-            );
-          } else {
-            requireThat(s.config.smtp, 503, 'smtp_unconfigured');
-            const directory = (
-              await tx.query(
-                "SELECT 1 FROM haip_principals WHERE tenant=$1 AND kind='human' AND config->>'email'=$2 AND config->>'email_verified'='true' AND config->>'enabled'='true'",
-                [job.tenant, item.destination],
-              )
-            ).rows;
-            requireThat(directory.length, 409, 'recipient_unavailable');
-            const hour = new Date(now);
-            hour.setUTCMinutes(0, 0, 0);
-            const counter = (
-              await tx.query(
-                'SELECT count FROM haip_notification_windows WHERE tenant=$1 AND recipient=$2 AND hour=$3',
-                [job.tenant, item.destination, hour],
-              )
-            ).rows[0];
-            if (counter?.count >= 10) {
-              await tx.query('UPDATE haip_outbox SET next_at=$2 WHERE id=$1', [
-                item.id,
-                new Date(hour.getTime() + 3600000),
-              ]);
-              return;
-            }
-            await tx.query(
-              'INSERT INTO haip_notification_windows(tenant,recipient,hour,count) VALUES($1,$2,$3,1) ON CONFLICT(tenant,recipient,hour) DO UPDATE SET count=haip_notification_windows.count+1',
-              [job.tenant, item.destination, hour],
-            );
-            const transport = nodemailer.createTransport({
-              ...s.config.smtp,
-              requireTLS: s.config.mode === 'production',
-              connectionTimeout: 10000,
-              socketTimeout: 10000,
-            });
-            try {
-              const result = await transport.sendMail({
-                from: s.config.smtp.from,
-                to: item.destination,
-                subject: item.body.subject,
-                text: item.body.text,
-                disableFileAccess: true,
-                disableUrlAccess: true,
-              });
-              requireThat(result.accepted?.length, 503, 'smtp_not_accepted');
-              acceptance = { smtp_accepted: true, delivered_or_read: 'unknown' };
-            } finally {
-              transport.close();
-            }
-          }
+        await tx.query(
+          'INSERT INTO haip_notification_windows(tenant,recipient,hour,count) VALUES($1,$2,$3,1) ON CONFLICT(tenant,recipient,hour) DO UPDATE SET count=haip_notification_windows.count+1',
+          [tenant, item.destination, hour],
+        );
+      }
+      const claimed = (
+        await tx.query(
+          `UPDATE haip_outbox SET attempts=attempts+1,claim_generation=claim_generation+1,
+           claim_until=clock_timestamp()+($2::text||' seconds')::interval,claim_revision=$3
+           WHERE id=$1 RETURNING claim_generation`,
+          [item.id, deliveryClaimSeconds, destination.revision],
+        )
+      ).rows[0];
+      item.attempts++;
+      item.claim_revision = destination.revision;
+      let delivery: unknown;
+      if (item.kind === 'webhook') {
+        const principal = destination.principal!;
+        delivery = this.service.signed(
+          'WebhookDelivery',
+          {
+            delivery_id: randomUUID(),
+            event_id: item.body.payload.event_id,
+            timestamp: now.toISOString(),
+            event: item.body,
+          },
+          principal,
+          now,
+        );
+      }
+      return {
+        item,
+        generation: Number(claimed.claim_generation),
+        revision: destination.revision,
+        delivery,
+      };
+    });
+  }
+  private async deliver(claim: ClaimedJob): Promise<unknown> {
+    const { item } = claim;
+    if (item.kind === 'checkpoint') {
+      requireThat(this.anchor, 503, 'independent_anchor_required');
+      return this.anchor.accept(item.body);
+    }
+    if (item.kind === 'webhook') {
+      await deliverWebhook(
+        item.destination!,
+        claim.delivery,
+        this.service.config.webhookHosts,
+        this.delivery.webhookTransport,
+      );
+      return null;
+    }
+    const smtp = this.service.config.smtp;
+    requireThat(smtp, 503, 'smtp_unconfigured');
+    const transport = nodemailer.createTransport({
+      ...smtp,
+      requireTLS: this.service.config.mode === 'production',
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
+      dnsTimeout: 10000,
+    });
+    try {
+      const result = await transport.sendMail({
+        from: smtp.from,
+        to: item.destination!,
+        subject: item.body.subject,
+        text: item.body.text,
+        disableFileAccess: true,
+        disableUrlAccess: true,
+      });
+      requireThat(result.accepted?.length, 503, 'smtp_not_accepted');
+      return { smtp_accepted: true, delivered_or_read: 'unknown' };
+    } finally {
+      transport.close();
+    }
+  }
+  private async finalise(claim: ClaimedJob, acceptance: unknown, error: unknown): Promise<number> {
+    return this.service.store.transaction(claim.item.tenant, async (tx, now) => {
+      const item = (
+        await tx.query(
+          "SELECT * FROM haip_outbox WHERE id=$1 AND tenant=$2 AND state='pending' AND claim_generation=$3 AND claim_revision=$4 AND claim_until IS NOT NULL FOR UPDATE",
+          [claim.item.id, claim.item.tenant, claim.generation, claim.revision],
+        )
+      ).rows[0] as OutboxItem | undefined;
+      if (!item) return 0;
+      const current = await this.destinationState(tx, item);
+      if (current.revision !== item.claim_revision) {
+        // A successful send was authorised at claim time. A failed send cannot retry after that authority changes.
+        if (error || item.kind === 'checkpoint') {
           await tx.query(
-            "UPDATE haip_outbox SET state='accepted',attempts=attempts+1,accepted=$2,error=NULL WHERE id=$1",
+            "UPDATE haip_outbox SET state='failed',error='destination_changed',claim_until=NULL,claim_revision=NULL WHERE id=$1",
+            [item.id],
+          );
+          return 0;
+        }
+      } else if (error) {
+        await this.retry(tx, item, now, error);
+        return 0;
+      }
+      if (item.kind === 'checkpoint') {
+        const seq = item.body.payload.sequence;
+        const rows = (
+          await tx.query(
+            `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
+             WHERE tenant=$1 AND data->>'audit_state'='pending'
+             AND (data->>'decision_sequence')::bigint <= $2
+             ORDER BY (data->>'decision_sequence')::bigint,id LIMIT 50`,
+            [item.tenant, seq],
+          )
+        ).rows as RequestRow[];
+        for (const row of rows) {
+          const principal = (
+            await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
+              item.tenant,
+              row.producer,
+            ])
+          ).rows[0] as Principal;
+          row.data.audit_state = 'anchored';
+          row.data.anchor = {
+            checkpoint: item.body,
+            acceptance,
+            proof: (
+              await tx.query(
+                'SELECT sequence,previous_head,record_digest,head FROM haip_audit WHERE tenant=$1 AND sequence BETWEEN $2 AND $3 ORDER BY sequence',
+                [item.tenant, row.data.decision_sequence, seq],
+              )
+            ).rows.map((record) => ({ ...record, sequence: Number(record.sequence) })),
+          };
+          if (row.data.grant_state === 'pending_anchor')
+            row.data.grant_state =
+              !row.data.invalidated && now.getTime() < Date.parse(row.data.grant_deadline!)
+                ? 'available'
+                : 'expired';
+          await this.service.event(tx, principal, row, now, 'anchor_accepted');
+          if (row.data.grant_state === 'available')
+            await this.service.notifications(tx, principal, row, now, [
+              row.data.request.requester.subject,
+            ]);
+          await this.service.save(tx, row);
+        }
+        const remaining = await tx.query(
+          `SELECT 1 FROM haip_requests WHERE tenant=$1 AND data->>'audit_state'='pending'
+           AND (data->>'decision_sequence')::bigint <= $2 LIMIT 1`,
+          [item.tenant, seq],
+        );
+        if (remaining.rowCount) {
+          // A newer checkpoint may cover a backlog, so finish it in bounded transactions. The receipt is diagnostic only because the next page checks independent storage again.
+          await tx.query(
+            "UPDATE haip_outbox SET accepted=$2,error=NULL,next_at=clock_timestamp()+interval '30 seconds',claim_until=NULL,claim_revision=NULL WHERE id=$1",
             [item.id, JSON.stringify(acceptance)],
           );
-          completed++;
-        } catch (error) {
-          const code = error instanceof Error ? error.message : 'delivery_failed';
-          if (/anchor_(conflict|version_conflict|deleted_version|history_invalid)/.test(code)) {
-            await tx.query('INSERT INTO haip_incidents(tenant,code) VALUES($1,$2)', [
-              job.tenant,
-              code,
-            ]);
-            await tx.query('UPDATE haip_tenants SET fenced=true WHERE id=$1', [job.tenant]);
-            await tx.query(
-              "UPDATE haip_requests SET data=jsonb_set(data,'{audit_state}','\"conflict\"') WHERE tenant=$1",
-              [job.tenant],
-            );
-          }
-          const expired =
-            item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000;
-          await tx.query(
-            'UPDATE haip_outbox SET state=$2,attempts=attempts+1,error=$3,next_at=$4 WHERE id=$1',
-            [
-              item.id,
-              expired ? 'failed' : 'pending',
-              code.startsWith('anchor_') ? code : 'delivery_failed',
-              new Date(now.getTime() + Math.min(3600, 2 ** Math.min(item.attempts + 1, 12)) * 1000),
-            ],
-          );
+          return rows.length;
         }
-      });
-    return completed;
+      }
+      await tx.query(
+        "UPDATE haip_outbox SET state='accepted',accepted=$2,error=NULL,claim_until=NULL,claim_revision=NULL WHERE id=$1",
+        [item.id, JSON.stringify(acceptance)],
+      );
+      return 1;
+    });
+  }
+  private async retry(tx: Tx, item: OutboxItem, now: Date, error: unknown): Promise<void> {
+    const code = error instanceof Error ? error.message : 'delivery_failed';
+    if (/anchor_(conflict|version_conflict|deleted_version|history_invalid)/.test(code)) {
+      await tx.query('INSERT INTO haip_incidents(tenant,code) VALUES($1,$2)', [item.tenant, code]);
+      await tx.query('UPDATE haip_tenants SET fenced=true WHERE id=$1', [item.tenant]);
+      await tx.query(
+        "UPDATE haip_requests SET data=jsonb_set(data,'{audit_state}','\"conflict\"') WHERE tenant=$1",
+        [item.tenant],
+      );
+    }
+    const expired =
+      item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000;
+    const attempt = item.attempts + (item.claim_until ? 0 : 1);
+    await tx.query(
+      `UPDATE haip_outbox SET state=$2,attempts=CASE WHEN claim_until IS NULL THEN attempts+1 ELSE attempts END,
+       error=$3,next_at=$4,claim_until=NULL,claim_revision=NULL WHERE id=$1`,
+      [
+        item.id,
+        expired ? 'failed' : 'pending',
+        code.startsWith('anchor_') ? code : 'delivery_failed',
+        new Date(now.getTime() + Math.min(3600, 2 ** Math.min(attempt, 12)) * 1000),
+      ],
+    );
   }
   async cleanup(): Promise<CleanupResult> {
     const result: CleanupResult = { examined: 0, changed: 0, stalled: 0, more: false };

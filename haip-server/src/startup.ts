@@ -64,11 +64,18 @@ export function requireProductionAnchor(mode: Mode, env: NodeJS.ProcessEnv): voi
     mode === 'production' &&
     (!env.HAIP_AZURE_ACCOUNT_URL ||
       !env.HAIP_AZURE_CONTAINER ||
+      !env.HAIP_AZURE_SAFETY_CONTAINER ||
       env.HAIP_ANCHOR_INDEPENDENT_ADMIN !== 'true')
   )
     throw new Error(
-      'Production requires HAIP_AZURE_ACCOUNT_URL, HAIP_AZURE_CONTAINER and independently administered anchoring',
+      'Production requires HAIP_AZURE_ACCOUNT_URL, HAIP_AZURE_CONTAINER, HAIP_AZURE_SAFETY_CONTAINER and independently administered anchoring',
     );
+  if (
+    env.HAIP_AZURE_ACCOUNT_URL &&
+    env.HAIP_AZURE_CONTAINER &&
+    env.HAIP_AZURE_CONTAINER === env.HAIP_AZURE_SAFETY_CONTAINER
+  )
+    throw new Error('Checkpoint and safety storage require separate Azure containers');
 }
 
 /** URL SSL flags override pg's SSL object, so validate and remove them first. */

@@ -53,10 +53,19 @@ const trust = validateSigningTrust(
   signingKey,
 );
 // Validate all local production requirements before migrations, bootstrap or listeners.
-const anchor = process.env.HAIP_AZURE_ACCOUNT_URL
+const azureAccountUrl = process.env.HAIP_AZURE_ACCOUNT_URL;
+const anchor = azureAccountUrl
   ? new AzureAnchor(
-      process.env.HAIP_AZURE_ACCOUNT_URL,
+      azureAccountUrl,
       required('HAIP_AZURE_CONTAINER'),
+      process.env.HAIP_ANCHOR_PREFIX ?? 'haip',
+      trust,
+    )
+  : undefined;
+const safety = azureAccountUrl
+  ? new AzureSafetyStore(
+      azureAccountUrl,
+      required('HAIP_AZURE_SAFETY_CONTAINER'),
       process.env.HAIP_ANCHOR_PREFIX ?? 'haip',
       trust,
     )
@@ -104,16 +113,7 @@ if (process.argv.includes('--bootstrap')) {
   await store.close();
 } else {
   const worker = new OutboxWorker(service, anchor);
-  if (anchor)
-    service.recovery = new RecoveryGuard(
-      service,
-      new AzureSafetyStore(
-        required('HAIP_AZURE_ACCOUNT_URL'),
-        required('HAIP_AZURE_CONTAINER'),
-        process.env.HAIP_ANCHOR_PREFIX ?? 'haip',
-        trust,
-      ),
-    );
+  if (safety) service.recovery = new RecoveryGuard(service, safety);
   if (process.argv.includes('--recover')) {
     if (!anchor || !service.recovery) throw new Error('Independent storage required for recovery');
     console.log(
