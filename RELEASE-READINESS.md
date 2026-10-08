@@ -30,7 +30,7 @@ Hostile RTC construction in an opaque frame caused a Chromium renderer crash in 
 
 ## Validation
 
-The pre-commit validation snapshot is `sha256:a522db530a271f442b4ef7d17258b058911811fd96f1e7a7b37f85f321cdbc12`. It covers 257 maintained source and documentation files, including the three corrected archival and research instruction files, and excludes this report, ignored outputs, untouched archives and historical research. The local validation manifest retains each file digest and command log separately. All recorded files were unchanged after the build and tests. Subsequent formatting repairs affect only the two archived installation guides, with their documentation regression rerun. Runtime source remains identical to the full-suite and CodeQL snapshot.
+The pre-commit validation snapshot is `sha256:a522db530a271f442b4ef7d17258b058911811fd96f1e7a7b37f85f321cdbc12`. It covers 257 maintained source and documentation files, including the three corrected archival and research instruction files, and excludes this report, ignored outputs, untouched archives and historical research. The local validation manifest retains each file digest and command log separately. All recorded files were unchanged after the build and tests. Later formatting repairs affect the two archived installation guides, with their documentation regression rerun. The first published commit, `3ebf74305265ec42fc46a562335d467b6e55e3da`, passed the hosted 174-test suite and nine Docker service checks. Three additional fixture corrections bind evidence permissions and bytes to one file handle, restrict the message observer to the trusted parent and keep the generated public TLS certificate in memory. Runtime source remains identical to the full-suite and CodeQL snapshot. Hosted checks must cover the final follow-up commit.
 
 | Check | Result |
 | --- | --- |
@@ -56,15 +56,17 @@ The pre-commit validation snapshot is `sha256:a522db530a271f442b4ef7d17258b05891
 | Production dependency layout | All eleven runtime dependencies resolve from the image's copied modules, including compiled schema and SMTP helpers |
 | Maintained-source secret scan | 2.37 MB scanned, no leaks found |
 | Text and diff checks | House-style and whitespace checks passed |
-| Current-source local CodeQL | 104 queries completed, all sixteen findings assessed, no confirmed new defect |
-| Current-source hosted CI and CodeQL | Required on the published commit |
-| Development container | Not rerun locally because Docker is unavailable |
+| Pre-commit local CodeQL | 104 queries completed, all sixteen findings assessed, no confirmed new defect |
+| Fixture CodeQL recheck | Fresh extraction and all three affected queries passed, with no findings in the three corrected fixtures |
+| Hosted reference suite | Passed on `3ebf743`, including 174 tests and nine container checks. Required again on the final follow-up commit |
+| Hosted CodeQL | Analysis passed on `3ebf743`, with three fixture alerts triggering the separate alert check. Required again after fixture corrections |
+| Development container | Hosted build and nine service checks passed on `3ebf743`. Docker is unavailable locally |
 | Real deployment acceptance | Unrun |
 | Independent assurance | Open |
 
 The production layout check recreates the Docker dependency-install and copy layout in an isolated directory. It does not execute an image. The earlier baseline passed 129 tests, but its fresh dependency audit and the two security probes failed. Passing historical CI cannot replace hosted checks for the corrected commit.
 
-The local CodeQL run used CLI 2.23.9 and query pack 2.2.4. It covered all 100 selected JavaScript/TypeScript files and both Actions files. Sixteen findings remain in its SARIF record with individual dispositions covering fixed-file example uploads, generated public TLS certificates, private test evidence, escaped fixture HTML, non-authorising test observers, explicit CLI export and the counter demonstration's documented private-directory assumption. The extraction archive contains 120 repository files, all matching the validated source bytes. Current hosted analysis remains required.
+The full local CodeQL run used CLI 2.23.9 and query pack 2.2.4. It covered all 100 selected JavaScript/TypeScript files and both Actions files. Its sixteen findings retain individual dispositions covering fixed-file example uploads, generated public TLS certificates, private test evidence, escaped fixture HTML, non-authorising test observers, explicit CLI export and the counter demonstration's documented private-directory assumption. That extraction archive contains 120 repository files, all matching the validated source bytes. A fresh extraction after the fixture corrections reran the three affected queries, with no findings in those fixtures. Current hosted analysis remains required.
 
 House-style passed all changed prose and code comments, the two archived installation guides and the prepared PR description. The guides retain their historical commands and incompatibility warnings. Character and provenance checks passed. The documentation regression verifies the corrected links separately.
 

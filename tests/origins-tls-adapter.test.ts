@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { mkdtemp, mkdir, open, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -414,8 +415,16 @@ test('origins adapter CLI preserves private schema-compatible evidence with sour
     const names = await readdir(evidenceDirectory);
     assert.equal(names.length, 1);
     const evidencePath = join(evidenceDirectory, names[0]);
-    assert.equal((await stat(evidencePath)).mode & 0o777, 0o600);
-    const evidenceBytes = await readFile(evidencePath);
+    const evidenceFile = await open(evidencePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    let evidenceBytes: Buffer;
+    try {
+      const info = await evidenceFile.stat();
+      assert.equal(info.isFile(), true);
+      assert.equal(info.mode & 0o777, 0o600);
+      evidenceBytes = await evidenceFile.readFile();
+    } finally {
+      await evidenceFile.close();
+    }
     const evidence = JSON.parse(evidenceBytes.toString('utf8'));
     assert.equal(evidence.source_commit, env.plan.source.commit);
     assert.equal(

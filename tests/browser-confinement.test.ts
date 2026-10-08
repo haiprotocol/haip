@@ -281,13 +281,14 @@ test('absent, observational and permissive confinement policies never receive pr
       if (message.text() === 'haip-confinement-producer-ran') producerRan = true;
     });
     await page.exposeFunction('confinementMaterialReceived', () => producerMaterialMessages++);
-    await page.addInitScript(() => {
+    await page.addInitScript((trustedOrigin: string) => {
       if (!location.pathname.startsWith('/sandbox/')) return;
       window.addEventListener('message', (event) => {
+        if (event.source !== parent || event.origin !== trustedOrigin) return;
         if (event.data?.method === 'haip/ui.resourceReady')
           (window as any).confinementMaterialReceived();
       });
-    });
+    }, reviewOrigin);
     await page.route('**/sandbox/*', async (route) => {
       const url = new URL(route.request().url());
       const host = url.host;

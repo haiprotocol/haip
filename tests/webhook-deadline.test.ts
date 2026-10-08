@@ -93,7 +93,7 @@ test('unused webhook response bodies cannot retain background sockets', async ()
   const sockets = new Set<Socket>();
   let server: ReturnType<typeof createServer> | undefined;
   try {
-    execFileSync(
+    const cert = execFileSync(
       'openssl',
       [
         'req',
@@ -109,12 +109,9 @@ test('unused webhook response bodies cannot retain background sockets', async ()
         'subjectAltName=DNS:receiver.test',
         '-keyout',
         join(directory, 'key.pem'),
-        '-out',
-        join(directory, 'cert.pem'),
       ],
       { stdio: 'pipe' },
     );
-    const cert = await readFile(join(directory, 'cert.pem'));
     let status = 200;
     let closed!: () => void;
     server = createServer(
