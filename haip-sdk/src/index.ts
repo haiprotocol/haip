@@ -31,19 +31,25 @@ export class HAIPError extends Error {
   }
 }
 export class HAIPClient {
+  readonly origin: string;
   constructor(
-    readonly origin: string,
+    origin: string,
     private readonly token: string,
     readonly allowLocalHttp = false,
   ) {
     const url = new URL(origin);
     if (
       url.protocol !== 'https:' &&
-      !(allowLocalHttp && ['localhost', '127.0.0.1'].includes(url.hostname))
+      !(
+        allowLocalHttp &&
+        url.protocol === 'http:' &&
+        ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+      )
     )
       throw new Error('HAIP requires HTTPS');
     if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
       throw new Error('Expected an origin');
+    this.origin = url.origin;
   }
   async request<T>(path: string, body?: unknown, key?: string): Promise<T> {
     if (!path.startsWith('/v2/') && !path.startsWith('/.well-known/'))

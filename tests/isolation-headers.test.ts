@@ -5,11 +5,12 @@ import { environment } from './environment.js';
 
 test('trusted pages enter browser isolation and sever a cross-origin opener', async () => {
   const env = await environment();
-  const browser = await chromium.launch({
-    headless: true,
-    ...(process.env.HAIP_TEST_CHROMIUM ? { executablePath: process.env.HAIP_TEST_CHROMIUM } : {}),
-  });
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
+    browser = await chromium.launch({
+      headless: true,
+      ...(process.env.HAIP_TEST_CHROMIUM ? { executablePath: process.env.HAIP_TEST_CHROMIUM } : {}),
+    });
     const context = await browser.newContext();
     const signedIn = await context.newPage();
     await signedIn.goto(env.origin + '/inbox');
@@ -29,7 +30,10 @@ test('trusted pages enter browser isolation and sever a cross-origin opener', as
     assert.equal(await review.evaluate(() => window.crossOriginIsolated), true);
     await context.close();
   } finally {
-    await browser.close();
-    await env.close();
+    try {
+      await browser?.close();
+    } finally {
+      await env.close();
+    }
   }
 });

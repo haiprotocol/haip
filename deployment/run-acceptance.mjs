@@ -269,42 +269,82 @@ function redactor(secretNames, environment) {
 }
 
 function run(command, timeoutMs, environment) {
-  return new Promise((resolveRun) => {
-    const child = spawn(command[0], command.slice(1), {
-      cwd: root,
-      env: environment,
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
+  if (process.platform === 'win32')
+    return Promise.resolve({
+      code: null,
+      stdout: Buffer.alloc(0),
+      stderr: Buffer.alloc(0),
+      error: new Error('Acceptance adapters require POSIX process-group isolation'),
+      exceeded: false,
+      timedOut: false,
     });
+  return new Promise((resolveRun) => {
+    let child;
+    try {
+      child = spawn(command[0], command.slice(1), {
+        cwd: root,
+        env: environment,
+        detached: true,
+        shell: false,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      resolveRun({
+        code: null,
+        stdout: Buffer.alloc(0),
+        stderr: Buffer.alloc(0),
+        error,
+        exceeded: false,
+        timedOut: false,
+      });
+      return;
+    }
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);
     let exceeded = false;
     let timedOut = false;
-    const append = (current, chunk) => {
-      const next = Buffer.concat([current, chunk]);
-      if (next.byteLength <= maximumDocumentBytes) return next;
-      exceeded = true;
-      child.kill('SIGKILL');
-      return next.subarray(0, maximumDocumentBytes);
+    let settled = false;
+    let timer;
+    const finish = (code, error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (Number.isSafeInteger(child.pid) && child.pid > 0) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch (failure) {
+          if (failure.code !== 'ESRCH') error ??= failure;
+        }
+      }
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
+      resolveRun({ code, stdout, stderr, error, exceeded, timedOut });
     };
     child.stdout.on('data', (chunk) => {
-      stdout = append(stdout, chunk);
+      if (settled) return;
+      const next = Buffer.concat([stdout, chunk]);
+      stdout = next.subarray(0, maximumDocumentBytes);
+      if (next.byteLength > maximumDocumentBytes) {
+        exceeded = true;
+        finish(null);
+      }
     });
     child.stderr.on('data', (chunk) => {
-      stderr = append(stderr, chunk);
+      if (settled) return;
+      const next = Buffer.concat([stderr, chunk]);
+      stderr = next.subarray(0, maximumDocumentBytes);
+      if (next.byteLength > maximumDocumentBytes) {
+        exceeded = true;
+        finish(null);
+      }
     });
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      finish(null);
     }, timeoutMs);
-    child.once('error', (error) => {
-      clearTimeout(timer);
-      resolveRun({ code: null, stdout, stderr, error, exceeded, timedOut });
-    });
-    child.once('close', (code) => {
-      clearTimeout(timer);
-      resolveRun({ code, stdout, stderr, exceeded, timedOut });
-    });
+    child.once('error', (error) => finish(null, error));
+    child.once('close', (code) => finish(code));
   });
 }
 

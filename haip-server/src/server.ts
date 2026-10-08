@@ -378,6 +378,7 @@ export function createSandboxApp(service: ReviewService) {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Connection-Allowlist': '(); webrtc=block; redirects=block; report-to=haip-view-policy',
       'Permissions-Policy':
         'camera=(), microphone=(), geolocation=(), payment=(), clipboard-read=(), clipboard-write=()',
       'Content-Security-Policy': `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors ${service.config.origin}`,

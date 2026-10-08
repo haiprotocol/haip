@@ -7,7 +7,7 @@ import { ReviewService } from '../haip-server/src/service.js';
 import { createApp, createSandboxApp } from '../haip-server/src/server.js';
 import { bootstrapTenant } from '../haip-server/src/admin.js';
 import { OutboxWorker } from '../haip-server/src/worker.js';
-import { PROTOCOL_REVISION, DEFAULT_LIMITS } from '@haip/protocol';
+import { PROTOCOL_REVISION, DEFAULT_LIMITS, type TrustManifest } from '@haip/protocol';
 import { digest } from '@haip/protocol/crypto';
 import { postgres, freePort } from './fixtures/postgres.js';
 import { identityProvider } from './fixtures/oidc.js';
@@ -22,7 +22,7 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
   const port = await freePort(),
     sandboxPort = await freePort();
   const origin = `http://localhost:${port}`;
-  const trust = {
+  const trust: TrustManifest = {
     issuer: origin,
     protocol_revision: PROTOCOL_REVISION,
     keys: [

@@ -1,10 +1,10 @@
 ---
-title: "HAIP 1 archive — Installation"
+title: "HAIP 1 archive: Installation"
 description: "Historical HAIP 1 documentation. Unsupported and incompatible with HAIP 2."
 ---
 
 <Warning>
-**Unsupported HAIP 1 archive.** This is historical chat and streaming documentation, not the HAIP 2 review protocol. Its APIs, package examples and security advice must not be used for a HAIP 2 deployment. Start with the [current HAIP 2 guides](/index).
+**Unsupported HAIP 1 archive.** This page records historical HAIP 1 chat and streaming guidance. Its APIs, package examples and security advice are incompatible with a HAIP 2 deployment. Start with the [current HAIP 2 guides](/index).
 </Warning>
 
 <Note>
@@ -27,18 +27,41 @@ The HAIP CLI can be installed and used in multiple ways. Choose the method that 
   </Card>
 </CardGroup>
 
-## Method 1: From Source (Recommended)
+## Source installation
+
+Installing from source is recommended.
 
 <Steps>
   <Step title="Clone the Repository">
-    ```bash git clone https://github.com/haiprotocol/haip-cli.git cd haip-cli
-    ```
+
+```bash
+git clone https://github.com/haiprotocol/haip-cli.git
+cd haip-cli
+```
+
   </Step>
-  <Step title="Install Dependencies">```bash npm install ```</Step>
-  <Step title="Build the Project">```bash npm run build ```</Step>
+  <Step title="Install Dependencies">
+
+```bash
+npm install
+```
+
+  </Step>
+  <Step title="Build the Project">
+
+```bash
+npm run build
+```
+
+  </Step>
   <Step title="Verify Installation">
-    ```bash node dist/index.js --help ``` You should see the HAIP CLI banner and
-    help information.
+
+```bash
+node dist/index.js --help
+```
+
+You should see the HAIP CLI banner and help information.
+
   </Step>
 </Steps>
 
@@ -52,13 +75,11 @@ npm link
 haip --help
 ```
 
-## Method 2: From NPM
+## npm installation
 
 <Note>**Available Now**: The HAIP CLI is available on npm as `@haip/cli`.</Note>
 
-[![npm version](https://badge.fury.io/js/%40haip%2Fcli.svg)](https://badge.fury.io/js/%40haip%2Fcli)
-[![npm downloads](https://img.shields.io/npm/dm/@haip/cli)](https://www.npmjs.com/package/@haip/cli)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://badge.fury.io/js/%40haip%2Fcli.svg)](https://badge.fury.io/js/%40haip%2Fcli) [![npm downloads](https://img.shields.io/npm/dm/@haip/cli)](https://www.npmjs.com/package/@haip/cli) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ```bash
 # Install globally from NPM
@@ -68,11 +89,10 @@ npm install -g @haip/cli
 haip --help
 ```
 
-## Method 3: Docker
+## Docker installation
 
 <Note>
-  **Docker**: Docker images will be available on Docker Hub as `haip/cli` in the
-  future.
+**Docker**: Docker images will be available on Docker Hub as `haip/cli` in the future.
 </Note>
 
 ### Pull the Image
@@ -140,7 +160,7 @@ npm link
 
 After installation, verify that the CLI is working correctly:
 
-### 1. Check Version
+### Check version
 
 ```bash
 node dist/index.js version
@@ -154,7 +174,7 @@ Human-Agent Interaction Protocol Command Line Interface
 https://github.com/haiprotocol/haip-cli
 ```
 
-### 2. Check System Information
+### System information
 
 ```bash
 node dist/index.js info
@@ -172,7 +192,7 @@ HAIP Version: 1.1.2
 CLI Version: 1.0.0
 ```
 
-### 3. Check Help System
+### Help system
 
 ```bash
 node dist/index.js --help
@@ -180,7 +200,7 @@ node dist/index.js --help
 
 You should see the ASCII art banner and complete command listing.
 
-### 4. Test Commands
+### Test commands
 
 ```bash
 # Test health command
@@ -215,7 +235,9 @@ export HAIP_VERBOSE=false
 export HAIP_COLOR=true
 ```
 
-### Configuration File (Future Enhancement)
+### Configuration file
+
+Configuration files are a planned enhancement.
 
 Create a configuration file for persistent settings:
 
@@ -298,7 +320,7 @@ If you encounter issues:
 
 ## Next Steps
 
-- [Quick Start](/cli/quickstart) - Get up and running quickly
-- [Command Reference](/cli/commands) - Learn about available commands
-- [Configuration](/cli/configuration) - Configure the CLI
-- [Examples](/cli/examples) - See usage examples
+- [Quick Start](/archive/v1/cli/quickstart) - Get up and running quickly
+- [Command Reference](/archive/v1/cli/commands) - Learn about available commands
+- [Configuration](/archive/v1/cli/configuration) - Configure the CLI
+- [Examples](/archive/v1/examples/using-cli) - See usage examples

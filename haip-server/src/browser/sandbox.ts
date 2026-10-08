@@ -10,7 +10,13 @@ let inner: HTMLIFrameElement | undefined,
   inputForwarded = false,
   snapshotsForwarded = false,
   proposalsSeen = 0,
-  failed = false;
+  failed = false,
+  confinementVerified = false;
+let cancelConfinement = () => {};
+let heartbeat: ReturnType<typeof setInterval> | undefined;
+let lastInnerActivity = performance.now(),
+  innerResponsive = false,
+  innerChallenge: string | undefined;
 const MAX_MESSAGE_BYTES = AGENT_UI_LIMITS.view_message_bytes;
 const MAX_HOST_MESSAGE_BYTES = AGENT_UI_LIMITS.host_message_bytes;
 const pendingHostRequests = new Set<string | number>();
@@ -179,6 +185,10 @@ function send(data: unknown) {
 function failView(reason: string) {
   if (failed) return;
   failed = true;
+  cancelConfinement();
+  if (heartbeat !== undefined) clearInterval(heartbeat);
+  innerChallenge = undefined;
+  innerResponsive = false;
   initialiseId = undefined;
   initialiseAnswered = false;
   initialiseAccepted = false;
@@ -224,9 +234,38 @@ function rejectLifecycleRequest(message: Record<string, any>, reason: string) {
   }
   viewError(message.id, -32600, reason);
 }
+function probeInner() {
+  if (!inner || failed) return;
+  innerChallenge ??= crypto.randomUUID();
+  inner.contentWindow?.postMessage(
+    {
+      jsonrpc: '2.0',
+      method: 'haip/ui.proxyProbe',
+      params: { challenge: innerChallenge },
+    },
+    '*',
+  );
+}
+function livenessPrelude() {
+  // This listener runs before producer code and proves only that the exact inner process can answer a fresh challenge. Its replies stay within the trusted Proxy.
+  return `(() => {
+    const proxy = parent, origin = ${JSON.stringify(location.origin)}, keys = Object.keys, own = Object.hasOwn, array = Array.isArray, post = parent.postMessage.bind(parent), listen = window.addEventListener.bind(window), apply = Reflect.apply, stop = Event.prototype.stopImmediatePropagation;
+    listen('message', event => {
+      const message = event.data;
+      if (event.source !== proxy || event.origin !== origin || !message || typeof message !== 'object' || array(message) || keys(message).length !== 3 || !own(message,'jsonrpc') || !own(message,'method') || !own(message,'params') || message.jsonrpc !== '2.0' || message.method !== 'haip/ui.proxyProbe' || !message.params || typeof message.params !== 'object' || array(message.params) || keys(message.params).length !== 1 || !own(message.params,'challenge') || typeof message.params.challenge !== 'string' || message.params.challenge.length !== 36) return;
+      post({jsonrpc:'2.0',method:'haip/ui.proxyProof',params:{challenge:message.params.challenge}}, origin);
+      apply(stop, event, []);
+    }, true);
+  })();`;
+}
 const VIEW_TO_HOST = new Set(['haip/ui.initialize', 'haip/ui.initialized', 'haip/ui.propose']);
 window.addEventListener('message', (event) => {
   if (event.source === parent && event.origin === hostOrigin) {
+    if (!confinementVerified || failed) {
+      if (!failed && event.data?.method === 'haip/ui.resourceReady')
+        failView('network confinement not established');
+      return;
+    }
     const message = event.data;
     if (!boundedEnvelope(message, MAX_HOST_MESSAGE_BYTES)) {
       if (inner) failView('invalid host message');
@@ -244,9 +283,15 @@ window.addEventListener('message', (event) => {
       let loads = 0;
       inner.addEventListener('load', () => {
         if (++loads > 1) failView('renderer navigated or reloaded');
+        else probeInner();
       });
       inner.addEventListener('error', () => failView('renderer failed'));
-      inner.srcdoc = message.params.html;
+      lastInnerActivity = performance.now();
+      inner.srcdoc =
+        '<!doctype html><script>' +
+        livenessPrelude().replaceAll('</script', '<\\/script') +
+        '</script>' +
+        message.params.html;
       document.body.appendChild(inner);
       return;
     }
@@ -282,6 +327,20 @@ window.addEventListener('message', (event) => {
     inner.contentWindow?.postMessage(message, '*');
   } else if (inner && event.source === inner.contentWindow && event.origin === 'null') {
     const message = event.data;
+    if (message?.method === 'haip/ui.proxyProof') {
+      if (
+        boundedEnvelope(message, 256) &&
+        exact(message, ['jsonrpc', 'method', 'params']) &&
+        exactObject(message.params, ['challenge']) &&
+        innerChallenge !== undefined &&
+        message.params.challenge === innerChallenge
+      ) {
+        innerChallenge = undefined;
+        innerResponsive = true;
+        lastInnerActivity = performance.now();
+      }
+      return;
+    }
     if (!envelope(message) || !jsonValue(message)) {
       failView('invalid renderer message');
       return;
@@ -376,8 +435,63 @@ window.addEventListener('message', (event) => {
     send(message);
   }
 });
+function establishNetworkConfinement() {
+  if (failed) return;
+  let observer: ReportingObserver | undefined,
+    peer: RTCPeerConnection | undefined,
+    timeout: ReturnType<typeof setTimeout> | undefined;
+  cancelConfinement = () => {
+    if (timeout !== undefined) clearTimeout(timeout);
+    observer?.disconnect();
+    peer?.close();
+  };
+  const accept = (reports: Report[]) => {
+    if (failed || confinementVerified) return;
+    const enforced = reports.some((report) => {
+      if (report.type !== 'connection-allowlist' || !report.body) return false;
+      const body = report.body.toJSON() as Record<string, unknown>;
+      return (
+        body.connection === 'webrtc' &&
+        body.disposition === 'enforce' &&
+        Array.isArray(body.allowlist) &&
+        body.allowlist.length === 0
+      );
+    });
+    if (!enforced) return;
+    confinementVerified = true;
+    cancelConfinement();
+    send({ jsonrpc: '2.0', method: 'haip/ui.proxyReady', params: {} });
+    heartbeat = setInterval(() => {
+      if (!inner || failed) return;
+      if (performance.now() - lastInnerActivity > 3000) {
+        failView('renderer stopped responding');
+        return;
+      }
+      if (innerResponsive) send({ jsonrpc: '2.0', method: 'haip/ui.proxyAlive', params: {} });
+      probeInner();
+    }, 1000);
+  };
+  try {
+    if (typeof ReportingObserver !== 'function' || typeof RTCPeerConnection !== 'function') {
+      failView('browser network confinement unavailable');
+      return;
+    }
+    // A browser-created enforcement report proves the empty response policy is active before producer bytes are accepted. The peer has no ICE servers, channel or description, so this check initiates no connection.
+    observer = new ReportingObserver(accept, { types: ['connection-allowlist'], buffered: false });
+    observer.observe();
+    timeout = setTimeout(() => failView('browser network confinement unavailable'), 1000);
+    peer = new RTCPeerConnection({ iceServers: [] });
+    accept(observer.takeRecords());
+  } catch {
+    failView('browser network confinement unavailable');
+  }
+}
 window.addEventListener(
-  'DOMContentLoaded',
-  () => send({ jsonrpc: '2.0', method: 'haip/ui.proxyReady', params: {} }),
+  'pagehide',
+  () => {
+    cancelConfinement();
+    if (heartbeat !== undefined) clearInterval(heartbeat);
+  },
   { once: true },
 );
+window.addEventListener('DOMContentLoaded', establishNetworkConfinement, { once: true });

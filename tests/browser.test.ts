@@ -103,7 +103,8 @@ test('browser OIDC, app replay, restricted message bridge, escaped text and trus
     window.haipTestRendererMessages = 0;
     const renderer = document.querySelector<HTMLIFrameElement>('iframe')!;
     window.addEventListener('message', (event) => {
-      if (event.source === renderer.contentWindow) window.haipTestRendererMessages++;
+      if (event.source === renderer.contentWindow && event.data?.method !== 'haip/ui.proxyProof')
+        window.haipTestRendererMessages++;
     });
   });
   await page.evaluate(() => {
@@ -415,7 +416,8 @@ async function hostileReview() {
     window.haipTestRendererMessages = 0;
     const renderer = document.querySelector<HTMLIFrameElement>('iframe')!;
     window.addEventListener('message', (event) => {
-      if (event.source === renderer.contentWindow) window.haipTestRendererMessages++;
+      if (event.source === renderer.contentWindow && event.data?.method !== 'haip/ui.proxyProof')
+        window.haipTestRendererMessages++;
     });
   });
   return {
