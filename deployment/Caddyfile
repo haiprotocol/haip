@@ -27,6 +27,9 @@
 	tls {$HAIP_SANDBOX_CERT_FILE} {$HAIP_SANDBOX_KEY_FILE}
 	header {
 		-Server
+		-Reporting-Endpoints
+		-Report-To
+		Connection-Allowlist "(); webrtc=block; redirects=block; report-to=haip-view-policy"
 		Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors https://{$HAIP_TRUSTED_HOST}"
 		Cross-Origin-Embedder-Policy "require-corp"
 		Cross-Origin-Opener-Policy "same-origin"

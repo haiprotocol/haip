@@ -27,17 +27,18 @@
     "demo": "node --import tsx scripts/demo.ts",
     "example:app": "node scripts/build-choice-app.mjs"
   },
-  "overrides": {},
+  "overrides": {
+    "nodemailer": "10.0.16"
+  },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.64.0",
     "@types/express": "5.0.3",
     "@types/node": "24.3.0",
-    "@types/nodemailer": "6.4.19",
     "@types/pg": "8.15.5",
     "esbuild": "0.25.9",
     "json-schema-to-typescript": "15.0.4",
     "prettier": "3.9.6",
-    "smtp-server": "3.19.4",
+    "smtp-server": "3.19.17",
     "tsx": "4.20.5",
     "typescript": "5.9.2"
   }

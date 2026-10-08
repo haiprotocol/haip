@@ -513,6 +513,7 @@ async function app(expectedBundle: AppBinding, candidateBinding: CandidateBindin
   let closed = false;
   let proposals = 0;
   let outerLoads = 0;
+  let lastProxyActivity = performance.now();
   // View-issued request ids only. Host-issued ids live in `pending` and never share this space.
   const outstanding = new Set<string | number>();
   const completed = new Set<string | number>();
@@ -646,7 +647,21 @@ async function app(expectedBundle: AppBinding, candidateBinding: CandidateBindin
         return;
       }
       resourceSent = true;
+      lastProxyActivity = performance.now();
       notify('haip/ui.resourceReady', { html: stored.html, sandbox: 'allow-scripts' });
+      return;
+    }
+
+    if (method === 'haip/ui.proxyAlive') {
+      if (
+        !resourceSent ||
+        !exact(message, ['jsonrpc', 'method', 'params']) ||
+        !empty(message.params)
+      ) {
+        violation('invalid proxy heartbeat');
+        return;
+      }
+      lastProxyActivity = performance.now();
       return;
     }
 
@@ -805,6 +820,7 @@ async function app(expectedBundle: AppBinding, candidateBinding: CandidateBindin
     if (closing) return;
     closing = true;
     window.clearTimeout(initialisationTimer);
+    window.clearInterval(livenessTimer);
     try {
       if (graceful && snapshotsSent) {
         const acknowledgement = await Promise.race([
@@ -846,6 +862,10 @@ async function app(expectedBundle: AppBinding, candidateBinding: CandidateBindin
     () => violation('initialisation timed out'),
     AGENT_UI_LIMITS.initialise_timeout_ms,
   );
+  // The trusted Proxy reports that its process is responsive. Missing heartbeats clear any View proposal.
+  const livenessTimer = window.setInterval(() => {
+    if (performance.now() - lastProxyActivity > 5000) violation('renderer stopped responding');
+  }, 1000);
   window.addEventListener('pagehide', () => void close(), { once: true });
 }
 (async () => {

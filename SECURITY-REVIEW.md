@@ -6,6 +6,8 @@ This record covers an internal source review of HAIP 2 draft 3 on 4 September 20
 
 Reviewed implementation revision: `dbfd04c9b508bd45938a18231a6e3f3dd539dce6`.
 
+The later [8 October release review](RELEASE-READINESS.md) found two high risks that the September review did not detect: repeated schema references can block Node, and scripted Views can initiate WebRTC traffic despite CSP. Its corrections and current-source checks supersede the earlier source verdict for release decisions.
+
 No unresolved critical or high severity source defect was found in the reviewed scope after the fixes in this change. Three medium risks remain across runtime availability, secret operations and reviewer persuasion, with one low risk in the local counter fixture. Provider acceptance and independent review remain release work.
 
 ## Boundary

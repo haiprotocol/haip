@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { request } from 'node:https';
+import type { ClientRequest } from 'node:http';
 import { isIP } from 'node:net';
 import { canonicalise } from '@haip/protocol/crypto';
 import { requireThat } from './errors.js';
@@ -51,34 +52,53 @@ export async function deliverWebhook(
     400,
     'webhook_destination_rejected',
   );
-  const addresses = await transport.resolve(url.hostname, { all: true });
-  requireThat(
-    addresses.length && addresses.every((a) => publicAddress(a.address)),
-    400,
-    'webhook_address_rejected',
-  );
-  const address = addresses[0]!;
-  const bytes = Buffer.from(canonicalise(body));
   await new Promise<void>((resolve, reject) => {
-    const req = transport.request(
-      url,
-      {
-        method: 'POST',
-        timeout: 10000,
-        headers: { 'Content-Type': 'application/json', 'Content-Length': bytes.length },
-        lookup: ((_hostname: any, options: any, cb: any) =>
-          options?.all ? cb(null, [address]) : cb(null, address.address, address.family)) as any,
-      },
-      (response) => {
-        response.resume();
-        response.once('error', reject);
-        if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300)
-          resolve();
-        else reject(new Error('webhook_not_accepted'));
-      },
-    );
-    req.once('timeout', () => req.destroy(new Error('webhook_timeout')));
-    req.once('error', reject);
-    req.end(bytes);
+    let req: ClientRequest | undefined;
+    let settled = false;
+    const finish = (error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      if (error) reject(error);
+      else resolve();
+    };
+    // Socket inactivity alone does not bound DNS, connection setup or a peer sending partial headers.
+    const deadline = setTimeout(() => {
+      const error = new Error('webhook_timeout');
+      finish(error);
+      req?.destroy(error);
+    }, 10000);
+    void (async () => {
+      const addresses = await transport.resolve(url.hostname, { all: true });
+      if (settled) return;
+      requireThat(
+        addresses.length && addresses.every((a) => publicAddress(a.address)),
+        400,
+        'webhook_address_rejected',
+      );
+      const address = addresses[0]!;
+      const bytes = Buffer.from(canonicalise(body));
+      req = transport.request(
+        url,
+        {
+          method: 'POST',
+          timeout: 10000,
+          headers: { 'Content-Type': 'application/json', 'Content-Length': bytes.length },
+          lookup: ((_hostname: any, options: any, cb: any) =>
+            options?.all ? cb(null, [address]) : cb(null, address.address, address.family)) as any,
+        },
+        (response) => {
+          response.once('error', finish);
+          // Only the acknowledgement status is used. Close an unused body rather than leaving an unbounded background stream.
+          response.destroy();
+          if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300)
+            finish();
+          else finish(new Error('webhook_not_accepted'));
+        },
+      );
+      req.once('timeout', () => req?.destroy(new Error('webhook_timeout')));
+      req.once('error', finish);
+      req.end(bytes);
+    })().catch(finish);
   });
 }

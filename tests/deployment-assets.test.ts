@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, readFile, stat, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const execute = promisify(execFile);
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -21,6 +22,138 @@ async function plan() {
   input.source.commit = await sourceCommit();
   return input;
 }
+
+for (const mode of ['timeout', 'leader_exit', 'output_limit', 'success'] as const) {
+  test(`acceptance adapter ${mode} cleans up its descendants and continues later checks`, async (t) => {
+    if (process.platform === 'win32') return t.skip('Live adapters require POSIX process groups');
+    const directory = await mkdtemp(join(tmpdir(), 'haip-acceptance-process-'));
+    const heartbeat = join(directory, 'descendant.txt');
+    const unrelatedHeartbeat = join(directory, 'unrelated.txt');
+    const childSource = (path: string) => `
+      const {appendFileSync}=require('node:fs');
+      appendFileSync(${JSON.stringify(path)},'x');
+      setInterval(()=>appendFileSync(${JSON.stringify(path)},'x'),100);
+      setTimeout(()=>process.exit(0),8000);
+      process.send?.('ready');
+    `;
+    const unrelated = spawn(process.execPath, ['-e', childSource(unrelatedHeartbeat)], {
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    });
+    try {
+      await new Promise<void>((resolveReady, reject) => {
+        unrelated.once('message', () => resolveReady());
+        unrelated.once('error', reject);
+        unrelated.once('exit', () =>
+          reject(new Error('Independent child exited before readiness')),
+        );
+      });
+      unrelated.disconnect();
+      const input = await plan();
+      const result = {
+        status: 'passed',
+        summary: 'The isolated fixture produced evidence.',
+        assertions: [{ name: 'fixture_completed', passed: true, detail: 'The fixture ran.' }],
+        evidence: [
+          {
+            name: 'fixture',
+            digest: `sha256:${'1'.repeat(64)}`,
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        facts: {},
+      };
+      const source = `
+        const {spawn}=require('node:child_process');
+        const descendant=spawn(process.execPath,['-e',${JSON.stringify(childSource(heartbeat))}],{stdio:['ignore',${mode === 'success' ? "'ignore','ignore'" : "'inherit','inherit'"},'ipc']});
+        descendant.once('message',()=>{
+          descendant.disconnect();
+          ${mode === 'timeout' ? 'setInterval(()=>{},1000);' : mode === 'output_limit' ? "process.stdout.write('x'.repeat(2*1024*1024));setInterval(()=>{},1000);" : `process.stdout.write(${JSON.stringify(JSON.stringify(result))},()=>process.exit(0));`}
+        });
+      `;
+      input.checks[0].command = [process.execPath, '-e', source];
+      input.checks[0].timeout_ms = 1000;
+      delete input.checks[0].unrun_reason;
+      input.checks[1].command = [
+        process.execPath,
+        '-e',
+        `process.stdout.write(${JSON.stringify(JSON.stringify(result))})`,
+      ];
+      delete input.checks[1].unrun_reason;
+      const planPath = join(directory, 'plan.json');
+      const reportPath = join(directory, 'report.json');
+      await writeFile(planPath, JSON.stringify(input));
+      const started = performance.now();
+      await execute(
+        process.execPath,
+        [runner, planPath, reportPath, '--allow-dirty', '--allow-incomplete'],
+        { cwd: root, timeout: 12000 },
+      );
+      const elapsed = performance.now() - started;
+      assert.ok(elapsed < 4500, `The 1 s adapter boundary took ${Math.round(elapsed)} ms`);
+      const report = JSON.parse(await readFile(reportPath, 'utf8'));
+      assert.equal(report.checks[0].status, mode === 'success' ? 'passed' : 'failed');
+      if (mode === 'output_limit')
+        assert.match(report.checks[0].diagnostic, /output exceeded 1 MiB/);
+      if (mode === 'timeout' || mode === 'leader_exit')
+        assert.match(report.checks[0].diagnostic, /exceeded 1000 ms/);
+      assert.equal(report.checks[1].status, 'passed');
+      assert.equal(report.summary.accepted, false);
+      const finalHeartbeat = await readFile(heartbeat, 'utf8');
+      const unrelatedBefore = await readFile(unrelatedHeartbeat, 'utf8');
+      await delay(350);
+      assert.equal(
+        await readFile(heartbeat, 'utf8'),
+        finalHeartbeat,
+        'The owned descendant must stop writing',
+      );
+      assert.ok(
+        (await readFile(unrelatedHeartbeat, 'utf8')).length > unrelatedBefore.length,
+        'Independent child must remain alive',
+      );
+    } finally {
+      unrelated.kill('SIGKILL');
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test('acceptance reports retain synchronous process failures and continue later checks', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'haip-acceptance-startup-'));
+  try {
+    const input = await plan();
+    input.checks[0].command = [process.execPath, '-e', 'x\u0000y'];
+    delete input.checks[0].unrun_reason;
+    const result = {
+      status: 'blocked',
+      summary: 'The later fixture ran.',
+      assertions: [],
+      evidence: [],
+      facts: { reached: true },
+    };
+    input.checks[1].command = [
+      process.execPath,
+      '-e',
+      `process.stdout.write(${JSON.stringify(JSON.stringify(result))})`,
+    ];
+    delete input.checks[1].unrun_reason;
+    const planPath = join(directory, 'plan.json');
+    const reportPath = join(directory, 'report.json');
+    await writeFile(planPath, JSON.stringify(input));
+    await execute(
+      process.execPath,
+      [runner, planPath, reportPath, '--allow-dirty', '--allow-incomplete'],
+      { cwd: root },
+    );
+    const report = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(report.checks[0].status, 'failed');
+    assert.match(report.checks[0].diagnostic, /Adapter could not start/);
+    assert.equal(report.checks[1].status, process.platform === 'win32' ? 'failed' : 'blocked');
+    if (process.platform !== 'win32') assert.equal(report.checks[1].facts.reached, true);
+    assert.equal(report.summary.accepted, false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('acceptance reports mask secrets, retain safe facts and refuse an incomplete result', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'haip-deployment-acceptance-'));

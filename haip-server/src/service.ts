@@ -741,7 +741,7 @@ export class ReviewService {
       );
     });
   }
-  private prepareRequest(input: RequestInput, limits: Limits): PreparedRequest {
+  private async prepareRequest(input: RequestInput, limits: Limits): Promise<PreparedRequest> {
     validate('RequestInput', input);
     const payload = canonicalise(input.payload),
       schema = canonicalise(input.response_schema);
@@ -765,8 +765,8 @@ export class ReviewService {
       document_digest: digestBytes(input.review_document),
     };
     this.preparedLimits(prepared, limits);
-    // Untrusted schema compilation and all large JSON canonicalisation happen without a tenant lock.
-    validateResponseSchema(input.response_schema);
+    // Schema compilation runs in a bounded worker after preparation and before acquiring the tenant lock.
+    await validateResponseSchema(input.response_schema);
     return prepared;
   }
   private preparedLimits(prepared: PreparedRequest, limits: Limits) {
@@ -808,7 +808,7 @@ export class ReviewService {
     return {
       input: snapshot,
       inputDigest,
-      prepared: replay ? undefined : this.prepareRequest(snapshot, limits),
+      prepared: replay ? undefined : await this.prepareRequest(snapshot, limits),
     };
   }
   private async createIn(
@@ -1171,12 +1171,19 @@ export class ReviewService {
   }
   async propose(p: Principal, id: string, input: DecisionProposal, key?: string) {
     validate('DecisionProposal', input);
-    return this.store.transaction(p.tenant, async (tx, now) => {
-      p = await this.principal(tx, p);
-      const row = await this.owned(tx, p, id);
-      await this.eligible(tx, p, row);
-      this.pending(row, now);
-      return this.idempotent(tx, p, 'decision.propose:' + id, key, input, async () => {
+    const proposalJSON = canonicalise(input);
+    input = JSON.parse(proposalJSON);
+    const proposalDigest = digestBytes(proposalJSON);
+    let schema: unknown;
+    let schemaDigest: string | undefined;
+    const replay = await this.preflight(
+      p,
+      'decision.propose:' + id,
+      key,
+      async (tx, current, now) => {
+        const row = await this.owned(tx, current, id);
+        await this.eligible(tx, current, row);
+        this.pending(row, now);
         const r = row.data.request;
         requireThat(
           r.purpose === 'authorise_execution'
@@ -1186,58 +1193,90 @@ export class ReviewService {
           'purpose_decision_mismatch',
         );
         requireThat(bytes(input.response) <= r.limits.response_bytes, 413, 'response_too_large');
-        validateResponseSchema(row.material!.response_schema, input.response, true);
-        const candidate: DecisionCandidate = {
-          id: randomUUID(),
-          request_id: id,
-          request_digest: row.data.request_digest,
-          reviewer: p.id,
-          revision: (row.data.last_candidate_revision ?? row.data.candidate?.revision ?? 0) + 1,
-          response: input.response,
-          response_canonical: canonicalise(input.response),
-          response_digest: digest(input.response),
-          decision: input.decision,
-          created_at: iso(now),
-        };
-        requireThat(candidate.revision <= 32, 429, 'proposal_revision_limit');
-        const before = row.data.response_storage_bytes ?? 0;
-        const after =
-          before + 2 * bytes(candidate) - (row.data.candidate ? bytes(row.data.candidate) : 0);
-        const reserve = 6 * r.limits.response_bytes + 8192;
-        const extra = Math.max(reserve, after) - Math.max(reserve, before);
-        // Previously reserved space remains usable even if a later registration or route
-        // has a larger retained-data allowance. Only new storage needs another quota check.
-        if (extra > 0) {
-          const usage = (
-            await tx.query(
-              'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_requests WHERE tenant=$1 AND producer=$2',
-              [p.tenant, row.producer],
-            )
-          ).rows[0];
-          const bundles = (
-            await tx.query(
-              "SELECT COALESCE(sum(b.retained_bytes),0) AS total FROM haip_bundles b JOIN haip_principals p ON p.tenant=b.tenant AND p.config->>'publisher'=b.publisher WHERE p.tenant=$1 AND p.id=$2",
-              [p.tenant, row.producer],
-            )
-          ).rows[0];
+        schema = row.material!.response_schema;
+        schemaDigest = r.review.response_schema_digest;
+      },
+    );
+    if (!replay) await validateResponseSchema(schema, input.response, true);
+    return this.store.transaction(p.tenant, async (tx, now) => {
+      p = await this.principal(tx, p);
+      const row = await this.owned(tx, p, id);
+      await this.eligible(tx, p, row);
+      this.pending(row, now);
+      return this.idempotent(
+        tx,
+        p,
+        'decision.propose:' + id,
+        key,
+        input,
+        async () => {
+          requireThat(!replay, 409, 'idempotency_changed');
+          const r = row.data.request;
           requireThat(
-            Number(usage.total) + Number(bundles.total) + extra <= r.limits.retained_bytes,
-            429,
-            'retained_quota',
+            r.review.response_schema_digest === schemaDigest,
+            409,
+            'material_integrity_mismatch',
           );
-        }
-        row.retained_bytes = Number(row.retained_bytes) + extra;
-        row.data.response_storage_bytes = after;
-        await tx.query('UPDATE haip_requests SET retained_bytes=$3 WHERE tenant=$1 AND id=$2', [
-          p.tenant,
-          row.id,
-          row.retained_bytes,
-        ]);
-        row.data.candidate = candidate;
-        row.data.last_candidate_revision = candidate.revision;
-        await this.save(tx, row);
-        return candidate;
-      });
+          requireThat(
+            r.purpose === 'authorise_execution'
+              ? ['authorise', 'refuse'].includes(input.decision)
+              : ['approve', 'reject', 'answer'].includes(input.decision),
+            400,
+            'purpose_decision_mismatch',
+          );
+          requireThat(bytes(input.response) <= r.limits.response_bytes, 413, 'response_too_large');
+          const candidate: DecisionCandidate = {
+            id: randomUUID(),
+            request_id: id,
+            request_digest: row.data.request_digest,
+            reviewer: p.id,
+            revision: (row.data.last_candidate_revision ?? row.data.candidate?.revision ?? 0) + 1,
+            response: input.response,
+            response_canonical: canonicalise(input.response),
+            response_digest: digest(input.response),
+            decision: input.decision,
+            created_at: iso(now),
+          };
+          requireThat(candidate.revision <= 32, 429, 'proposal_revision_limit');
+          const before = row.data.response_storage_bytes ?? 0;
+          const after =
+            before + 2 * bytes(candidate) - (row.data.candidate ? bytes(row.data.candidate) : 0);
+          const reserve = 6 * r.limits.response_bytes + 8192;
+          const extra = Math.max(reserve, after) - Math.max(reserve, before);
+          // Previously reserved space remains usable even if a later registration or route has a larger retained-data allowance. Only new storage needs another quota check.
+          if (extra > 0) {
+            const usage = (
+              await tx.query(
+                'SELECT COALESCE(sum(retained_bytes),0) AS total FROM haip_requests WHERE tenant=$1 AND producer=$2',
+                [p.tenant, row.producer],
+              )
+            ).rows[0];
+            const bundles = (
+              await tx.query(
+                "SELECT COALESCE(sum(b.retained_bytes),0) AS total FROM haip_bundles b JOIN haip_principals p ON p.tenant=b.tenant AND p.config->>'publisher'=b.publisher WHERE p.tenant=$1 AND p.id=$2",
+                [p.tenant, row.producer],
+              )
+            ).rows[0];
+            requireThat(
+              Number(usage.total) + Number(bundles.total) + extra <= r.limits.retained_bytes,
+              429,
+              'retained_quota',
+            );
+          }
+          row.retained_bytes = Number(row.retained_bytes) + extra;
+          row.data.response_storage_bytes = after;
+          await tx.query('UPDATE haip_requests SET retained_bytes=$3 WHERE tenant=$1 AND id=$2', [
+            p.tenant,
+            row.id,
+            row.retained_bytes,
+          ]);
+          row.data.candidate = candidate;
+          row.data.last_candidate_revision = candidate.revision;
+          await this.save(tx, row);
+          return candidate;
+        },
+        proposalDigest,
+      );
     });
   }
   async confirm(

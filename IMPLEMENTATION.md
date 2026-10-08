@@ -2,6 +2,8 @@
 
 Status: **HAIP-owned draft implementation with local and hosted CI evidence. Stable publication and production deployment remain incomplete.** The protocol and packages use version `2.0.0-draft.3`. The Agent UI changes were reviewed in [PR #6](https://github.com/haiprotocol/haip/pull/6) and merged into the HAIP 2 draft assembled in [PR #5](https://github.com/haiprotocol/haip/pull/5). Merging reviewed draft source into `main` retains the prerelease version, leaves the packages unpublished and leaves the service undeployed.
 
+The [8 October release review](RELEASE-READINESS.md) records the current release hold, newly confirmed defects and local corrections. Its validation belongs to the corrected source rather than the historical commits below. Deployment acceptance and independently accountable assurance remain open.
+
 ## Ownership and baseline
 
 PR #6 is based on HAIP 2 commit `c02bf330324b0ec8385a8438d112c258caec6161`. Existing packages were repurposed in place. HAIP 1 source and guidance remain in `archive/v1` and `docs/archive/v1`. The HAIP name, independent protocol, MIT attribution, website and `@haip` scope are retained.

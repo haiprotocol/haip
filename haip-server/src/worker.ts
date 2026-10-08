@@ -1,10 +1,10 @@
-import nodemailer from 'nodemailer';
 import { randomUUID } from 'node:crypto';
 import { digest } from '@haip/protocol/crypto';
 import type { ReviewService, RequestRow } from './service.js';
 import type { Principal } from './config.js';
 import type { AnchorStore } from './anchor.js';
 import { deliverWebhook } from './delivery.js';
+import { deliverSMTP } from './smtp.js';
 import { requireThat } from './errors.js';
 import { RecoveryGuard } from './recovery.js';
 import type { Tx } from './store.js';
@@ -308,28 +308,11 @@ export class OutboxWorker {
     }
     const smtp = this.service.config.smtp;
     requireThat(smtp, 503, 'smtp_unconfigured');
-    const transport = nodemailer.createTransport({
-      ...smtp,
-      requireTLS: this.service.config.mode === 'production',
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-      dnsTimeout: 10000,
+    return deliverSMTP(smtp, this.service.config.mode === 'production', {
+      to: item.destination!,
+      subject: item.body.subject,
+      text: item.body.text,
     });
-    try {
-      const result = await transport.sendMail({
-        from: smtp.from,
-        to: item.destination!,
-        subject: item.body.subject,
-        text: item.body.text,
-        disableFileAccess: true,
-        disableUrlAccess: true,
-      });
-      requireThat(result.accepted?.length, 503, 'smtp_not_accepted');
-      return { smtp_accepted: true, delivered_or_read: 'unknown' };
-    } finally {
-      transport.close();
-    }
   }
   private async finalise(claim: ClaimedJob, acceptance: unknown, error: unknown): Promise<number> {
     return this.service.store.transaction(claim.item.tenant, async (tx, now) => {
@@ -435,7 +418,7 @@ export class OutboxWorker {
       [
         item.id,
         expired ? 'failed' : 'pending',
-        code.startsWith('anchor_') ? code : 'delivery_failed',
+        code.startsWith('anchor_') || code === 'smtp_timeout' ? code : 'delivery_failed',
         new Date(now.getTime() + Math.min(3600, 2 ** Math.min(attempt, 12)) * 1000),
       ],
     );
