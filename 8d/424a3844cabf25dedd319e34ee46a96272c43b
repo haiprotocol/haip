@@ -1,0 +1,26 @@
+tests/browser-confinement.test.ts
+  s_08f73032aa8e41::t_aaa6455a1339c1 284,287,291
+RELEASE-READINESS.md
+  s_08f73032aa8e41::t_471b414b29265f 59-60,69
+  s_08f73032aa8e41::t_f9975eb4f7573d 33,61-63
+tests/origins-tls-adapter.test.ts
+  s_08f73032aa8e41::t_aaa6455a1339c1 5-6,418-427
+tests/webhook-deadline.test.ts
+  s_08f73032aa8e41::t_aaa6455a1339c1 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d424a3844cabf25dedd319e34ee46a96272c43b",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
