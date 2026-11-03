@@ -2,6 +2,10 @@
 
 These files are reviewed examples for the HAIP reference service. They do not install software, create a cloud resource, configure an account or establish production acceptance.
 
+## Managed hosting
+
+The selected hosting target is the existing Vercel Pro account with a dedicated HAIP Neon project. [`vercel-neon.md`](vercel-neon.md) records the implementation sequence, compatibility decisions, cost controls and acceptance gates. The current reference runtime retains the process and recovery requirements below until a reviewed replacement has been implemented and verified. The systemd and Caddy examples describe that existing runtime.
+
 ## Production shape
 
 The service uses one active process for each execution namespace. Every restart requires offline recovery and fresh provisioning, so the runtime must not scale horizontally or restart automatically. The trusted listener uses loopback port 8080 and the sandbox listener uses loopback port 8081. PostgreSQL, signing, identity, storage, TLS and recovery remain explicit operator responsibilities.

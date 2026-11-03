@@ -4,6 +4,10 @@ Status: **HAIP-owned draft implementation with local and hosted CI evidence. Sta
 
 The [8 October release review](RELEASE-READINESS.md) records the current release hold, newly confirmed defects and local corrections. Its validation belongs to the corrected source rather than the historical commits below. Deployment acceptance and independently accountable assurance remain open.
 
+## Managed hosting
+
+The 3 November hosting decision selects the existing Vercel Pro and Neon accounts. The [managed hosting plan](deployment/vercel-neon.md) covers serverless authority and restart handling, large payload transport, Neon transactions, event-driven outbox delivery, browser isolation and storage access. This is planned work. The existing process-bound runtime and `2.0.0-draft.3` contract remain unchanged by the plan, and provider acceptance and independent assurance remain release gates.
+
 ## Ownership and baseline
 
 PR #6 is based on HAIP 2 commit `c02bf330324b0ec8385a8438d112c258caec6161`. Existing packages were repurposed in place. HAIP 1 source and guidance remain in `archive/v1` and `docs/archive/v1`. The HAIP name, independent protocol, MIT attribution, website and `@haip` scope are retained.
