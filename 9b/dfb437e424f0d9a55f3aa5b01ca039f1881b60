@@ -1,0 +1,42 @@
+deployment/acceptance.md
+  s_08f73032aa8e41::t_3a7436d73d11bc 63,88
+deployment/adapters/README.md
+  s_08f73032aa8e41::t_3a7436d73d11bc 72-85
+deployment/adapters/azure-immutable-storage.mjs
+  s_08f73032aa8e41::t_87fa467d32fcee 18-32,41-42,49,65,70,75-76,206-209
+  s_08f73032aa8e41::t_fe91a4ed3a7014 219,222-226,233,306
+tests/fixtures/azure-acceptance.ts
+  s_08f73032aa8e41::t_1339427b996e06 1-274
+tests/azure-writer-permissions.test.ts
+  s_08f73032aa8e41::t_3d84ab09cbe8a8 11-14,18-25,30-33,35-36,52-55,72-74,91-94,104-108,117,123-126,131-135,141-144,147-156,159-170,179-182,184-189,197-198,203-206,222-225,232-239,241-252,256-258,263-267,276-286,295-298,328-330,348-355,359-360,364-371,373-376,380-383,387-392,394-396
+  s_08f73032aa8e41::t_7733962cacda0c 1-10,15-17,26-29,34,37-51,56-71,75-90,95-103,109-116,118-122,127-130,136-140,145-146,157-158,171-178,183,190-196,199-202,207-221,226-231,240,253-255,259-262,268-275,287-294,299-327,331-347,356-358,361-363,372,377-379,384-386,393,397
+tests/azure-immutable-storage.test.ts
+  s_08f73032aa8e41::t_1339427b996e06 6,12
+deployment/adapters/azure-acceptance.mjs
+  s_08f73032aa8e41::t_74f41355768683 1-112
+  s_08f73032aa8e41::t_9a37b656a46a51 113-124
+deployment/azure/README.md
+  s_08f73032aa8e41::t_3a7436d73d11bc 58-59
+deployment/adapters/azure-writer-permissions.mjs
+  s_08f73032aa8e41::t_442b5532f4aa5a 1-5,7-65,67-68,70-123,127-152,154-165,167-333
+  s_08f73032aa8e41::t_7548349ef09ea3 6,66,69,124-126,153,166
+  s_08f73032aa8e41::t_eae0f5b2b54d78 334-567
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_3a7436d73d11bc 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9bdfb437e424f0d9a55f3aa5b01ca039f1881b60",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
