@@ -55,8 +55,10 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   const checkpoints = new Map<string, any>(),
     safetyRecords = new Map<string, any>();
   let duplicate = false,
+    snapshot = '',
     marker = false,
     shortRetention = false,
+    retentionMode = 'Locked',
     safetyHold = true,
     replaceAcknowledgement = false,
     omitAcknowledgement = false,
@@ -73,7 +75,7 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
           versionId: o.version,
           isCurrentVersion: !marker,
           deleted: marker,
-          snapshot: '',
+          snapshot,
         };
     },
     getBlockBlobClient(name: string) {
@@ -111,7 +113,7 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
             async getProperties() {
               return {
                 versionId: mismatchedReadVersion ? randomUUID() : version,
-                immutabilityPolicyMode: 'Locked',
+                immutabilityPolicyMode: retentionMode,
                 immutabilityPolicyExpiresOn: shortRetention ? new Date(0) : object.retention,
                 legalHold: legalHold(),
                 contentLength: extraBytes ? 64 * 1024 + 1 : Buffer.byteLength(object.body),
@@ -136,7 +138,11 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   (anchor as any).container = inheritedContainer(checkpoints, () => false);
   (safety as any).container = inheritedContainer(safetyRecords, () => safetyHold);
   const first = await anchor.accept(checkpoint);
+  retentionMode = 'locked';
   assert.deepEqual(await anchor.accept(checkpoint), first);
+  retentionMode = 'unlocked';
+  await assert.rejects(anchor.accept(checkpoint), /anchor_retention_invalid/);
+  retentionMode = 'Locked';
   assert.deepEqual(await anchor.history(ledger, generation), [
     { sequence: 1, head: (checkpoint.payload as any).head },
   ]);
@@ -147,6 +153,9 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   duplicate = true;
   await assert.rejects(anchor.accept(checkpoint), /anchor_version_conflict/);
   duplicate = false;
+  snapshot = '2026-09-04T00:00:00.0000000Z';
+  await assert.rejects(anchor.accept(checkpoint), /anchor_version_conflict/);
+  snapshot = '';
   marker = true;
   await assert.rejects(anchor.history(ledger, generation), /anchor_deleted_version/);
   marker = false;

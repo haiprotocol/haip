@@ -68,6 +68,7 @@ export class AzureAnchor implements AnchorStore {
     for await (const item of this.container.listBlobsFlat({
       prefix,
       includeVersions: true,
+      includeSnapshots: true,
       includeDeleted: true,
       includeDeletedWithVersions: true,
     })) {
@@ -91,7 +92,8 @@ export class AzureAnchor implements AnchorStore {
     const properties = await blob.getProperties();
     requireThat(properties.versionId === version, 503, 'anchor_version_conflict');
     requireThat(
-      properties.immutabilityPolicyMode === 'Locked' && properties.immutabilityPolicyExpiresOn,
+      properties.immutabilityPolicyMode?.toLowerCase() === 'locked' &&
+        properties.immutabilityPolicyExpiresOn,
       503,
       'anchor_retention_invalid',
     );

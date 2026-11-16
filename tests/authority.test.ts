@@ -249,6 +249,11 @@ test('a different version in Azure listing after a checkpoint upload fences exis
         assert.equal(request.method, 'GET');
         assert.equal(url.pathname, `/${container}`);
         assert.equal(url.searchParams.get('comp'), 'list');
+        const include = url.searchParams.getAll('include').flatMap((value) => value.split(','));
+        assert.deepEqual(
+          new Set(include),
+          new Set(['versions', 'snapshots', 'deleted', 'deletedwithversions']),
+        );
         const key = url.searchParams.get('prefix');
         assert.ok(key && /^[a-z0-9/.-]+$/.test(key) && puts.has(key));
         listings.add(key);

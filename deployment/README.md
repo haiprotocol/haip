@@ -22,7 +22,7 @@ The uninstalled [`haip.service`](haip.service) example runs the built Node entry
 
 ## Storage
 
-[`azure/main.bicep`](azure/main.bicep) defines an isolated Azure StorageV2 account with versioning, separate private checkpoint and safety containers, a default 90-day version-level policy for checkpoints, a 90-day container-level policy for safety records, a user-assigned runtime identity and a custom role scoped to both containers. Shared key access and public blob access are disabled. The storage firewall denies traffic unless the deployment supplies an allowed IPv4 CIDR or subnet.
+[`azure/main.bicep`](azure/main.bicep) defines an isolated Azure StorageV2 account with versioning, separate private checkpoint and safety containers, a default version-level policy for checkpoints, a container-level policy for safety records, a user-assigned runtime identity and a custom role scoped to both containers. Both policies use 91 days to leave room for Azure's whole-second expiry timestamps while meeting the exact 90-day minimum. Shared key access and public blob access are disabled. The storage firewall denies traffic unless the deployment supplies an allowed IPv4 CIDR or subnet.
 
 The runtime role contains only blob add and read data actions, where read covers list and properties. It omits replacement, deletion, container administration and immutable-storage superuser actions. Azure permissions are additive, so acceptance must inspect every effective assignment and attempt each prohibited operation with the runtime identity.
 

@@ -34,6 +34,8 @@ param tags object = {}
 
 var roleGuid = guid(subscription().id, resourceGroup().id, storageAccountName, 'haip-evidence-writer-v1')
 var roleName = 'HAIP evidence writer ${uniqueString(resourceGroup().id, storageAccountName)}'
+// Azure reports expiry at whole-second precision. Keep the exact 90-day minimum for records signed with milliseconds.
+var evidenceRetentionDays = 91
 
 resource runtimeIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: runtimeIdentityName
@@ -128,7 +130,7 @@ resource checkpointRetention 'Microsoft.Storage/storageAccounts/blobServices/con
   properties: {
     allowProtectedAppendWrites: false
     allowProtectedAppendWritesAll: false
-    immutabilityPeriodSinceCreationInDays: 90
+    immutabilityPeriodSinceCreationInDays: evidenceRetentionDays
   }
 }
 
@@ -148,7 +150,7 @@ resource safetyRetention 'Microsoft.Storage/storageAccounts/blobServices/contain
   properties: {
     allowProtectedAppendWrites: false
     allowProtectedAppendWritesAll: false
-    immutabilityPeriodSinceCreationInDays: 90
+    immutabilityPeriodSinceCreationInDays: evidenceRetentionDays
   }
 }
 

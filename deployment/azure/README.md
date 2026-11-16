@@ -1,6 +1,6 @@
 # Azure storage
 
-[`main.bicep`](main.bicep) defines the storage boundary for a future isolated HAIP deployment. It has not been deployed. It creates a StorageV2 account with versioning, a private checkpoint container with version-level WORM support and an unlocked default 90-day policy, a private safety container with an unlocked container-level 90-day policy, a user-assigned managed identity, a custom data role and one role assignment scoped to each container.
+[`main.bicep`](main.bicep) defines the storage boundary for a future isolated HAIP deployment. It has not been deployed. It creates a StorageV2 account with versioning, a private checkpoint container with an unlocked default version-level policy, a private safety container with an unlocked container-level policy, a user-assigned managed identity, a custom data role and one role assignment scoped to each container. Both policies have a 91-day duration so the reported expiry can meet the exact 90-day minimum from the signed timestamp. [Azure expiry headers](https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob-properties)
 
 The template excludes compute, PostgreSQL, DNS, certificates, identity applications, monitoring and backup storage. It does not assign an administrator or create locked evidence. Those choices remain part of the reviewed deployment and acceptance procedure.
 

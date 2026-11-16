@@ -371,7 +371,11 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.ok(safetyContainer);
   assert.match(checkpointContainer, /immutableStorageWithVersioning:/);
   assert.doesNotMatch(safetyContainer, /immutableStorageWithVersioning:/);
-  assert.equal((bicep.match(/immutabilityPeriodSinceCreationInDays: 90/g) ?? []).length, 2);
+  assert.match(bicep, /var evidenceRetentionDays = 91\b/);
+  assert.equal(
+    (bicep.match(/immutabilityPeriodSinceCreationInDays: evidenceRetentionDays/g) ?? []).length,
+    2,
+  );
   assert.match(bicep, /defaultAction: 'Deny'/);
   assert.match(bicep, /param checkpointContainerName string = 'haip-checkpoints'/);
   assert.match(bicep, /param safetyContainerName string = 'haip-safety'/);
@@ -386,7 +390,6 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.match(bicep, /notDataActions: \[\]/);
   assert.doesNotMatch(anchor, /immutabilityPolicy:/);
   assert.doesNotMatch(anchor, /legalHold: true/);
-  assert.match(anchor, /properties\.immutabilityPolicyMode === 'Locked'/);
   assert.match(anchor, /properties\.legalHold === true/);
   assert.doesNotMatch(actions, /immutableStorage\/runAsSuperUser\/action/);
   const caddy = await readFile(join(root, 'deployment/Caddyfile'), 'utf8');

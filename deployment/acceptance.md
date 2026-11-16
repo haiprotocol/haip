@@ -77,11 +77,11 @@ Have the test webhook receiver commit the signed event before acknowledging it, 
 
 ## Azure boundary
 
-Azure permits a new blob version while an older version remains locked. A successful upload must report the same version that the listing shows as sole and current. A missing version ID, a replacement version or a deleted version fences the tenant. Confirm this behaviour in a disposable isolated namespace with an independently supervised conflict injector.
+Azure permits a new blob version while an older version remains locked. A successful upload must report the same version that the listing shows as sole and current. A missing version ID, a replacement, a snapshot or a deleted version fences the tenant. Confirm this behaviour in a disposable isolated namespace with an independently supervised conflict injector.
 
 The adapter uses separate checkpoint and safety containers. It performs conditional add-only uploads without per-version policy or legal-hold headers, reads the exact returned version, and rejects records without the inherited policies. Azure requires an immutable-storage superuser data action for policy operations, and that action can also remove a policy. The restricted Bicep role deliberately omits it.
 
-An independent administrator must lock the checkpoint container's default version-level 90-day policy and the safety container's container-level 90-day policy, then apply a container-level legal hold to the safety container before runtime access. Account blob versioning supplies exact version IDs in both containers. The runtime identity must be able to add, list and read the expected records, including their exact version and retention properties. It must have no effective replacement, deletion, hold removal, retention administration, shared key or control plane permission.
+An independent administrator must lock the checkpoint container's default version-level policy and the safety container's container-level policy, then apply a container-level legal hold to the safety container before runtime access. The template uses 91 days in both policies so the whole-second provider expiry can satisfy the exact 90-day minimum from the millisecond signed time. Account blob versioning supplies exact version IDs in both containers. The runtime identity must be able to add, list and read the expected records, including their exact version and retention properties. It must have no effective replacement, deletion, hold removal, retention administration, shared key or control plane permission.
 
 Test every denied operation with that identity after inspecting every effective role assignment. Keep runtime permissions and retention unchanged when a test fails.
 
