@@ -115,10 +115,15 @@ test('handler boundaries refuse aliases and spoofed forwarded hosts before authe
         req.on('error', reject);
         req.end();
       });
+    const frameAncestors = (policy: string | undefined) =>
+      policy
+        ?.split(';')
+        .map((directive) => directive.trim())
+        .filter((directive) => directive.startsWith('frame-ancestors '));
     const refused = await get(trusted, '/auth/login', 'project.vercel.app', 'review.example.com');
     assert.equal(refused.status, 421);
     assert.equal(refused.cookie, undefined);
-    assert.match(refused.csp!, /frame-ancestors 'none'/);
+    assert.deepEqual(frameAncestors(refused.csp), ["frame-ancestors 'none'"]);
     assert.equal((await get(trusted, '/.well-known/haip', 'review.example.com')).status, 200);
     const path = '/sandbox/' + '0'.repeat(63) + '1';
     const wrongScope = await get(bootstrap, path, '2.view.example.net', '1.view.example.net');
@@ -126,8 +131,8 @@ test('handler boundaries refuse aliases and spoofed forwarded hosts before authe
     const wrapper = await get(bootstrap, path, '1.view.example.net');
     assert.equal(wrapper.status, 200);
     assert.equal(wrapper.cookie, undefined);
-    assert.match(wrapper.csp!, /frame-ancestors https:\/\/review\.example\.com/);
-    assert.match(wrapper.body, /https:\/\/review\.example\.com/);
+    assert.deepEqual(frameAncestors(wrapper.csp), [`frame-ancestors ${origin}`]);
+    assert(wrapper.body.includes(JSON.stringify(origin)));
   } finally {
     trusted.close();
     bootstrap.close();
