@@ -1,9 +1,14 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { toHttpHeadersLike } from '@azure/core-http-compat';
+import { createHttpHeaders } from '@azure/core-rest-pipeline';
+import { BlobServiceClient, newPipeline } from '@azure/storage-blob';
 import { environment } from './environment.js';
 import { HAIPClient, verifyExecutionAuthority } from '@haip/sdk';
 import { digest, canonicalise, signRecord } from '@haip/protocol/crypto';
+import { AzureAnchor } from '../haip-server/src/anchor.js';
+import { OutboxWorker } from '../haip-server/src/worker.js';
 let env: Awaited<ReturnType<typeof environment>>;
 before(async () => {
   env = await environment();
@@ -201,12 +206,75 @@ test('offline authority rejects tampering, stale nonces, clock skew and missing 
     t.mock.restoreAll();
   }
 });
-test('checkpoint conflict fences every new claim', async () => {
+test('a different version in Azure listing after a checkpoint upload fences existing grants', async () => {
   const r = await authorise();
+  const claimed = await authorise();
   await env.flush();
-  env.anchor.conflict = true;
-  await env.api('/v2/requests', env.request());
-  await env.worker.tick();
+  assert.equal((await env.api(`/v2/requests/${r.id}`)).body.grant_state, 'available');
+  const claim = await env.api(`/v2/requests/${claimed.id}/claims`, {
+    execution_identity: 'before-conflict',
+    execution_binding_digest: digest(claimed.body.execution),
+  });
+  assert.equal(claim.status, 201);
+  await env.flush();
+  const origin = 'https://fixture.blob.core.windows.net';
+  const container = 'checkpoint-fixture';
+  const tokenCredential = {
+    async getToken() {
+      return { token: 'fixture-token', expiresOnTimestamp: Date.now() + 3_600_000 };
+    },
+  };
+  const puts = new Set<string>();
+  const listings = new Set<string>();
+  const pipeline = newPipeline(tokenCredential, {
+    retryOptions: { maxTries: 1 },
+    httpClient: {
+      async sendRequest(request) {
+        const url = new URL(request.url);
+        assert.equal(url.origin, origin);
+        assert.equal(request.headers.get('authorization'), 'Bearer fixture-token');
+        if (request.method === 'PUT') {
+          assert.equal(request.headers.get('if-none-match'), '*');
+          assert.equal(request.headers.get('x-ms-blob-type'), 'BlockBlob');
+          assert.ok(url.pathname.startsWith(`/${container}/haip/`));
+          puts.add(url.pathname.slice(container.length + 2));
+          return {
+            request,
+            status: 201,
+            headers: toHttpHeadersLike(
+              createHttpHeaders({ 'x-ms-version-id': '2026-09-04T00:00:00.0000000Z' }),
+            ),
+          };
+        }
+        assert.equal(request.method, 'GET');
+        assert.equal(url.pathname, `/${container}`);
+        assert.equal(url.searchParams.get('comp'), 'list');
+        const key = url.searchParams.get('prefix');
+        assert.ok(key && /^[a-z0-9/.-]+$/.test(key) && puts.has(key));
+        listings.add(key);
+        return {
+          request,
+          status: 200,
+          headers: toHttpHeadersLike(createHttpHeaders({ 'content-type': 'application/xml' })),
+          bodyAsText: `<EnumerationResults><Blobs><Blob><Name>${key}</Name><VersionId>2026-09-04T00:00:01.0000000Z</VersionId><IsCurrentVersion>true</IsCurrentVersion><Properties><BlobType>BlockBlob</BlobType></Properties></Blob></Blobs><NextMarker/></EnumerationResults>`,
+        };
+      },
+    },
+  });
+  const anchor = new AzureAnchor(origin, container, 'haip', env.trust, tokenCredential);
+  Object.defineProperty(anchor, 'container', {
+    value: new BlobServiceClient(origin, pipeline).getContainerClient(container),
+  });
+  const worker = new OutboxWorker(env.service, anchor);
+  assert.equal((await env.api('/v2/requests', env.request())).status, 201);
+  await worker.tick();
+  assert.ok(puts.size > 0);
+  assert.deepEqual(listings, puts);
+  const incidents = await env.store.pool.query(
+    'SELECT code FROM haip_incidents WHERE tenant=$1 AND code=$2',
+    ['test-tenant', 'anchor_version_conflict'],
+  );
+  assert.ok(incidents.rowCount);
   assert.equal(
     (
       await env.api(`/v2/requests/${r.id}/claims`, {
@@ -216,5 +284,11 @@ test('checkpoint conflict fences every new claim', async () => {
     ).body.error,
     'admission_fenced',
   );
-  env.anchor.conflict = false;
+  const admission = await env.api(`/v2/requests/${claimed.id}/admission`, {
+    claim_id: claim.body.payload.id,
+    nonce: 'checkpoint-conflict-test',
+    execution_identity: 'before-conflict',
+  });
+  assert.equal(admission.status, 503);
+  assert.equal(admission.body.error, 'admission_fenced');
 });

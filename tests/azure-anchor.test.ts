@@ -57,7 +57,13 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   let duplicate = false,
     marker = false,
     shortRetention = false,
-    safetyHold = true;
+    safetyHold = true,
+    replaceAcknowledgement = false,
+    omitAcknowledgement = false,
+    extraBytes = false,
+    malformedBytes = false,
+    mismatchedReadVersion = false,
+    downloadCount = 0;
   const inheritedContainer = (objects: Map<string, any>, legalHold: () => boolean) => ({
     async *listBlobsFlat(options: any) {
       const rows = [...objects.values()].filter((o) => o.name.startsWith(options.prefix));
@@ -79,12 +85,20 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
           assert.equal('legalHold' in options, false);
           assert.equal(length, Buffer.byteLength(body));
           if (objects.has(name)) throw { statusCode: 412 };
+          const version = randomUUID();
           objects.set(name, {
             name,
             body,
-            version: randomUUID(),
+            version,
             retention: new Date(Date.now() + 90 * 86400000 + 1000),
           });
+          return {
+            versionId: omitAcknowledgement
+              ? undefined
+              : replaceAcknowledgement
+                ? randomUUID()
+                : version,
+          };
         },
       };
     },
@@ -96,14 +110,22 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
           return {
             async getProperties() {
               return {
-                versionId: version,
+                versionId: mismatchedReadVersion ? randomUUID() : version,
                 immutabilityPolicyMode: 'Locked',
                 immutabilityPolicyExpiresOn: shortRetention ? new Date(0) : object.retention,
                 legalHold: legalHold(),
+                contentLength: extraBytes ? 64 * 1024 + 1 : Buffer.byteLength(object.body),
+                etag: '"fixture-etag"',
               };
             },
-            async downloadToBuffer() {
-              return Buffer.from(object.body);
+            async downloadToBuffer(offset: number, length: number, options: unknown) {
+              downloadCount++;
+              assert.equal(offset, 0);
+              assert.equal(length, Buffer.byteLength(object.body));
+              assert.deepEqual(options, { conditions: { ifMatch: '"fixture-etag"' } });
+              const bytes = Buffer.from(object.body);
+              if (malformedBytes) bytes[0] = 0xff;
+              return bytes;
             },
           };
         },
@@ -131,10 +153,56 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   shortRetention = true;
   await assert.rejects(anchor.history(ledger, generation), /anchor_history_invalid/);
   shortRetention = false;
+  mismatchedReadVersion = true;
+  await assert.rejects(anchor.history(ledger, generation), /anchor_version_conflict/);
+  mismatchedReadVersion = false;
+  extraBytes = true;
+  const beforeLargeRecord = downloadCount;
+  await assert.rejects(anchor.history(ledger, generation), /anchor_history_invalid/);
+  assert.equal(downloadCount, beforeLargeRecord);
+  extraBytes = false;
+  malformedBytes = true;
+  await assert.rejects(anchor.history(ledger, generation), /anchor_history_invalid/);
+  malformedBytes = false;
+
+  const second = signed('AuditCheckpoint', ledger, 'haip.audit', {
+    ledger_id: ledger,
+    generation,
+    sequence: 2,
+    head: 'sha256:' + '3'.repeat(64),
+  });
+  const beforeWrongVersion = downloadCount;
+  replaceAcknowledgement = true;
+  await assert.rejects(anchor.accept(second), /anchor_version_conflict/);
+  assert.equal(downloadCount, beforeWrongVersion);
+  replaceAcknowledgement = false;
+  const recovered = await anchor.accept(second);
+  assert.equal(recovered.version_id, checkpoints.get(recovered.key).version);
+
   const key = 'a'.repeat(64),
     record = signed('RecoveryFence', key, 'haip.recovery', { key, value: { retired: true } });
+  omitAcknowledgement = true;
+  const beforeMissingVersion = downloadCount;
+  await assert.rejects(safety.create(key, record), /anchor_version_conflict/);
+  assert.equal(downloadCount, beforeMissingVersion);
+  omitAcknowledgement = false;
   assert.equal(canonicalise(await safety.create(key, record)), canonicalise(record));
-  assert.equal(canonicalise(await safety.create(key, record)), canonicalise(record));
+  const contender = signed('RecoveryFence', key, 'haip.recovery', { key, value: 'new value' });
+  assert.equal(canonicalise(await safety.create(key, contender)), canonicalise(record));
+  shortRetention = true;
+  await assert.rejects(safety.read(key), /anchor_retention_invalid/);
+  await assert.rejects(safety.create(key, record), /anchor_retention_invalid/);
+  shortRetention = false;
   safetyHold = false;
   await assert.rejects(safety.read(key), /recovery_hold_missing/);
+  const wrongKey = 'c'.repeat(64);
+  const invalidFence = signed('RecoveryFence', wrongKey, 'haip.recovery', { key, value: true });
+  await assert.rejects(safety.create(wrongKey, invalidFence), /recovery_record_invalid/);
+  assert.equal(await safety.read(wrongKey), undefined);
+  const oversizedFence = signed('RecoveryFence', wrongKey, 'haip.recovery', {
+    key: wrongKey,
+    value: 'x'.repeat(64 * 1024),
+  });
+  await assert.rejects(safety.create(wrongKey, oversizedFence), /anchor_history_invalid/);
+  assert.equal(await safety.read(wrongKey), undefined);
 });
