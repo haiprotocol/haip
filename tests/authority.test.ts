@@ -1,6 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { toHttpHeadersLike } from '@azure/core-http-compat';
 import { createHttpHeaders } from '@azure/core-rest-pipeline';
 import { BlobServiceClient, newPipeline } from '@azure/storage-blob';
@@ -9,17 +11,19 @@ import { HAIPClient, verifyExecutionAuthority } from '@haip/sdk';
 import { digest, canonicalise, signRecord } from '@haip/protocol/crypto';
 import { AzureAnchor } from '../haip-server/src/anchor.js';
 import { OutboxWorker } from '../haip-server/src/worker.js';
+import { RecoveryGuard } from '../haip-server/src/recovery.js';
+import { TestSafetyStore } from './fixtures/safety.js';
 let env: Awaited<ReturnType<typeof environment>>;
 before(async () => {
   env = await environment();
 });
 after(async () => await env?.close());
-async function authorise(extra: Record<string, unknown> = {}) {
-  const body = env.request(true, extra),
-    created = await env.api('/v2/requests', body);
+async function authorise(extra: Record<string, unknown> = {}, fixture = env) {
+  const body = fixture.request(true, extra),
+    created = await fixture.api('/v2/requests', body);
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const id = created.body.request.id;
-  const human = await env.login();
+  const human = await fixture.login();
   const candidate = await human.call(`/v2/requests/${id}/candidates`, {
     decision: 'authorise',
     response: { choice: 'accept' },
@@ -206,6 +210,97 @@ test('offline authority rejects tampering, stale nonces, clock skew and missing 
     t.mock.restoreAll();
   }
 });
+test('a checkpoint outage blocks a fresh claim and permit even when safety storage still works', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'haip-checkpoint-outage-'));
+  const originalRecovery = env.service.recovery;
+  try {
+    const safety = new TestSafetyStore(directory);
+    env.service.recovery = new RecoveryGuard(env.service, safety);
+    await env.worker.reconcile();
+    const available = await authorise();
+    const claimed = await authorise();
+    await env.flush();
+    const claimInput = (request: Awaited<ReturnType<typeof authorise>>, identity: string) => ({
+      execution_identity: identity,
+      execution_binding_digest: digest(request.body.execution),
+    });
+    const ready = claimInput(available, 'claim-after-outage');
+    const previous = claimInput(claimed, 'claim-before-outage');
+    const claim = await env.api(`/v2/requests/${claimed.id}/claims`, previous);
+    assert.equal(claim.status, 201);
+    const permit = {
+      claim_id: claim.body.payload.id,
+      execution_identity: previous.execution_identity,
+      nonce: 'nonce-during-checkpoint-outage',
+    };
+    env.anchor.unavailable = true;
+    await env.service.recovery.assertActive(
+      'test-tenant',
+      available.created.request.authority_namespace,
+    );
+    const unavailable = await env.api(`/v2/requests/${available.id}/claims`, ready);
+    const blocked = await env.api(`/v2/requests/${claimed.id}/admission`, permit);
+    assert.deepEqual([unavailable.status, blocked.status], [503, 503]);
+    assert.deepEqual(
+      [unavailable.body.error, blocked.body.error],
+      ['anchor_unavailable', 'anchor_unavailable'],
+    );
+    assert.equal((await env.api(`/v2/requests/${available.id}`)).body.grant_state, 'available');
+
+    env.anchor.unavailable = false;
+    const retryClaim = await env.api(`/v2/requests/${available.id}/claims`, ready);
+    assert.equal(retryClaim.status, 201);
+    assert.equal(retryClaim.body.payload.dispatch_before, available.receipt.payload.grant_deadline);
+    const retryPermit = await env.api(`/v2/requests/${claimed.id}/admission`, permit);
+    assert.equal(retryPermit.status, 200);
+    assert.equal(retryPermit.body.payload.dispatch_before, claimed.receipt.payload.grant_deadline);
+  } finally {
+    env.anchor.unavailable = false;
+    env.service.recovery = originalRecovery;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+test('checkpoint verification leaves the tenant unlocked and refuses a changed receipt', async (t) => {
+  const review = await authorise();
+  await env.flush();
+  const inspected = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  const verify = env.anchor.verifyAcceptance.bind(env.anchor);
+  t.mock.method(env.anchor, 'verifyAcceptance', async (...input: Parameters<typeof verify>) => {
+    await verify(...input);
+    inspected.resolve();
+    await resume.promise;
+  });
+  const pending = env.api(`/v2/requests/${review.id}/claims`, {
+    execution_identity: 'checkpoint-race',
+    execution_binding_digest: digest(review.body.execution),
+  });
+  try {
+    await Promise.race([
+      inspected.promise,
+      pending.then(({ status }) => {
+        throw new Error(`Claim returned ${status} before verifying the checkpoint`);
+      }),
+    ]);
+    const status = await env.api(`/v2/requests/${review.id}`);
+    const nextRetention = new Date(
+      Date.parse(status.body.anchor.acceptance.retained_until) + 1000,
+    ).toISOString();
+    await env.store.transaction('test-tenant', async (tx) => {
+      await tx.query(
+        "UPDATE haip_requests SET data=jsonb_set(data,'{anchor,acceptance,retained_until}',to_jsonb($3::text)) WHERE tenant=$1 AND id=$2",
+        ['test-tenant', review.id, nextRetention],
+      );
+    });
+  } finally {
+    resume.resolve();
+    await pending;
+  }
+  const refused = await pending;
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error, 'anchor_recheck_required');
+  assert.equal((await env.api(`/v2/requests/${review.id}`)).body.grant_state, 'available');
+});
 test('a different version in Azure listing after a checkpoint upload fences existing grants', async () => {
   const r = await authorise();
   const claimed = await authorise();
@@ -296,4 +391,37 @@ test('a different version in Azure listing after a checkpoint upload fences exis
   });
   assert.equal(admission.status, 503);
   assert.equal(admission.body.error, 'admission_fenced');
+});
+
+test('a missing accepted checkpoint fences the tenant before the worker sees it', async () => {
+  const fixture = await environment();
+  try {
+    const lost = await authorise({}, fixture);
+    await fixture.flush();
+    const intact = await authorise({}, fixture);
+    await fixture.flush();
+    const lostStatus = await fixture.api(`/v2/requests/${lost.id}`);
+    const intactStatus = await fixture.api(`/v2/requests/${intact.id}`);
+    assert.notEqual(lostStatus.body.anchor.acceptance.key, intactStatus.body.anchor.acceptance.key);
+    await rm(lostStatus.body.anchor.acceptance.key);
+    const claim = (review: Awaited<ReturnType<typeof authorise>>, identity: string) =>
+      fixture.api(`/v2/requests/${review.id}/claims`, {
+        execution_identity: identity,
+        execution_binding_digest: digest(review.body.execution),
+      });
+    const refused = await claim(lost, 'missing-checkpoint');
+    assert.equal(refused.status, 503);
+    assert.equal(refused.body.error, 'anchor_version_conflict');
+    const later = await claim(intact, 'intact-checkpoint');
+    assert.equal(later.status, 503);
+    assert.equal(later.body.error, 'admission_fenced');
+    const incidents = await fixture.store.pool.query(
+      'SELECT code FROM haip_incidents WHERE tenant=$1',
+      ['test-tenant'],
+    );
+    assert.deepEqual(incidents.rows, [{ code: 'anchor_version_conflict' }]);
+    assert.equal((await fixture.api(`/v2/requests/${intact.id}`)).body.audit_state, 'conflict');
+  } finally {
+    await fixture.close();
+  }
 });

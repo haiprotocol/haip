@@ -28,6 +28,8 @@ export async function environment({
   const port = await freePort(),
     sandboxPort = await freePort();
   const origin = `http://localhost:${port}`;
+  const anchorDir = await mkdtemp(join(tmpdir(), 'haip-test-anchor-'));
+  const anchor = new TestAnchor(anchorDir);
   const trust: TrustManifest = {
     issuer: origin,
     protocol_revision: PROTOCOL_REVISION,
@@ -41,24 +43,28 @@ export async function environment({
       },
     ],
   };
-  const service = new ReviewService(store, {
-    origin,
-    issuer: origin,
-    keyId: 'test-signing',
-    signingKey: privateKey,
-    trust,
-    mode: 'development',
-    sandboxOrigin: (scope) =>
-      `http://${BigInt('0x' + scope).toString(36)}.localhost:${sandboxPort}`,
-    oidc: {
-      issuer: oidc.origin,
-      clientId: 'haip-test',
-      clientSecret: 'test-secret',
-      allowLocalHttp: true,
+  const service = new ReviewService(
+    store,
+    {
+      origin,
+      issuer: origin,
+      keyId: 'test-signing',
+      signingKey: privateKey,
+      trust,
+      mode: 'development',
+      sandboxOrigin: (scope) =>
+        `http://${BigInt('0x' + scope).toString(36)}.localhost:${sandboxPort}`,
+      oidc: {
+        issuer: oidc.origin,
+        clientId: 'haip-test',
+        clientSecret: 'test-secret',
+        allowLocalHttp: true,
+      },
+      webhookHosts: [],
+      ...options,
     },
-    webhookHosts: [],
-    ...options,
-  });
+    anchor,
+  );
   const server = createApp(service).listen(port, '127.0.0.1');
   const sandbox = createSandboxApp(service).listen(sandboxPort, '127.0.0.1');
   await Promise.all([
@@ -179,9 +185,7 @@ export async function environment({
     { ...route, reviewers: ['foreign-requester'], allowed_producers: ['producer'] },
     credentials.foreignOperator,
   );
-  const anchorDir = await mkdtemp(join(tmpdir(), 'haip-test-anchor-')),
-    anchor = new TestAnchor(anchorDir),
-    worker = new OutboxWorker(service, anchor);
+  const worker = new OutboxWorker(service, anchor);
   await worker.reconcile();
   async function flush() {
     for (let i = 0; i < 30; i++) {

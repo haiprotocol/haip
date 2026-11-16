@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { digest } from '@haip/protocol/crypto';
 import type { ReviewService, RequestRow } from './service.js';
 import type { Principal } from './config.js';
-import type { AnchorStore } from './anchor.js';
+import { isAnchorConflict, type AnchorStore } from './anchor.js';
 import { deliverWebhook } from './delivery.js';
 import { deliverSMTP } from './smtp.js';
 import { requireThat } from './errors.js';
@@ -494,14 +494,8 @@ export class OutboxWorker {
   }
   private async retry(tx: Tx, item: OutboxItem, now: Date, error: unknown): Promise<void> {
     const code = error instanceof Error ? error.message : 'delivery_failed';
-    if (/anchor_(conflict|version_conflict|deleted_version|history_invalid)/.test(code)) {
-      await tx.query('INSERT INTO haip_incidents(tenant,code) VALUES($1,$2)', [item.tenant, code]);
-      await tx.query('UPDATE haip_tenants SET fenced=true WHERE id=$1', [item.tenant]);
-      await tx.query(
-        "UPDATE haip_requests SET data=jsonb_set(data,'{audit_state}','\"conflict\"') WHERE tenant=$1",
-        [item.tenant],
-      );
-    }
+    if (item.kind === 'checkpoint' && isAnchorConflict(code))
+      await this.service.fenceAnchor(tx, item.tenant, code);
     const expired =
       item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000;
     const attempt = item.attempts + (item.claim_until ? 0 : 1);

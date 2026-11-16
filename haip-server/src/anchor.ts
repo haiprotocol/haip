@@ -3,7 +3,7 @@ import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
 import { DefaultAzureCredential, type TokenCredential } from '@azure/identity';
 import { canonicalise, digestBytes, parseJson, verifyRecord } from '@haip/protocol/crypto';
 import type { SignedRecord, TrustManifest } from '@haip/protocol';
-import { requireThat } from './errors.js';
+import { ProtocolError, requireThat } from './errors.js';
 
 export const minimumAnchorRetentionDays = 90;
 export const minimumAnchorRetention = (record: SignedRecord) =>
@@ -20,7 +20,18 @@ export interface AnchorAcceptance {
 export interface AnchorStore {
   readonly production: boolean;
   accept(record: SignedRecord): Promise<AnchorAcceptance>;
+  verifyAcceptance(record: SignedRecord, acceptance: AnchorAcceptance): Promise<void>;
   history(ledger: string, generation: string): Promise<{ sequence: number; head: string }[]>;
+}
+
+export function isAnchorConflict(code: string) {
+  return [
+    'anchor_conflict',
+    'anchor_version_conflict',
+    'anchor_deleted_version',
+    'anchor_history_invalid',
+    'anchor_retention_invalid',
+  ].includes(code);
 }
 
 export async function listAzureVersions(
@@ -163,27 +174,46 @@ export class AzureAnchor implements AnchorStore {
       requireThat(actual.body === body, 503, 'anchor_conflict');
     return { ...actual, version };
   }
-  async accept(record: SignedRecord): Promise<AnchorAcceptance> {
-    const p = record.payload as {
-      ledger_id: string;
-      generation: string;
-      sequence: number;
-      head: string;
-    };
-    verifyRecord(record, this.trust, {
-      issuer: this.trust.issuer,
-      audience: 'haip.audit',
-      type: 'AuditCheckpoint',
-      purpose: 'service',
-      tenant: p.ledger_id,
-    });
+  private checkpointKey(record: SignedRecord) {
+    const p = record?.payload as
+      | {
+          ledger_id: string;
+          generation: string;
+          sequence: number;
+          head: string;
+        }
+      | undefined;
+    const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
     requireThat(
-      Number.isSafeInteger(p.sequence) && p.sequence > 0 && /^sha256:[a-f0-9]{64}$/.test(p.head),
+      p &&
+        typeof p.ledger_id === 'string' &&
+        uuid.test(p.ledger_id) &&
+        typeof p.generation === 'string' &&
+        uuid.test(p.generation) &&
+        Number.isSafeInteger(p.sequence) &&
+        p.sequence > 0 &&
+        typeof p.head === 'string' &&
+        /^sha256:[a-f0-9]{64}$/.test(p.head),
       503,
       'anchor_history_invalid',
     );
-    const key =
-      this.namespace(p.ledger_id, p.generation) + String(p.sequence).padStart(16, '0') + '.json';
+    try {
+      verifyRecord(record, this.trust, {
+        issuer: this.trust.issuer,
+        audience: 'haip.audit',
+        type: 'AuditCheckpoint',
+        purpose: 'service',
+        tenant: p.ledger_id,
+      });
+    } catch {
+      throw new ProtocolError(503, 'anchor_history_invalid');
+    }
+    return (
+      this.namespace(p.ledger_id, p.generation) + String(p.sequence).padStart(16, '0') + '.json'
+    );
+  }
+  async accept(record: SignedRecord): Promise<AnchorAcceptance> {
+    const key = this.checkpointKey(record);
     const stored = await this.createVersion(key, record);
     requireThat(stored.body === canonicalise(record), 503, 'anchor_conflict');
     requireThat(
@@ -198,6 +228,53 @@ export class AzureAnchor implements AnchorStore {
       digest: digestBytes(stored.body),
       retained_until: stored.retainedUntil.toISOString(),
     };
+  }
+  async verifyAcceptance(record: SignedRecord, acceptance: AnchorAcceptance): Promise<void> {
+    const key = this.checkpointKey(record);
+    const body = canonicalise(record);
+    requireThat(
+      acceptance?.backend === 'azure_blob_locked_worm' &&
+        acceptance.key === key &&
+        typeof acceptance.version_id === 'string' &&
+        acceptance.version_id.length > 0 &&
+        acceptance.digest === digestBytes(body),
+      503,
+      'anchor_conflict',
+    );
+    const retainedUntil = Date.parse(acceptance.retained_until);
+    requireThat(
+      retainedUntil >= minimumAnchorRetention(record) && retainedUntil > Date.now(),
+      503,
+      'anchor_retention_invalid',
+    );
+    const abortSignal = AbortSignal.timeout(10_000);
+    try {
+      const [version] = await listAzureVersions(this.container, key, {
+        maxVersions: 1,
+        abortSignal,
+      });
+      requireThat(
+        version?.name === key && version.versionId === acceptance.version_id,
+        503,
+        'anchor_version_conflict',
+      );
+      const actual = await readAzureVersion(
+        this.container,
+        key,
+        version.versionId,
+        false,
+        abortSignal,
+      );
+      requireThat(actual.body === body, 503, 'anchor_conflict');
+      requireThat(actual.retainedUntil.getTime() >= retainedUntil, 503, 'anchor_retention_invalid');
+    } catch (error) {
+      if (error instanceof ProtocolError) throw error;
+      const status = (error as { statusCode?: number })?.statusCode;
+      throw new ProtocolError(
+        503,
+        status === 404 || status === 412 ? 'anchor_version_conflict' : 'anchor_unavailable',
+      );
+    }
   }
   async history(ledger: string, generation: string) {
     const records = [];

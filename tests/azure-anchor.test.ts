@@ -1,9 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { canonicalise, signRecord } from '@haip/protocol/crypto';
-import { PROTOCOL_REVISION } from '@haip/protocol';
+import { canonicalise, parseJson, signRecord } from '@haip/protocol/crypto';
+import { PROTOCOL_REVISION, type SignedRecord, type TrustManifest } from '@haip/protocol';
+import { toHttpHeadersLike } from '@azure/core-http-compat';
+import { createHttpHeaders } from '@azure/core-rest-pipeline';
+import { BlobServiceClient, newPipeline } from '@azure/storage-blob';
 import { AzureAnchor, AzureSafetyStore } from '../haip-server/src/anchor.js';
+import { azureFixture } from './fixtures/azure-acceptance.js';
 
 test('Azure adapter checks exact versions, retention, conditional duplicate recovery and permanent safety holds', async () => {
   const keys = generateKeyPairSync('ed25519'),
@@ -214,4 +218,101 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   });
   await assert.rejects(safety.create(wrongKey, oversizedFence), /anchor_history_invalid/);
   assert.equal(await safety.read(wrongKey), undefined);
+});
+
+test('fresh checkpoint verification pins the retained Azure version and does not write', async () => {
+  const { settings, records, options, blobCalls, sample } = azureFixture();
+  const origin = `https://${settings.account}.blob.core.windows.net`;
+  const { container, key, version_id, digest } = settings.checkpoint;
+  const anchor = new AzureAnchor(
+    origin,
+    container,
+    settings.anchor_prefix,
+    settings.trust_manifest as TrustManifest,
+    options.runtimeCredential,
+  );
+  let missingListing = false;
+  let fault: { requestType: 'list' | 'HEAD' | 'GET'; status: number; code: string } | undefined;
+  const pipeline = newPipeline(options.runtimeCredential, {
+    retryOptions: { maxTries: 1 },
+    httpClient: {
+      async sendRequest(request) {
+        assert.ok(request.abortSignal);
+        const address = new URL(request.url);
+        const listing = address.searchParams.get('comp') === 'list';
+        if (missingListing && listing)
+          return {
+            request,
+            status: 200,
+            headers: toHttpHeadersLike(createHttpHeaders({ 'content-type': 'application/xml' })),
+            bodyAsText: '<EnumerationResults><Blobs/><NextMarker/></EnumerationResults>',
+          };
+        if (fault?.requestType === (listing ? 'list' : request.method))
+          return {
+            request,
+            status: fault.status,
+            headers: toHttpHeadersLike(createHttpHeaders({ 'x-ms-error-code': fault.code })),
+          };
+        return options.blobHttpClient.sendRequest(request);
+      },
+    },
+  });
+  Object.defineProperty(anchor, 'container', {
+    value: new BlobServiceClient(origin, pipeline).getContainerClient(container),
+  });
+  const checkpoint = records.checkpoint;
+  const record = parseJson(checkpoint.contents) as SignedRecord;
+  const acceptance = {
+    backend: 'azure_blob_locked_worm',
+    key,
+    version_id,
+    digest,
+    retained_until: new Date(checkpoint.expiry.toUTCString()).toISOString(),
+  };
+  await anchor.verifyAcceptance(record, acceptance);
+  assert.deepEqual(
+    blobCalls.map(({ method, version }) => [method, version]),
+    [
+      ['GET', null],
+      ['HEAD', version_id],
+      ['GET', version_id],
+    ],
+  );
+  await assert.rejects(
+    anchor.verifyAcceptance(record, { ...acceptance, key: key + '.foreign' }),
+    /anchor_conflict/,
+  );
+  assert.equal(blobCalls.length, 3);
+
+  missingListing = true;
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_version_conflict/);
+  missingListing = false;
+  for (const problem of [
+    { requestType: 'HEAD', status: 404, code: 'BlobNotFound' },
+    { requestType: 'GET', status: 412, code: 'ConditionNotMet' },
+  ] as const) {
+    fault = problem;
+    await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_version_conflict/);
+  }
+  fault = { requestType: 'list', status: 503, code: 'ServerBusy' };
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_unavailable/);
+  fault = undefined;
+
+  checkpoint.listedVersion = '2026-11-16T00:00:03.0000000Z';
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_version_conflict/);
+  checkpoint.listedVersion = undefined;
+  checkpoint.extraVersion = true;
+  await assert.rejects(
+    anchor.verifyAcceptance(record, acceptance),
+    /anchor_deleted_version|anchor_version_conflict/,
+  );
+  checkpoint.extraVersion = false;
+  checkpoint.lock = 'Unlocked';
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_retention_invalid/);
+  checkpoint.lock = 'Locked';
+  checkpoint.contents = sample(false, (payload) => {
+    payload.head = `sha256:${'1'.repeat(64)}`;
+  });
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_conflict/);
+  assert.ok(blobCalls.every(({ method }) => method === 'GET' || method === 'HEAD'));
 });

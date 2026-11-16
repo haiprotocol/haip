@@ -11,6 +11,7 @@ if (!directory) throw new Error('HAIP_TEST_STORAGE_ROOT is required');
 const anchor = new TestAnchor(join(directory, 'checkpoints'));
 const safety = new TestSafetyStore(join(directory, 'safety'));
 AzureAnchor.prototype.accept = anchor.accept.bind(anchor);
+AzureAnchor.prototype.verifyAcceptance = anchor.verifyAcceptance.bind(anchor);
 AzureAnchor.prototype.history = anchor.history.bind(anchor);
 AzureSafetyStore.prototype.read = safety.read.bind(safety);
 AzureSafetyStore.prototype.create = safety.create.bind(safety);

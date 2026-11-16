@@ -21,7 +21,8 @@ import {
 } from '@haip/protocol';
 import type { Store, Tx } from './store.js';
 import type { Principal, RouteConfig, ServiceConfig } from './config.js';
-import { missing, requireThat } from './errors.js';
+import { isAnchorConflict, type AnchorAcceptance, type AnchorStore } from './anchor.js';
+import { missing, ProtocolError, requireThat } from './errors.js';
 import { validate, validateResponseSchema } from './validation.js';
 import { requireBoundBundle } from './bundle.js';
 
@@ -76,6 +77,12 @@ interface PreparedRequest {
   response_schema_digest: string;
   document_digest: string;
 }
+function checkpointEvidence(data: RequestData) {
+  const anchor = data.anchor as
+    { checkpoint?: SignedRecord; acceptance?: AnchorAcceptance } | undefined;
+  if (anchor?.checkpoint && anchor.acceptance)
+    return { checkpoint: anchor.checkpoint, acceptance: anchor.acceptance };
+}
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
 export class ReviewService {
@@ -83,6 +90,7 @@ export class ReviewService {
   constructor(
     readonly store: Store,
     readonly config: ServiceConfig,
+    readonly anchor?: AnchorStore,
   ) {}
   discovery() {
     return {
@@ -1447,7 +1455,82 @@ export class ReviewService {
       );
     });
   }
-  async authority(tx: Tx, p: Principal, row: RequestRow, now: Date, existingClaim = false) {
+  async fenceAnchor(tx: Tx, tenant: string, code: string) {
+    await tx.query('INSERT INTO haip_incidents(tenant,code) VALUES($1,$2)', [tenant, code]);
+    await tx.query('UPDATE haip_tenants SET fenced=true WHERE id=$1', [tenant]);
+    await tx.query(
+      "UPDATE haip_requests SET data=jsonb_set(data,'{audit_state}','\"conflict\"') WHERE tenant=$1",
+      [tenant],
+    );
+  }
+  private async verifyCheckpoint(p: Principal, id: string, grantState: 'available' | 'consumed') {
+    if (!this.anchor) return;
+    const snapshot = await this.store.read(async (tx, now) => {
+      const producer = await this.principal(tx, p);
+      requireThat(producer.kind === 'producer', 403, 'producer_required');
+      const { data } = await this.owned(tx, producer, id, false);
+      if (
+        data.request.purpose !== 'authorise_execution' ||
+        data.invalidated ||
+        data.audit_state !== 'anchored' ||
+        data.grant_state !== grantState ||
+        !data.grant_deadline ||
+        !(now.getTime() < Date.parse(data.grant_deadline))
+      )
+        return;
+      const tenant = (
+        await tx.query<{ ledger_id: string; generation: string; fenced: boolean }>(
+          'SELECT ledger_id,generation,fenced FROM haip_tenants WHERE id=$1',
+          [producer.tenant],
+        )
+      ).rows[0];
+      if (!tenant || tenant.fenced || data.request.authority_namespace !== tenant.generation)
+        return;
+      return {
+        tenant,
+        evidence: checkpointEvidence(data),
+        decisionSequence: data.decision_sequence,
+      };
+    });
+    if (!snapshot) return;
+    // Provider I/O runs outside the tenant lock. The write transaction must still match the evidence just read.
+    const { tenant, evidence } = snapshot;
+    try {
+      requireThat(evidence, 503, 'anchor_history_invalid');
+      const payload = evidence.checkpoint.payload as
+        { ledger_id?: string; generation?: string; sequence?: number } | undefined;
+      requireThat(
+        payload?.ledger_id === tenant.ledger_id &&
+          payload.generation === tenant.generation &&
+          typeof payload.sequence === 'number' &&
+          typeof snapshot.decisionSequence === 'number' &&
+          payload.sequence >= snapshot.decisionSequence,
+        503,
+        'anchor_history_invalid',
+      );
+      await this.anchor.verifyAcceptance(evidence.checkpoint, evidence.acceptance);
+      return digest(evidence);
+    } catch (error) {
+      if (error instanceof ProtocolError && isAnchorConflict(error.code)) {
+        await this.store.transaction(p.tenant, async (tx) => {
+          const current = await tx.query(
+            'SELECT 1 FROM haip_tenants WHERE id=$1 AND generation=$2 AND NOT fenced',
+            [p.tenant, tenant.generation],
+          );
+          if (current.rowCount) await this.fenceAnchor(tx, p.tenant, error.code);
+        });
+      }
+      throw error;
+    }
+  }
+  async authority(
+    tx: Tx,
+    p: Principal,
+    row: RequestRow,
+    now: Date,
+    existingClaim = false,
+    checkpointDigest?: string,
+  ) {
     this.requireStoredIntegrity(row);
     const d = row.data;
     const r = d.request;
@@ -1462,6 +1545,11 @@ export class ReviewService {
       this.config.mode !== 'production' || this.recovery?.store.production,
       503,
       'independent_recovery_required',
+    );
+    requireThat(
+      this.config.mode !== 'production' || this.anchor?.production,
+      503,
+      'independent_anchor_required',
     );
     if (this.recovery) {
       requireThat(r.authority_namespace, 409, 'namespace_missing');
@@ -1487,6 +1575,14 @@ export class ReviewService {
       409,
       'grant_unavailable',
     );
+    if (this.anchor) {
+      const evidence = checkpointEvidence(d);
+      requireThat(
+        evidence && checkpointDigest === digest(evidence),
+        409,
+        'anchor_recheck_required',
+      );
+    }
     const reviewer = (
       await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
         p.tenant,
@@ -1498,6 +1594,7 @@ export class ReviewService {
   }
   async claim(p: Principal, id: string, input: ClaimInput, key?: string) {
     validate('ClaimInput', input);
+    const checkpointDigest = await this.verifyCheckpoint(p, id, 'available');
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
@@ -1506,7 +1603,7 @@ export class ReviewService {
       if (this.recovery)
         await this.recovery.check(tx, p.tenant, row.data.request.authority_namespace);
       return this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
-        await this.authority(tx, p, row, now);
+        await this.authority(tx, p, row, now, false, checkpointDigest);
         const d = row.data;
         const execution = d.request.execution!;
         requireThat(
@@ -1528,7 +1625,7 @@ export class ReviewService {
             d.request.authority_namespace!,
             d.request_digest,
           );
-          await this.authority(tx, p, row, now);
+          await this.authority(tx, p, row, now, false, checkpointDigest);
         }
         const claim = this.signed<ExecutionClaim>(
           'ExecutionClaim',
@@ -1570,11 +1667,12 @@ export class ReviewService {
       400,
       'invalid_nonce',
     );
+    const checkpointDigest = await this.verifyCheckpoint(p, id, 'consumed');
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
-      await this.authority(tx, p, row, now, true);
+      await this.authority(tx, p, row, now, true, checkpointDigest);
       const d = row.data,
         claim = d.claim;
       requireThat(

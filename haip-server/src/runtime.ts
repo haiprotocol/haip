@@ -7,6 +7,7 @@ import { createNeonStore } from './neon.js';
 import { ReviewService } from './service.js';
 import { AzureAnchor, AzureSafetyStore } from './anchor.js';
 import { RecoveryGuard } from './recovery.js';
+import type { ServiceConfig } from './config.js';
 import {
   databaseConnection,
   requireProductionAnchor,
@@ -118,7 +119,7 @@ export function createRuntime(
           : {}),
       }
     : undefined;
-  const service = new ReviewService(createRuntimeStore(env, databaseAccess, dispatchOutbox), {
+  const config: ServiceConfig = {
     mode,
     origin,
     issuer: origin,
@@ -129,7 +130,12 @@ export function createRuntime(
     oidc,
     smtp,
     webhookHosts: (env.HAIP_WEBHOOK_HOSTS ?? '').split(',').filter(Boolean),
-  });
+  };
+  const service = new ReviewService(
+    createRuntimeStore(env, databaseAccess, dispatchOutbox),
+    config,
+    anchor,
+  );
   if (safety) service.recovery = new RecoveryGuard(service, safety);
   return { service, anchor };
 }
