@@ -23,7 +23,16 @@ export class Metrics {
         await tx.query(
           `SELECT count(*) AS retained,
         count(*) FILTER(WHERE data->>'decision_state'='pending') AS pending,
-        count(*) FILTER(WHERE data->>'execution_state' IN ('uncertain','claimed','admitted') AND data->'outcome' IS NULL) AS unresolved_execution,
+        count(*) FILTER(WHERE data->>'execution_state'='uncertain' OR (
+          data->>'execution_state' IN ('claimed','admitted') AND data->'outcome' IS NULL
+        )) AS unresolved_execution,
+        count(*) FILTER(WHERE data->>'execution_state'='uncertain' OR (
+          data->'outcome' IS NULL AND CASE data->>'execution_state'
+            WHEN 'claimed' THEN (data#>>'{claim,payload,dispatch_before}')::timestamptz
+            WHEN 'admitted' THEN (data#>>'{claim,payload,dispatch_before}')::timestamptz
+              + make_interval(secs => (data#>>'{claim,payload,execution_seconds}')::double precision)
+          END <= statement_timestamp()
+        )) AS execution_reconciliation_due,
         COALESCE(EXTRACT(EPOCH FROM clock_timestamp()-min(created_at) FILTER(WHERE data->>'decision_state'='pending')),0) AS oldest_pending_seconds,
         COALESCE(sum(retained_bytes),0) AS retained_bytes FROM haip_requests WHERE tenant=$1`,
           [t],

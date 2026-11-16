@@ -1,47 +1,66 @@
 {
 	admin off
+	https_port {$HAIP_PROXY_HTTPS_PORT:443}
+}
+
+(haip_response_headers) {
+	-Server
+	Cache-Control "no-store"
+	Cross-Origin-Embedder-Policy "require-corp"
+	Cross-Origin-Opener-Policy "same-origin"
+	Referrer-Policy "no-referrer"
+	Strict-Transport-Security "max-age=31536000"
+	X-Content-Type-Options "nosniff"
+}
+
+(haip_trusted_headers) {
+	header {
+		import haip_response_headers
+		Cross-Origin-Resource-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-read=(), clipboard-write=()"
+		X-Frame-Options "DENY"
+	}
+}
+
+(haip_sandbox_headers) {
+	header {
+		import haip_response_headers
+		-Reporting-Endpoints
+		-Report-To
+		Connection-Allowlist "(); webrtc=block; redirects=block; report-to=haip-view-policy"
+		Cross-Origin-Resource-Policy "cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), clipboard-read=(), clipboard-write=()"
+	}
+}
+
+(haip_error_policy) {
+	header Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 }
 
 {$HAIP_TRUSTED_HOST} {
 	tls {$HAIP_TRUSTED_CERT_FILE} {$HAIP_TRUSTED_KEY_FILE}
-	header {
-		-Server
-		Cross-Origin-Embedder-Policy "require-corp"
-		Cross-Origin-Opener-Policy "same-origin"
-		Cross-Origin-Resource-Policy "same-origin"
-		Referrer-Policy "no-referrer"
-		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
-	}
-	reverse_proxy 127.0.0.1:{$PORT:8080} {
-		header_up Host {host}
-	}
+	import haip_trusted_headers
+	reverse_proxy 127.0.0.1:{$PORT:8080}
 	handle_errors {
-		header Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		import haip_trusted_headers
+		import haip_error_policy
 		respond "Service unavailable" {err.status_code}
 	}
 }
 
 *.{$HAIP_SANDBOX_SITE} {
 	tls {$HAIP_SANDBOX_CERT_FILE} {$HAIP_SANDBOX_KEY_FILE}
-	header {
-		-Server
-		-Reporting-Endpoints
-		-Report-To
-		Connection-Allowlist "(); webrtc=block; redirects=block; report-to=haip-view-policy"
-		Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors https://{$HAIP_TRUSTED_HOST}"
-		Cross-Origin-Embedder-Policy "require-corp"
-		Cross-Origin-Opener-Policy "same-origin"
-		Cross-Origin-Resource-Policy "cross-origin"
-		Referrer-Policy "no-referrer"
-		Strict-Transport-Security "max-age=31536000"
-		X-Content-Type-Options "nosniff"
-	}
-	reverse_proxy 127.0.0.1:{$HAIP_SANDBOX_PORT:8081} {
-		header_up Host {host}
-	}
+	import haip_sandbox_headers
+	reverse_proxy 127.0.0.1:{$HAIP_SANDBOX_PORT:8081}
 	handle_errors {
+		import haip_sandbox_headers
+		import haip_error_policy
 		respond "Service unavailable" {err.status_code}
 	}
+}
+
+https:// {
+	import haip_trusted_headers
+	import haip_error_policy
+	respond "Misdirected request" 421
 }

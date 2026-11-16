@@ -394,7 +394,8 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.match(caddy, /\*\.\{\$HAIP_SANDBOX_SITE\}/);
   assert.match(caddy, /reverse_proxy 127\.0\.0\.1:\{\$PORT:8080\}/);
   assert.match(caddy, /reverse_proxy 127\.0\.0\.1:\{\$HAIP_SANDBOX_PORT:8081\}/);
-  assert.equal((caddy.match(/header_up Host \{host\}/g) ?? []).length, 2);
-  assert.match(caddy, /frame-ancestors https:\/\/\{\$HAIP_TRUSTED_HOST\}/);
+  assert.doesNotMatch(caddy, /header_up\s+Host\s+\{(?:http\.request\.)?host\}/i);
+  assert.match(caddy, /^https:\/\/ \{\n[^}]*respond "Misdirected request" 421/m);
+  assert.match(caddy, /frame-ancestors 'none'/);
   assert.doesNotMatch(caddy, /reverse_proxy (?!127\.0\.0\.1)/);
 });

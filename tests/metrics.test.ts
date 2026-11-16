@@ -56,3 +56,51 @@ test('operator metrics expose own pressure, failures, uncertainty and checkpoint
     await env.close();
   }
 });
+
+test('execution metrics use captured deadlines and retain reported uncertainty until reconciliation', async () => {
+  const env = await environment();
+  try {
+    const created = await env.api('/v2/requests', env.request(true));
+    assert.equal(created.status, 201);
+    const id = created.body.request.id;
+    for (const { state, relativeDispatch, outcome, unresolved, due } of [
+      { state: 'claimed', relativeDispatch: 60, unresolved: 1, due: 0 },
+      { state: 'claimed', relativeDispatch: -15, unresolved: 1, due: 1 },
+      { state: 'admitted', relativeDispatch: -15, unresolved: 1, due: 0 },
+      { state: 'admitted', relativeDispatch: -65, unresolved: 1, due: 1 },
+      { state: 'uncertain', relativeDispatch: 60, outcome: 'uncertain', unresolved: 1, due: 1 },
+      { state: 'completed', relativeDispatch: -65, outcome: 'completed', unresolved: 0, due: 0 },
+    ]) {
+      await env.store.pool.query(
+        "UPDATE haip_requests SET data=(data - 'outcome') || $2::jsonb WHERE id=$1",
+        [
+          id,
+          JSON.stringify({
+            execution_state: state,
+            claim: {
+              payload: {
+                dispatch_before: new Date(Date.now() + relativeDispatch * 1000).toISOString(),
+                execution_seconds: 60,
+              },
+            },
+            ...(outcome ? { outcome: { payload: { outcome: { status: outcome } } } } : {}),
+          }),
+        ],
+      );
+      const { status, body } = await env.api(
+        '/v2/admin/metrics',
+        undefined,
+        env.credentials.operator,
+      );
+      assert.equal(status, 200);
+      assert.equal(body.requests.unresolved_execution, unresolved, state);
+      assert.equal(body.requests.execution_reconciliation_due, due, state);
+    }
+    const prometheus = await fetch(env.origin + '/v2/admin/metrics.prom', {
+      headers: { Authorization: 'Bearer ' + env.credentials.operator },
+    });
+    assert.match(await prometheus.text(), /^haip_execution_reconciliation_due 0$/m);
+  } finally {
+    await env.close();
+  }
+});

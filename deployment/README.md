@@ -36,11 +36,17 @@ The template does not assign an administrator, lock either policy or apply the s
 
 ## Proxy
 
-[`Caddyfile`](Caddyfile) routes the exact trusted host to port 8080 and a wildcard sandbox site to port 8081 while preserving the original Host header. It uses operator-supplied certificate and key files, adds the fixed browser isolation headers at the proxy boundary and supplies restrictive headers for proxy errors. HAIP still supplies the trusted host's request-specific frame policy.
+The Caddy example routes the trusted host to port 8080 and wildcard sandbox hosts to port 8081. It preserves the original Host header, including an explicit port, and rejects unknown HTTPS hosts with 421. HAIP supplies the CSP for application responses. Caddy adds the fixed browser isolation headers and denies framing on errors it generates. [Caddyfile](Caddyfile)
 
-Set `HAIP_TRUSTED_HOST` to a hostname without a scheme or path, and set `HAIP_SANDBOX_SITE` to the separate registrable site below the wildcard. Set `HAIP_TRUSTED_CERT_FILE`, `HAIP_TRUSTED_KEY_FILE`, `HAIP_SANDBOX_CERT_FILE` and `HAIP_SANDBOX_KEY_FILE` to private local paths. The sandbox certificate must cover `*.${HAIP_SANDBOX_SITE}`. The template does not request certificates or change DNS.
+Use bare hostnames for `HAIP_TRUSTED_HOST` and `HAIP_SANDBOX_SITE`. For a non-default HTTPS port, set `HAIP_PROXY_HTTPS_PORT` and include the public port in the HAIP origin and sandbox pattern. Set `HAIP_TRUSTED_CERT_FILE`, `HAIP_TRUSTED_KEY_FILE`, `HAIP_SANDBOX_CERT_FILE` and `HAIP_SANDBOX_KEY_FILE` to private local paths. The sandbox certificate must cover `*.${HAIP_SANDBOX_SITE}`. The template does not request certificates or change DNS.
 
 The trusted and sandbox sites must have different registrable domains. Configure wildcard DNS for the sandbox site, preserve Host through every proxy and keep both upstream listeners on loopback. Caddy must run under a restricted service account with access only to the certificate files it needs.
+
+After building the project and installing its Chromium, run the local acceptance test with Caddy in `PATH`. It starts two loopback upstreams and uses temporary certificates for reserved `.test` sites. It also stops both upstreams and checks the proxy's error responses.
+
+```sh
+HAIP_TEST_CADDY=caddy node --import tsx --test tests/origins-tls-adapter.test.ts
+```
 
 ## Backups
 
@@ -48,7 +54,14 @@ Run encrypted backup creation and pruning through an approved scheduler at least
 
 ## Monitoring
 
-Prometheus needs an operator credential for each tenant's `/v2/admin/metrics.prom` endpoint. Keep scrape configuration private. [`alerts.yml`](alerts.yml) contains example rules without credentials, identities or request content. Install real routing separately and test delivery before recording the operations check as passed.
+Prometheus needs an operator credential for each tenant's `/v2/admin/metrics.prom` endpoint. Use `haip` or an `haip-` prefix for each scrape job so the scrape outage rule can identify its targets. Keep credentials in private files and use `authorization.credentials_file` in the scrape configuration. Install the deployment's alert routing and test receipt before recording the operations check as passed. [Alert rules](alerts.yml)
+
+With `promtool`, `prometheus` and `alertmanager` in `PATH`, run the rule tests and the loopback delivery rehearsal. The rehearsal sends alerts to a disposable receiver and verifies that worker alerts resolve after the workers complete successful cycles.
+
+```sh
+promtool test rules deployment/alerts.test.yml
+node --import tsx --test tests/alerts.integration.ts
+```
 
 ## Development
 

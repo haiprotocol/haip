@@ -15,10 +15,34 @@ import { collectOriginsTls } from '../deployment/adapters/origins-tls.mjs';
 import { createApp, createSandboxApp } from '../haip-server/src/server.js';
 import type { ReviewService } from '../haip-server/src/service.js';
 import { environment } from './environment.js';
+import { caddyFixture, caddyResponse } from './fixtures/caddy.js';
 
 const execute = promisify(execFile);
 const cookie = '__Host-haip=' + 's'.repeat(43);
 const resolveLoopback = async () => [{ address: '127.0.0.1', family: 4 }];
+
+function fixturePlan(port: number) {
+  return {
+    document_type: 'plan',
+    schema_version: 'haip.deployment.acceptance.v1',
+    source: { commit: '0'.repeat(40) },
+    deployment: {
+      trusted_origin: `https://review.trusted.test:${port}`,
+      sandbox_origin_pattern: `https://{scope}.sandbox.test:${port}`,
+    },
+  };
+}
+
+function testApplications(service: ReviewService, port: number) {
+  const { deployment } = fixturePlan(port);
+  service.config.origin = deployment.trusted_origin;
+  service.config.sandboxOrigin = (scope) =>
+    deployment.sandbox_origin_pattern.replace('{scope}', BigInt('0x' + scope).toString(36));
+  return {
+    trusted: createApp(service, { exactHost: true }),
+    sandbox: createSandboxApp(service),
+  };
+}
 
 async function fixture(
   options: {
@@ -87,6 +111,29 @@ async function fixture(
       '-extfile',
       extensionPath,
     ]);
+    const ca = await readFile(caPath);
+    const service = options.service;
+    if (service && process.env.HAIP_TEST_CADDY) {
+      const proxy = await caddyFixture(
+        process.env.HAIP_TEST_CADDY,
+        directory,
+        certPath,
+        keyPath,
+        (port) => testApplications(service, port),
+      );
+      return {
+        directory,
+        caPath,
+        ca,
+        plan: fixturePlan(proxy.port),
+        redirects: () => 0,
+        stopUpstreams: proxy.stopUpstreams,
+        async close() {
+          await proxy.close();
+          await rm(directory, { recursive: true, force: true });
+        },
+      };
+    }
     const server = createServer(
       { key: await readFile(keyPath), cert: await readFile(certPath) },
       (request, response) => {
@@ -181,32 +228,12 @@ async function fixture(
     );
     await new Promise<void>((complete) => server.listen(0, '127.0.0.1', complete));
     const port = (server.address() as any).port;
-    const plan = {
-      document_type: 'plan',
-      schema_version: 'haip.deployment.acceptance.v1',
-      source: { commit: '0'.repeat(40) },
-      deployment: {
-        trusted_origin: `https://review.trusted.test:${port}`,
-        sandbox_origin_pattern: `https://{scope}.sandbox.test:${port}`,
-      },
-    };
-    if (options.service) {
-      options.service.config.origin = plan.deployment.trusted_origin;
-      options.service.config.sandboxOrigin = (scope) =>
-        plan.deployment.sandbox_origin_pattern.replace(
-          '{scope}',
-          BigInt('0x' + scope).toString(36),
-        );
-      applications = {
-        trusted: createApp(options.service, { exactHost: true }),
-        sandbox: createSandboxApp(options.service),
-      };
-    }
+    if (service) applications = testApplications(service, port);
     return {
       directory,
       caPath,
-      ca: await readFile(caPath),
-      plan,
+      ca,
+      plan: fixturePlan(port),
       redirects: () => redirects,
       async close() {
         await new Promise<void>((complete, reject) =>
@@ -355,6 +382,40 @@ test('the origins adapter exercises authenticated browser boundaries while keepi
       ),
     );
     assert.equal((await env.api(`/v2/requests/${unmarkedId}/material`)).body.candidate, null);
+    if (tls.stopUpstreams) {
+      assert.equal(
+        JSON.parse(evidence).records.find(
+          (record: { name: string }) => record.name === 'trusted_unexpected_host',
+        ).status,
+        421,
+      );
+      await tls.stopUpstreams();
+      const { trusted_origin, sandbox_origin_pattern } = tls.plan.deployment;
+      const trusted = await caddyResponse(new URL('/health', trusted_origin), tls.ca);
+      const sandbox = await caddyResponse(
+        new URL('/', sandbox_origin_pattern.replace('{scope}', '1')),
+        tls.ca,
+      );
+      for (const error of [trusted, sandbox]) {
+        assert.equal(error.status, 502);
+        assert.equal(error.headers['cache-control'], 'no-store');
+        assert.equal(error.headers['cross-origin-opener-policy'], 'same-origin');
+        assert.equal(error.headers['cross-origin-embedder-policy'], 'require-corp');
+        assert.equal(error.headers['strict-transport-security'], 'max-age=31536000');
+        assert.equal(error.headers['x-content-type-options'], 'nosniff');
+        assert.match(String(error.headers['permissions-policy']), /clipboard-write=\(\)/);
+        assert.match(String(error.headers['content-security-policy']), /frame-ancestors 'none'/);
+        assert.equal(error.headers['set-cookie'], undefined);
+      }
+      assert.equal(trusted.headers['cross-origin-resource-policy'], 'same-origin');
+      assert.equal(sandbox.headers['cross-origin-resource-policy'], 'cross-origin');
+      assert.equal(
+        sandbox.headers['connection-allowlist'],
+        '(); webrtc=block; redirects=block; report-to=haip-view-policy',
+      );
+      assert.equal(sandbox.headers['report-to'], undefined);
+      assert.equal(sandbox.headers['reporting-endpoints'], undefined);
+    }
   } finally {
     await tls?.close();
     await env.close();

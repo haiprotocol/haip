@@ -1,4 +1,4 @@
-# Examples only. Supply an operator-scoped scrape target and your own alert routing.
+# Use haip or a haip- prefixed scrape job name and configure alert routing.
 groups:
   - name: haip
     rules:
@@ -8,7 +8,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: HAIP admission is fenced; investigate before recovery
+          summary: HAIP admission is fenced
       - alert: HAIPCheckpointStalled
         expr: haip_outbox_oldest_seconds{kind="checkpoint",state="pending"} > 300
         for: 0m
@@ -24,12 +24,18 @@ groups:
         annotations:
           summary: HAIP delivery has exhausted its retry window
       - alert: HAIPExecutionUnresolved
-        expr: haip_unresolved_execution > 0
-        for: 1h
+        expr: haip_execution_reconciliation_due > 0
         labels:
           severity: warning
         annotations:
           summary: Execution needs independent outcome reconciliation
+      - alert: HAIPScrapeUnavailable
+        expr: up{job=~"haip(-.+)?"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: HAIP metrics scrape is unavailable
       - alert: HAIPOutboxWorkerStalled
         expr: time() - haip_operation_last_success_seconds{operation="outbox"} > 300
         for: 1m

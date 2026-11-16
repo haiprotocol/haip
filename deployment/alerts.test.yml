@@ -1,0 +1,78 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="review",job="haip"}'
+        values: '1 0 0 1'
+      - series: 'up{instance="second",job="haip-secondary"}'
+        values: '1 0 0 1'
+      - series: 'up{instance="unrelated",job="other"}'
+        values: '0 0 0 0'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HAIPScrapeUnavailable
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: HAIPScrapeUnavailable
+        exp_alerts:
+          - exp_labels: { instance: review, job: haip, severity: critical }
+            exp_annotations: { summary: HAIP metrics scrape is unavailable }
+          - exp_labels: { instance: second, job: haip-secondary, severity: critical }
+            exp_annotations: { summary: HAIP metrics scrape is unavailable }
+      - eval_time: 3m
+        alertname: HAIPScrapeUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'haip_operation_last_success_seconds{instance="review",operation="outbox"}'
+        values: '0+0x7 480'
+      - series: 'haip_operation_last_success_seconds{instance="review",operation="retention"}'
+        values: '0+0x32 1980'
+      - series: 'haip_operation_last_success_seconds{instance="healthy",operation="retention"}'
+        values: '0+60x33'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: HAIPOutboxWorkerStalled
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: HAIPOutboxWorkerStalled
+        exp_alerts:
+          - exp_labels: { instance: review, operation: outbox, severity: critical }
+            exp_annotations: { summary: HAIP outbox worker has not completed a cycle }
+      - eval_time: 8m
+        alertname: HAIPOutboxWorkerStalled
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: HAIPRetentionWorkerStalled
+        exp_alerts: []
+      - eval_time: 32m
+        alertname: HAIPRetentionWorkerStalled
+        exp_alerts:
+          - exp_labels: { instance: review, operation: retention, severity: critical }
+            exp_annotations: { summary: HAIP retention cleanup is overdue }
+      - eval_time: 33m
+        alertname: HAIPRetentionWorkerStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'haip_unresolved_execution{instance="review"}'
+        values: '2 2 1'
+      - series: 'haip_execution_reconciliation_due{instance="review"}'
+        values: '0 1 0'
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: HAIPExecutionUnresolved
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: HAIPExecutionUnresolved
+        exp_alerts:
+          - exp_labels: { instance: review, severity: warning }
+            exp_annotations: { summary: Execution needs independent outcome reconciliation }
+      - eval_time: 2m
+        alertname: HAIPExecutionUnresolved
+        exp_alerts: []
