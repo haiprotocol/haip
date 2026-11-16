@@ -10,7 +10,11 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import { build } from 'esbuild';
 import { collectOriginsTls } from '../deployment/adapters/origins-tls.mjs';
+import { createApp, createSandboxApp } from '../haip-server/src/server.js';
+import type { ReviewService } from '../haip-server/src/service.js';
+import { environment } from './environment.js';
 
 const execute = promisify(execFile);
 const cookie = '__Host-haip=' + 's'.repeat(43);
@@ -24,6 +28,7 @@ async function fixture(
     oversizedHealth?: boolean;
     stalledHealth?: boolean;
     hsts?: string;
+    service?: ReviewService;
   } = {},
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'haip-origin-tls-'));
@@ -33,6 +38,9 @@ async function fixture(
   const certPath = join(directory, 'server.pem');
   const extensionPath = join(directory, 'extensions.cnf');
   let redirects = 0;
+  let applications:
+    | { trusted: ReturnType<typeof createApp>; sandbox: ReturnType<typeof createSandboxApp> }
+    | undefined;
   try {
     await execute('openssl', [
       'req',
@@ -84,6 +92,10 @@ async function fixture(
       (request, response) => {
         const host = request.headers.host ?? '';
         const sandbox = host.includes('.sandbox.test:');
+        if (applications) {
+          response.setHeader('Strict-Transport-Security', 'max-age=31536000');
+          return applications[sandbox ? 'sandbox' : 'trusted'](request, response);
+        }
         const origin = `https://review.trusted.test:${(server.address() as any).port}`;
         response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
         response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
@@ -178,6 +190,18 @@ async function fixture(
         sandbox_origin_pattern: `https://{scope}.sandbox.test:${port}`,
       },
     };
+    if (options.service) {
+      options.service.config.origin = plan.deployment.trusted_origin;
+      options.service.config.sandboxOrigin = (scope) =>
+        plan.deployment.sandbox_origin_pattern.replace(
+          '{scope}',
+          BigInt('0x' + scope).toString(36),
+        );
+      applications = {
+        trusted: createApp(options.service, { exactHost: true }),
+        sandbox: createSandboxApp(options.service),
+      };
+    }
     return {
       directory,
       caPath,
@@ -196,6 +220,146 @@ async function fixture(
     throw error;
   }
 }
+
+test('the origins adapter exercises authenticated browser boundaries while keeping local evidence blocked for deployment', async () => {
+  const env = await environment();
+  let tls: Awaited<ReturnType<typeof fixture>> | undefined;
+  try {
+    tls = await fixture({ service: env.service });
+    const asset = await build({
+      entryPoints: ['examples/http/choice-app.js'],
+      bundle: true,
+      write: false,
+      format: 'esm',
+      platform: 'browser',
+    });
+    const bundle = await env.api(
+      '/v2/bundles',
+      {
+        html:
+          '<!doctype html><body><script type="module">' +
+          asset.outputFiles[0]!.text.replaceAll('</script', '<\\/script') +
+          '</script></body>',
+        compatibility: { agent_ui: '2' },
+        author: 'Local browser acceptance',
+        licence: 'MIT',
+      },
+      env.credentials.publisher,
+    );
+    assert.equal(bundle.status, 201);
+    const responseSchema = JSON.parse(
+      await readFile('examples/http/review.json', 'utf8'),
+    ).response_schema;
+    const created = await env.api(
+      '/v2/requests',
+      env.request(false, {
+        bundle_id: bundle.body.id,
+        profiles: { 'haip.agent-ui': '2' },
+        metadata: { haip_acceptance_fixture: 'origins_tls' },
+        response_schema: responseSchema,
+      }),
+    );
+    assert.equal(created.status, 201);
+    const id = created.body.request.id;
+    const planPath = join(tls.directory, 'browser-plan.json');
+    const reportPath = join(tls.directory, 'browser-report.json');
+    const evidenceDirectory = join(tls.directory, 'browser-evidence');
+    const plan = JSON.parse(await readFile('deployment/acceptance.plan.example.json', 'utf8'));
+    plan.source.commit = (await execute('git', ['rev-parse', 'HEAD'])).stdout.trim();
+    Object.assign(plan.deployment, tls.plan.deployment);
+    plan.deployment.environment = 'local-browser-fixture';
+    plan.adapter_env = ['PLAYWRIGHT_BROWSERS_PATH'];
+    plan.secret_env = [];
+    const origins = plan.checks.find((check: { id: string }) => check.id === 'origins_tls');
+    origins.command = [
+      process.execPath,
+      'deployment/adapters/origins-tls.mjs',
+      planPath,
+      evidenceDirectory,
+      '--fixture-ca',
+      tls.caPath,
+      '--review-id',
+      id,
+    ];
+    delete origins.unrun_reason;
+    await writeFile(planPath, JSON.stringify(plan), { mode: 0o600 });
+    await execute(
+      process.execPath,
+      [
+        'deployment/run-acceptance.mjs',
+        planPath,
+        reportPath,
+        '--allow-dirty',
+        '--allow-incomplete',
+      ],
+      { timeout: 75_000 },
+    );
+    const report = JSON.parse(await readFile(reportPath, 'utf8'));
+    const result = report.checks.find((check: { id: string }) => check.id === 'origins_tls');
+    assert.equal(
+      result.status,
+      'blocked',
+      JSON.stringify(result.assertions.filter((entry: { passed: boolean }) => !entry.passed)),
+    );
+    assert.deepEqual(report.summary, {
+      passed: 0,
+      blocked: 1,
+      failed: 0,
+      unrun: 9,
+      accepted: false,
+    });
+    const { stdout: validation } = await execute(process.execPath, [
+      'deployment/run-acceptance.mjs',
+      '--validate',
+      reportPath,
+    ]);
+    assert.deepEqual(JSON.parse(validation), { valid: true, accepted: false });
+    assert.equal(result.facts.browser_boundaries_exercised, true);
+    assert.equal(result.facts.session_issuance_exercised, true);
+    const [evidenceFile] = await readdir(evidenceDirectory);
+    const evidence = await readFile(join(evidenceDirectory, evidenceFile!), 'utf8');
+    assert.equal(JSON.parse(evidence).evidence_kind, 'local_fixture');
+    assert.equal(JSON.parse(evidence).browser.passed, true);
+    assert.equal(
+      `sha256:${createHash('sha256').update(evidence).digest('hex')}`,
+      result.evidence[0].digest,
+    );
+    assert(!evidence.includes(id));
+    const status = await env.api(`/v2/requests/${id}`);
+    assert.equal(status.body.decision_state, 'pending');
+    assert.equal(
+      (await env.api(`/v2/requests/${id}/material`)).body.candidate.response.choice,
+      'accept',
+    );
+    const unmarked = await env.api(
+      '/v2/requests',
+      env.request(false, {
+        bundle_id: bundle.body.id,
+        profiles: { 'haip.agent-ui': '2' },
+        response_schema: responseSchema,
+      }),
+    );
+    assert.equal(unmarked.status, 201);
+    const unmarkedId = unmarked.body.request.id;
+    const { stdout: refusal } = await execute(
+      process.execPath,
+      [...origins.command.slice(1, -1), unmarkedId],
+      { timeout: 60_000 },
+    );
+    const denied = JSON.parse(refusal);
+    assert.equal(denied.status, 'failed');
+    assert(
+      denied.assertions.some(
+        (item: { name: string; passed: boolean }) =>
+          item.name === 'browser_test_review' && !item.passed,
+      ),
+    );
+    assert.equal((await env.api(`/v2/requests/${unmarkedId}/material`)).body.candidate, null);
+  } finally {
+    await tls?.close();
+    await env.close();
+  }
+});
 
 test('origins adapter records actual TLS and scoped routing but keeps omitted browser evidence blocked', async () => {
   const env = await fixture();
