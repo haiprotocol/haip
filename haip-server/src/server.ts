@@ -15,7 +15,7 @@ import { ProtocolError, requireThat } from './errors.js';
 import { Metrics, prometheus } from './metrics.js';
 import { validate } from './validation.js';
 import { requireBoundBundle } from './bundle.js';
-import { principalRateKey, requestRateLimit } from './rate-limit.js';
+import { principalRateKey, requestRateLimit, type RequestLimiter } from './rate-limit.js';
 import { createViewBootstrap } from './sandbox-app.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = (name: string) =>
@@ -55,17 +55,23 @@ function jsonBody(limit: number): RequestHandler[] {
 }
 export function createApp(
   service: ReviewService,
-  { exactHost = false }: { exactHost?: boolean } = {},
+  {
+    exactHost = false,
+    sharedAdmission = false,
+  }: { exactHost?: boolean; sharedAdmission?: boolean } = {},
 ) {
   const app = express();
   const host = new URL(service.config.origin).host;
   const verifyHost = exactHost || service.config.mode === 'production';
+  const limiter: RequestLimiter = sharedAdmission
+    ? (options) => requestRateLimit(options, service.store.pool)
+    : requestRateLimit;
   const metrics = new Metrics();
-  const healthAdmission = requestRateLimit({
+  const healthAdmission = limiter({
     limit: 600,
     identifier: 'health-service',
   });
-  const principalAdmission = requestRateLimit({
+  const principalAdmission = limiter({
     limit: 1200,
     identifier: 'principal',
     key: principalRateKey,
@@ -114,7 +120,7 @@ export function createApp(
       .send(script('style.css')),
   );
   app.get('/', (_req, res) => res.redirect('/inbox'));
-  installAuth(app, service);
+  installAuth(app, service, limiter);
   app.use('/v2', principalAdmission);
   app.get(['/inbox', '/review/:id'], async (req, res) => {
     requireThat(req.principal.kind === 'human', 403, 'human_required');

@@ -5,7 +5,7 @@ import { digestBytes } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
 import type { Principal } from './config.js';
 import { requireThat } from './errors.js';
-import { principalRateKey, requestRateLimit } from './rate-limit.js';
+import { principalRateKey, requestRateLimit, type RequestLimiter } from './rate-limit.js';
 export interface HumanSession {
   tenant: string;
   id: string;
@@ -27,18 +27,22 @@ const cookie = (req: Request, name: string) =>
     .map((x) => x.trim())
     .find((x) => x.startsWith(name + '='))
     ?.slice(name.length + 1);
-export function installAuth(app: Express, service: ReviewService) {
+export function installAuth(
+  app: Express,
+  service: ReviewService,
+  limiter: RequestLimiter = requestRateLimit,
+) {
   const { store, config } = service;
-  const loginAdmission = requestRateLimit({
+  const loginAdmission = limiter({
     limit: 120,
     identifier: 'login-service',
   });
   // Caddy is the direct peer, so requests without an authenticated principal share this service bucket.
-  const credentialAdmission = requestRateLimit({
+  const credentialAdmission = limiter({
     limit: 12000,
     identifier: 'credential-service',
   });
-  const humanAdmission = requestRateLimit({
+  const humanAdmission = limiter({
     limit: 1200,
     identifier: 'human',
     key: principalRateKey,

@@ -34,7 +34,8 @@ async function checkedMigrations(
 export class Store {
   readonly pool: pg.Pool;
   constructor(url: string, options: pg.PoolConfig = {}) {
-    this.pool = new pg.Pool({ ...options, connectionString: url, max: 12 });
+    this.pool = new pg.Pool({ max: 12, ...options, connectionString: url });
+    this.pool.on('error', () => console.error('HAIP idle database connection lost'));
   }
   async requireSchema(): Promise<void> {
     const pending = await checkedMigrations(this.pool, await migrations()).catch((error) => {

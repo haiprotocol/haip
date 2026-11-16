@@ -3,6 +3,7 @@ import { createPrivateKey } from 'node:crypto';
 import type { TokenCredential } from '@azure/identity';
 import { parseJson } from '@haip/protocol/crypto';
 import { Store } from './store.js';
+import { createNeonStore } from './neon.js';
 import { ReviewService } from './service.js';
 import { AzureAnchor, AzureSafetyStore } from './anchor.js';
 import { RecoveryGuard } from './recovery.js';
@@ -26,16 +27,37 @@ function modeOf(env: NodeJS.ProcessEnv) {
   return mode;
 }
 
-export function createRuntimeStore(env: NodeJS.ProcessEnv): Store {
+export function createRuntimeStore(
+  env: NodeJS.ProcessEnv,
+  access: 'runtime' | 'administrative' = 'runtime',
+): Store {
+  const url = requiredEnv(env, 'HAIP_DATABASE_URL');
+  const provider = env.HAIP_DATABASE_PROVIDER ?? 'postgres';
+  const mode = modeOf(env);
+  if (provider === 'neon') {
+    if (mode !== 'production' || env.HAIP_DATABASE_CA_FILE)
+      throw new Error('Neon requires production mode and public certificate verification');
+    return createNeonStore(url, access);
+  }
+  if (provider !== 'postgres') throw new Error('Unknown HAIP database provider');
   const connection = databaseConnection(
-    modeOf(env),
-    requiredEnv(env, 'HAIP_DATABASE_URL'),
+    mode,
+    url,
     env.HAIP_DATABASE_CA_FILE ? readFileSync(env.HAIP_DATABASE_CA_FILE, 'utf8') : undefined,
   );
   return new Store(connection.url, connection.options);
 }
 
-export function createRuntime(env: NodeJS.ProcessEnv, storageCredential?: TokenCredential) {
+export function createRuntime(
+  env: NodeJS.ProcessEnv,
+  {
+    storageCredential,
+    databaseAccess,
+  }: {
+    storageCredential?: TokenCredential;
+    databaseAccess?: 'runtime' | 'administrative';
+  } = {},
+) {
   const required = (name: string) => requiredEnv(env, name);
   const mode = modeOf(env);
   const origin = required('HAIP_ORIGIN');
@@ -91,7 +113,7 @@ export function createRuntime(env: NodeJS.ProcessEnv, storageCredential?: TokenC
           : {}),
       }
     : undefined;
-  const service = new ReviewService(createRuntimeStore(env), {
+  const service = new ReviewService(createRuntimeStore(env, databaseAccess), {
     mode,
     origin,
     issuer: origin,

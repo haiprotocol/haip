@@ -7,6 +7,7 @@ import { deliverWebhook } from './delivery.js';
 import { deliverSMTP } from './smtp.js';
 import { requireThat } from './errors.js';
 import { RecoveryGuard } from './recovery.js';
+import { pruneRequestAdmission } from './rate-limit.js';
 import type { Tx } from './store.js';
 
 const maintenancePageSize = 50;
@@ -433,7 +434,7 @@ export class OutboxWorker {
       [],
       'expires_at,token_hash',
     );
-    result.more = sessions.more;
+    result.more = (await pruneRequestAdmission(this.service.store.pool)) || sessions.more;
     for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
       .rows)
       await this.operation(t.id, 'retention', async () => {

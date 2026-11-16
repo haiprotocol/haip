@@ -11,7 +11,7 @@ if (args.length > 1 || (command && !['--migrate', '--bootstrap', '--recover'].in
   throw new Error('Expected one of --migrate, --bootstrap or --recover, or no command');
 
 if (command === '--migrate') {
-  const store = createRuntimeStore(process.env);
+  const store = createRuntimeStore(process.env, 'administrative');
   try {
     await store.migrate();
   } finally {
@@ -21,7 +21,9 @@ if (command === '--migrate') {
   const listenHost = process.env.HAIP_LISTEN_HOST ?? '127.0.0.1';
   if (!command && !['127.0.0.1', '0.0.0.0', '::1', '::'].includes(listenHost))
     throw new Error('HAIP_LISTEN_HOST must be an explicit loopback or wildcard IP address');
-  const { service, anchor } = createRuntime(process.env);
+  const { service, anchor } = createRuntime(process.env, {
+    databaseAccess: command ? 'administrative' : 'runtime',
+  });
   const { store } = service;
   const required = (name: string) => requiredEnv(process.env, name);
   let serving = false;
