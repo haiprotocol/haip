@@ -1,0 +1,28 @@
+deployment/README.md
+  s_08f73032aa8e41::t_892faf940660a3 5-8,11,19
+deployment/vercel-neon.md
+  s_08f73032aa8e41::t_60e1146bb90ed0 3,69
+  s_08f73032aa8e41::t_6822234b3beb73 48
+PROVIDERS.md
+  s_08f73032aa8e41::t_3aa77b72339924 3,19
+README.md
+  s_08f73032aa8e41::t_171a22fed5d1b6 68-76
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_628dcf2089a8c5 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "131ab3585252d0e26d312d23f94b165b27f7dba3",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
