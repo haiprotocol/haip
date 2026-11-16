@@ -1,6 +1,6 @@
 # Provider choices
 
-Owner decision, confirmed 3 November 2026: **plan HAIP hosting on the existing Vercel Pro account and use the existing Neon account for PostgreSQL**. Prefer included allowances and free services. The £20 monthly ceiling remains the planning limit for additional HAIP usage, with existing Vercel Pro subscription fees already paid. Actual Neon plan eligibility and incremental charges still need inspection. The [managed hosting plan](deployment/vercel-neon.md) records the implementation work and deployment gates. Provider resources are not created or connected by this planning change.
+Use the local HAIP runtime for development and rehearsal. If HAIP needs shared hosting, use the existing Vercel Pro and Neon accounts and prefer included allowances. The £20 monthly ceiling covers additional HAIP usage. Check the Neon plan and incremental charges before provisioning. The [managed hosting plan](deployment/vercel-neon.md) records the implementation work and deployment gates.
 
 The selected managed providers use underlying AWS infrastructure. HAIP will use their managed interfaces. Direct AWS deployment and production Amazon SDK dependencies remain outside this plan. Azure remains the preferred provider for separately required paid infrastructure or identity. Changes to paid services must fit the authorised scope and budget.
 
@@ -16,7 +16,7 @@ The selected managed providers use underlying AWS infrastructure. HAIP will use 
 
 R2's bucket locks prevent overwrites and deletion while enabled, but administrators can remove those rules. They are **not** represented as irreversible compliance-mode retention. R2 is suitable for encrypted backups with a bounded lifecycle, but is not silently substituted for the stricter production audit requirement. Backups are private, client-encrypted and deleted within 30 days. Do not expose them via a public bucket.
 
-The existing Vercel Pro team is the hosting target. Check its included usage and available deploying seat before adding HAIP. Keep HAIP separate from other applications and count partner charges separately. Vercel Hobby's personal, non-commercial restrictions do not establish an entitlement to free commercial hosting. The current reference runtime still requires one active process per generation and manual recovery after restart. It is not ready to deploy as Vercel Functions.
+For shared hosting, use the existing Vercel Pro team. Check its included usage and available deploying seat before adding HAIP. Keep HAIP separate from other applications and count partner charges separately. Vercel reserves Hobby for personal, non-commercial use. The current reference runtime still requires one active process per generation and manual recovery after restart. The managed plan lists what must be proved before using Vercel Functions.
 
 Create a dedicated HAIP project in the existing Neon account rather than connecting another application's database. Use a pooled connection for runtime transactions and a direct connection for controlled migration and backup jobs. Check the actual Neon plan before counting a free allowance, and select matching application and database regions. Avoid continuous database polling that would prevent idle compute from sleeping.
 

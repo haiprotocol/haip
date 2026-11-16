@@ -65,7 +65,15 @@ The provider-neutral acceptance runner validates a strict operator plan and coll
 
 ## Reference service
 
-For a free local demonstration, run `npm run demo` after building. It creates a temporary isolated database, local sign-in fixture and random test credentials for local use. `npm run example:app` builds the independent choice View. See [the HTTP walkthrough](examples/http/README.md). No cloud account is required. The [development container guide](deployment/development.md) covers the current Docker/Compose files, explicit local settings and their deployment limitations.
+To run the local demonstration from a checkout, install Node 24 and the PostgreSQL 17 tools, then run:
+
+```sh
+npm ci
+npm run build
+npm run demo
+```
+
+The demo starts a temporary database, local sign-in and filesystem checkpoint fixture. It prints its localhost URL and temporary test credentials. Use the [HTTP walkthrough](examples/http/README.md) to submit a review and sign in as `reviewer`. Stop the demo with Ctrl-C to clear its database and keys. The [development container guide](deployment/development.md) covers the Docker/Compose setup.
 
 Build with `npm run build`, provide explicit database, signing, trust, OIDC and separate sandbox-origin configuration, then run `npm run start -w @haip/server`. There are no default identities or approval credentials. The local bootstrap command creates an operator, who configures humans, producers, publishers and routes through the administration API. See [operations](OPERATIONS.md) for the exact configuration.
 

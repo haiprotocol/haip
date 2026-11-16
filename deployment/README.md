@@ -2,9 +2,13 @@
 
 These files are reviewed examples for the HAIP reference service. They do not install software, create a cloud resource, configure an account or establish production acceptance.
 
+## Local use
+
+Run the [local demonstration](../README.md#reference-service) for the API, reviewer sign-in, isolated Agent UI and signed receipts. `npm run check` also exercises local SMTP and HTTPS delivery, encrypted backup and restore, and recovery after a missing database commit. The tests use disposable data and fixture identities.
+
 ## Managed hosting
 
-The selected hosting target is the existing Vercel Pro account with a dedicated HAIP Neon project. [`vercel-neon.md`](vercel-neon.md) records the implementation sequence, compatibility decisions, cost controls and acceptance gates. The current reference runtime retains the process and recovery requirements below until a reviewed replacement has been implemented and verified. The systemd and Caddy examples describe that existing runtime.
+Use the [Vercel and Neon plan](vercel-neon.md) if HAIP needs a shared hosted service. The plan records the compatibility decisions, cost controls and remaining acceptance work. The systemd and Caddy examples below apply to the current standalone runtime.
 
 ## Production shape
 
@@ -12,7 +16,7 @@ The service uses one active process for each execution namespace. Every restart 
 
 Use Node 24, PostgreSQL 17 or a separately validated compatible version, encrypted disks and a restricted database role. Production PostgreSQL connections require verified TLS. Reserve migration permissions for the controlled upgrade procedure and keep environment files at mode 0600.
 
-With `HAIP_MODE=production`, run `node haip-server/dist/main.js --migrate` using a direct database connection and the migration role. This command only needs database configuration. Switch to the restricted runtime role before bootstrap, recovery or service start. Those commands check the applied migration hashes and refuse missing or newer schema versions. The development runner still applies migrations to its disposable database.
+With `HAIP_MODE=production`, run `node haip-server/dist/main.js --migrate` using a direct database connection and the migration role. This command only needs database configuration. Run bootstrap and recovery offline with a direct connection and the required administrative grants. Start the service with the restricted runtime role. These commands check the migration hashes and refuse missing or newer schema versions. The development runner applies migrations to its disposable database.
 
 The uninstalled [`haip.service`](haip.service) example runs the built Node entry point with `Restart=no`. It assumes the service and its private configuration are already installed. It does not configure PostgreSQL, certificates, DNS, storage or monitoring.
 

@@ -1,6 +1,6 @@
 # Vercel and Neon
 
-Status: planned, 3 November 2026. Use the existing Vercel Pro and Neon accounts. This replaces the proposed Azure VM as the hosting target. The current `2.0.0-draft.3` reference service is not compatible with this target without implementation changes. This plan creates no provider resources, changes no DNS records and publishes no packages.
+Run `2.0.0-draft.3` locally for development and acceptance rehearsal. If HAIP later needs a shared hosted service, use the existing Vercel Pro and Neon accounts. The managed plan records the changes and provider checks needed for that deployment.
 
 HAIP owns this work. Plasm integration, execution enforcement in downstream products and durable agent continuations remain outside its scope. Retain the reviewed protocol, cryptography, native Agent UI and reference-service boundaries.
 
@@ -45,7 +45,7 @@ Resolve these decisions before building a production deployment adapter. Record 
 
 Changing the process owner to a fixed shared value or disabling recovery checks would remove a safety property. The [managed authority design](managed-authority.md) uses an independent commit witness to distinguish a clean function replacement from a database restore or a failed commit. Its local PostgreSQL proof exercises stale and competing copies. The application must use the witness for all protected state and operations before it can replace process ownership. Routine function replacement must not recreate grants, extend deadlines or repeat an uncertain effect.
 
-Vercel's [function request and response limit is 4.5 MB](https://vercel.com/docs/functions/limitations#request-body-size). A larger function bundle or longer timeout does not increase that limit. Review a private staged-upload transport and streamed output, or another compatible ingress path, then prove authentication, ownership, size, digest, expiry and cleanup. Do not accept arbitrary fetch URLs or expose staging objects publicly. A new transport that changes the HTTP contract needs a labelled protocol revision, SDK and CLI support, independent-client vectors and updated acceptance. Lowering HAIP's documented limits does not preserve draft-3 compatibility.
+Vercel limits request bodies and buffered responses to 4.5 MB. Its [limits documentation](https://vercel.com/docs/functions/limitations#request-body-size) exempts streamed responses. Review a private staged-upload transport or another compatible ingress path, then prove authentication, ownership, size, digest, expiry and cleanup. Test streamed responses through the deployed route. Do not accept arbitrary fetch URLs or expose staging objects publicly. A new transport that changes the HTTP contract needs a labelled protocol revision, SDK and CLI support, independent-client vectors and updated acceptance. Preserve the draft's documented size limits.
 
 For storage, [Vercel OIDC federation with Azure](https://vercel.com/docs/oidc/azure) provides a route to short-lived credentials. Bind federation to the exact HAIP project and environment, inject the credential into the Azure adapter and keep administrator credentials outside Vercel. Authentication and network access require separate checks. The current storage firewall denies unlisted sources, while Vercel lists [static egress IPs at US$100 per project per month](https://vercel.com/pricing), beyond this budget. Resolve this access decision without purchasing that addon or silently opening the storage firewall.
 
@@ -66,7 +66,7 @@ Deliver the work in this order, with each change reviewed and tested before its 
 | 5. Package environments | Configure the two Vercel projects, identity, storage access, domains and staging | Reviewed configuration and exercised browser, secret and environment boundaries |
 | 6. Run acceptance | Complete provider tests, independent assurance and the versioned release record | All applicable deployment checks pass against the final source and deployed artefact |
 
-Steps 2 to 5 depend on the decisions in step 1. Keep the existing standalone runtime available for local conformance and comparison. If wire semantics or normative guarantees change, add a new immutable draft and update schema, types, OpenAPI, clients, formal models and labelled documentation. Preserve `draft-2.0.0-3` and its historical evidence. This planning change leaves package versions untouched.
+Steps 2 to 5 depend on the decisions in step 1. Use the standalone runtime for local conformance and comparison. If wire semantics or normative guarantees change, add a new immutable draft and update schema, types, OpenAPI, clients, formal models and labelled documentation. Preserve `draft-2.0.0-3` and its historical evidence.
 
 ## Database
 

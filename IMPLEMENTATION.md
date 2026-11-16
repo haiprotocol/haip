@@ -6,7 +6,7 @@ The [8 October release review](RELEASE-READINESS.md) records the current release
 
 ## Managed hosting
 
-The 3 November hosting decision selects the existing Vercel Pro and Neon accounts. The [managed hosting plan](deployment/vercel-neon.md) covers serverless authority and restart handling, large payload transport, Neon transactions, event-driven outbox delivery, browser isolation and storage access. This is planned work. The existing process-bound runtime and `2.0.0-draft.3` contract remain unchanged by the plan, and provider acceptance and independent assurance remain release gates.
+The standalone `2.0.0-draft.3` runtime supports local review and acceptance rehearsal. The existing Vercel Pro and Neon accounts are the preferred option if HAIP needs a shared hosted service. The [managed hosting plan](deployment/vercel-neon.md) covers serverless authority, larger payloads, Neon transactions, event-driven outbox delivery, browser isolation and storage access. Production acceptance and independent assurance still depend on the actual release and environment.
 
 ## Ownership and baseline
 
