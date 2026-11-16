@@ -1,0 +1,23 @@
+package.json
+  s_08f73032aa8e41::t_a77cfaec163db2 31
+haip-server/package.json
+  s_08f73032aa8e41::t_a77cfaec163db2 40,47
+package-lock.json
+  s_08f73032aa8e41::t_a16ab1ad4493bc 72,79,265-267,279-280,322-324,327,335-337,858-860,1098-1100,1104,1107,1109,1141-1143,1502-1504,1518-1520,1534-1536,1545-1547,1549,1777-1779,1839-1850,1876-1878,2161-2163,2212-2214,2217,2219,2221-2222,2225,2448-2459,2504-2506,2621-2623,2789-2791,2965-2967,2970-2971,2974
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e819ba302b77a442d138f0a9627ca8513ccd760d",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
