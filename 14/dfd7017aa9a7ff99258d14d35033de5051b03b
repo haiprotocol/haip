@@ -1,0 +1,52 @@
+docs/server/deployment.mdx
+  s_08f73032aa8e41::t_bd88c0f094fac2 14,16
+haip-server/src/server.ts
+  s_08f73032aa8e41::t_7b5f03a6173287 58,62,92
+  s_08f73032aa8e41::t_33d387d22bc884 380,382
+  s_08f73032aa8e41::t_778653ef980e06 19,56-57,59,61,93-95
+haip-server/src/index.ts
+  s_08f73032aa8e41::t_7b5f03a6173287 4-5
+tests/startup.test.ts
+  s_08f73032aa8e41::t_0acb4b5c6e8623 86-117
+  s_08f73032aa8e41::t_bd88c0f094fac2 5,16-18,21-42,44-85,118-136
+  s_08f73032aa8e41::t_a7cc177619920d 43
+  s_08f73032aa8e41::t_dd9d6241ee2f1f 137
+OPERATIONS.md
+  s_08f73032aa8e41::t_bd88c0f094fac2 35-37
+haip-server/src/runtime.ts
+  s_08f73032aa8e41::t_655afeea16cefb 1-108
+haip-server/src/store.ts
+  s_08f73032aa8e41::t_7b5f03a6173287 40-43
+  s_08f73032aa8e41::t_35f593651665e6 5-8,10-17,22-25,27-33,39,44-45,47-48,53,55,57-64,66,73,77,82-83,87,90-91
+  s_08f73032aa8e41::t_a7cc177619920d 9,26
+  s_08f73032aa8e41::t_43836d95d37125 18-21,68-70
+haip-server/src/sandbox-app.ts
+  s_08f73032aa8e41::t_43836d95d37125 6-8,28
+  s_08f73032aa8e41::t_33d387d22bc884 1-5,9-27,29-48
+haip-server/src/anchor.ts
+  s_08f73032aa8e41::t_655afeea16cefb 2,27,52
+deployment/README.md
+  s_08f73032aa8e41::t_7b5f03a6173287 15-16
+haip-server/src/main.ts
+  s_08f73032aa8e41::t_43836d95d37125 39-40
+  s_08f73032aa8e41::t_7b5f03a6173287 68-69,79-80
+  s_08f73032aa8e41::t_33d387d22bc884 1-2,4,6-19,21-38,41-50,52-58,60-67,70,73,112
+haip-server/package.json
+  s_08f73032aa8e41::t_7b5f03a6173287 33-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14dfd7017aa9a7ff99258d14d35033de5051b03b",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
