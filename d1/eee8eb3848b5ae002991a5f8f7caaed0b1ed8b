@@ -1,0 +1,57 @@
+tests/webhooks.test.ts
+  s_08f73032aa8e41::t_533d91f0d2bd21 265
+  s_08f73032aa8e41::t_5c0879bd0b2a6c 11,207,228-229,261
+  s_08f73032aa8e41::t_72ede5da402d77 10,187-206,208,226-227,230-234,244-255,260,262-264,269,277-285
+  s_08f73032aa8e41::t_54200950d3141c 209-225,235-243,256-259,266-268,270-276
+  s_08f73032aa8e41::t_fe56453587e6d5 286-287
+haip-server/src/worker.ts
+  s_08f73032aa8e41::t_7e62637a77741c 266,268-277,279-284,286,291,311-321,465-471
+deployment/acceptance.md
+  s_08f73032aa8e41::t_1e54c8a36c4597 68,72-76
+  s_08f73032aa8e41::t_33e857bad407f9 77
+haip-server/src/browser/host.ts
+  s_08f73032aa8e41::t_38ce7afa159967 903-904
+docs/sdk/webhooks.mdx
+  s_08f73032aa8e41::t_23b3410dd91f7d 8,21,24-28,30-33
+  s_08f73032aa8e41::t_d637ee821edbc3 23,29
+tests/environment.ts
+  s_08f73032aa8e41::t_c77817c2a84ed6 192-196,207,221
+haip-server/src/auth.ts
+  s_08f73032aa8e41::t_63a8312112a89c 241-263,265-266
+haip-sdk/src/webhooks.ts
+  s_08f73032aa8e41::t_3b3a692cb7de60 1-7,140-147,149,200-201
+  s_08f73032aa8e41::t_85a5eea964b5ba 91-93,207-208
+  s_08f73032aa8e41::t_8b4b1097760262 10-11,49,62-63,139,150-175,178-199,202-206,209-215
+  s_08f73032aa8e41::t_bbc14cc11caa20 60-61,148,176-177
+tests/notifications.test.ts
+  s_08f73032aa8e41::t_90b704dcdcbcaa 7,9,26-60,63,68-73,104-106,116-124,129-132,160-174,180-189,196-197,208
+  s_08f73032aa8e41::t_ad501cfa7cabfb 133,143-144
+  s_08f73032aa8e41::t_599d3603cc6733 195,203
+  s_08f73032aa8e41::t_53369cb40c1b5d 108-113,125-128,175-179,190-194,198-202,204-206
+  s_08f73032aa8e41::t_83230f32d31db9 64-67,134-142
+  s_08f73032aa8e41::t_826cf50268b9f3 207
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_33db4baeb16538 153-158,471
+  s_08f73032aa8e41::t_92cc062016e16e 137-142,145,159-160
+  s_08f73032aa8e41::t_b885793155b6b4 294-295,301,310,315-316,421,436,1038,1394
+OPERATIONS.md
+  s_08f73032aa8e41::t_e4c4ea2746bbf6 75-76,83
+docs/server/authentication.mdx
+  s_08f73032aa8e41::t_906ba7bbc1c01a 14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1eee8eb3848b5ae002991a5f8f7caaed0b1ed8b",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
