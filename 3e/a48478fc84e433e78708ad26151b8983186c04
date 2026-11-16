@@ -1,0 +1,32 @@
+tests/managed-witness.test.ts
+  s_08f73032aa8e41::t_49664c760d22c8 1-27,37-39,45-57,64,68-80,85,91,98-114,134,136-138,143-150,165-175
+  s_08f73032aa8e41::t_1ffc2428184586 28-36,40-44,58-63,65-67,81-84,86-90,92-97,115-133,135,139-142,151-164
+deployment/managed-authority.md
+  s_08f73032aa8e41::t_46879a457f7b71 1-29
+haip-server/src/commit-witness.ts
+  s_08f73032aa8e41::t_a4cae55a6c705a 1-30,36,45-61,67-77,93,99-107,113-122,128-132,137-162,167-169
+  s_08f73032aa8e41::t_1ffc2428184586 31-35,37-44,62-66,78-92,94-98,108-112,123-127,133-136,163-166
+deployment/vercel-neon.md
+  s_08f73032aa8e41::t_46879a457f7b71 46,52
+  s_08f73032aa8e41::t_a3e92caa01ea01 87
+  s_08f73032aa8e41::t_ea70a0d5513cf6 53
+  s_08f73032aa8e41::t_a9e8a652adaed3 88
+haip-server/migrations/009_managed_head.sql
+  s_08f73032aa8e41::t_a4cae55a6c705a 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ea48478fc84e433e78708ad26151b8983186c04",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
