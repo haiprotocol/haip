@@ -1,0 +1,20 @@
+tests/startup.test.ts
+  s_08f73032aa8e41::t_f07f4650ea3631 118,126,134-135
+  s_08f73032aa8e41::t_2da1d261f3ac8e 119-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ee388a9095ecf38fef1b92a046355754a06ab47a",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
