@@ -1,5 +1,5 @@
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
-import { DefaultAzureCredential } from '@azure/identity';
+import { DefaultAzureCredential, type TokenCredential } from '@azure/identity';
 import { canonicalise, digestBytes, parseJson, verifyRecord } from '@haip/protocol/crypto';
 import type { SignedRecord, TrustManifest } from '@haip/protocol';
 import { requireThat } from './errors.js';
@@ -24,6 +24,7 @@ export class AzureAnchor implements AnchorStore {
     container: string,
     readonly prefix: string,
     readonly trust: TrustManifest,
+    credential?: TokenCredential,
   ) {
     const url = new URL(accountUrl);
     requireThat(
@@ -48,7 +49,7 @@ export class AzureAnchor implements AnchorStore {
       400,
       'azure_container_invalid',
     );
-    this.container = new BlobServiceClient(url.origin, new DefaultAzureCredential(), {
+    this.container = new BlobServiceClient(url.origin, credential ?? new DefaultAzureCredential(), {
       retryOptions: { maxTries: 1, tryTimeoutInMs: 10000 },
     }).getContainerClient(container);
   }

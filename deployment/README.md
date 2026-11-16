@@ -12,6 +12,8 @@ The service uses one active process for each execution namespace. Every restart 
 
 Use Node 24, PostgreSQL 17 or a separately validated compatible version, encrypted disks and a restricted database role. Production PostgreSQL connections require verified TLS. Reserve migration permissions for the controlled upgrade procedure and keep environment files at mode 0600.
 
+With `HAIP_MODE=production`, run `node haip-server/dist/main.js --migrate` using a direct database connection and the migration role. This command only needs database configuration. Switch to the restricted runtime role before bootstrap, recovery or service start. Those commands check the applied migration hashes and refuse missing or newer schema versions. The development runner still applies migrations to its disposable database.
+
 The uninstalled [`haip.service`](haip.service) example runs the built Node entry point with `Restart=no`. It assumes the service and its private configuration are already installed. It does not configure PostgreSQL, certificates, DNS, storage or monitoring.
 
 ## Storage

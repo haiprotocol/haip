@@ -16,6 +16,7 @@ import { Metrics, prometheus } from './metrics.js';
 import { validate } from './validation.js';
 import { requireBoundBundle } from './bundle.js';
 import { principalRateKey, requestRateLimit } from './rate-limit.js';
+import { createViewBootstrap } from './sandbox-app.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = (name: string) =>
   readFileSync(new URL('../public/' + name, import.meta.url), 'utf8');
@@ -52,8 +53,13 @@ function jsonBody(limit: number): RequestHandler[] {
     },
   ];
 }
-export function createApp(service: ReviewService) {
+export function createApp(
+  service: ReviewService,
+  { exactHost = false }: { exactHost?: boolean } = {},
+) {
   const app = express();
+  const host = new URL(service.config.origin).host;
+  const verifyHost = exactHost || service.config.mode === 'production';
   const metrics = new Metrics();
   const healthAdmission = requestRateLimit({
     limit: 600,
@@ -83,6 +89,10 @@ export function createApp(service: ReviewService) {
     });
     if (service.config.mode === 'production')
       res.set('Strict-Transport-Security', 'max-age=31536000');
+    if (verifyHost && req.get('host') !== host) {
+      res.status(421).json({ error: 'unexpected_host' });
+      return;
+    }
     next();
   });
   app.get('/.well-known/haip', (_req, res) => res.json(service.discovery()));
@@ -367,45 +377,7 @@ function offset(v: unknown): number {
   requireThat(typeof v === 'string' && /^\d{1,8}$/.test(v), 400, 'invalid_offset');
   return Number(v);
 }
+
 export function createSandboxApp(service: ReviewService) {
-  const app = express();
-  app.disable('x-powered-by');
-  app.use((_req, res, next) => {
-    res.set({
-      'Cache-Control': 'no-store',
-      'Referrer-Policy': 'no-referrer',
-      'X-Content-Type-Options': 'nosniff',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-      'Connection-Allowlist': '(); webrtc=block; redirects=block; report-to=haip-view-policy',
-      'Permissions-Policy':
-        'camera=(), microphone=(), geolocation=(), payment=(), clipboard-read=(), clipboard-write=()',
-      'Content-Security-Policy': `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; font-src data:; frame-src about:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors ${service.config.origin}`,
-    });
-    if (service.config.mode === 'production')
-      res.set('Strict-Transport-Security', 'max-age=31536000');
-    next();
-  });
-  app.get('/sandbox/:scope', (req, res) => {
-    requireThat(/^[a-f0-9]{64}$/.test(req.params.scope!), 404, 'not_found');
-    const expected = new URL(service.config.sandboxOrigin(req.params.scope!));
-    requireThat(req.get('host') === expected.host, 404, 'not_found');
-    const source = script('sandbox.js').replaceAll(
-      '__HAIP_HOST_ORIGIN__',
-      JSON.stringify(service.config.origin).slice(1, -1),
-    );
-    res
-      .type('html')
-      .send(
-        `<!doctype html><meta charset="utf-8"><title>Isolated review app</title><style>html,body,iframe{height:100%;width:100%;border:0;margin:0}</style><script>${source.replaceAll('</script', '<\\/script')}</script>`,
-      );
-  });
-  app.use((_req, res) => {
-    res.status(404).json({ error: 'not_found' });
-  });
-  app.use((_error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    res.status(404).json({ error: 'not_found' });
-  });
-  return app;
+  return createViewBootstrap(service.config);
 }

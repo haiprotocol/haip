@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./sandbox": {
+      "types": "./dist/sandbox-app.d.ts",
+      "default": "./dist/sandbox-app.js"
     }
   },
   "dependencies": {
