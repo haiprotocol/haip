@@ -51,6 +51,24 @@ Use those arguments in `external_identity.command` and set `timeout_ms` to `9000
 
 For a passing live result, retain a redacted observation of the configured authentication method at the token endpoint. In the settings file, add a `provider_observation` object containing `source_commit`, `service_artifact_digest`, `configuration_revision`, `identity_revision`, `issuer`, `client_id`, `client_auth`, `digest`, `reference` and `recorded_at`. Copy the identity component's revision from the plan. The digest covers the retained observation, the reference starts with `private-evidence:`, and the timestamp is in UTC. The adapter checks those bindings and the evidence reference. A successful browser run with the token endpoint observation pending reports `blocked`. The files record probe results and digests. Keep credentials, cookies, callback URLs and token contents out of those files and the retained observation.
 
+## Azure storage
+
+Build the exact checkout with `npm run build`. Use the isolated Azure account and containers configured for the acceptance run. The account in the plan's `anchor` component uses provider `Azure Blob Storage` and the actual Azure region. The adapter reads policy through a scoped Azure CLI Reader session and reads signed blobs through the configured HAIP runtime identity. Both credential paths use TLS and the storage endpoints selected from the account name.
+
+Configure `immutable_storage.command` with these arguments, replacing the paths and removing its `unrun_reason`. Allow 90 seconds for the check.
+
+```sh
+node deployment/adapters/azure-immutable-storage.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/storage.json
+```
+
+In `storage.json`, set `plan_digest` to `sha256:` followed by the SHA-256 of the final plan file bytes. Set `account`, `resource_group`, `subscription_id`, `tenant_id`, `runtime_client_id` and `anchor_prefix` from the deployment. Use `x-ms-version-id` as returned by Azure, preserving its fractional seconds. Set `trust_manifest` to the deployed public manifest JSON object for the plan's trusted origin.
+
+Provide `checkpoint` and `safety` objects, each with `container`, `key`, `version_id` and `digest`. For the checkpoint, confirm a disposable review, wait for its authenticated status to report `anchored`, then take `key`, `version_id` and `digest` from `anchor.acceptance`. For safety, use the signed `RecoveryFence` produced by the same deployment's disposable exercise. Record its exact key and Azure version ID and calculate `sha256:` followed by the SHA-256 of that version's original bytes. The adapter verifies both signatures and checks that each signed record belongs at the supplied key.
+
+Set `runtime_credential` to `managed_identity` when the configured user-assigned identity is available on the machine running the adapter. If the deployment uses a service principal and client secret, set `runtime_credential` to `client_secret`. Supply the existing runtime credential as `HAIP_ACCEPTANCE_AZURE_RUNTIME_CLIENT_SECRET`, listed in both `adapter_env` and `secret_env`. Include `AZURE_CONFIG_DIR` in `adapter_env` when using a separate Azure CLI session directory. For a hosted managed identity, include the required identity endpoint environment names and declare any endpoint credentials as secrets.
+
+The adapter issues management GET requests and blob lists, properties and pinned reads. It requires versioning, the two locked policies, the safety legal hold and at least 90 days of locked retention from each signed issue time. An enabled lifecycle deletion rule with no prefix, or with any prefix that can match the safety container, fails the check. Review the resulting private file and its digest alongside the writer permissions and independent administration evidence. The file records the plan and settings digests, policy ETag digests when returned, exact version digests and retention times. [Azure policy API](https://learn.microsoft.com/en-us/rest/api/storagerp/blob-containers/get-immutability-policy?view=rest-storagerp-2025-08-01) [Azure lifecycle scope](https://learn.microsoft.com/en-us/azure/storage/blobs/lifecycle-management-policy-faq)
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.

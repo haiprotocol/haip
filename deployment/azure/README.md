@@ -53,3 +53,5 @@ HAIP_ANCHOR_INDEPENDENT_ADMIN=true
 ## Live proof
 
 Real acceptance must show conditional add-only creation, an exact version read, inherited Locked retention for at least 90 days in both containers, a legal hold on every safety record, safe duplicate recovery and refusal on conflicting, extra or deleted versions. It must also show the denied runtime operations listed above and prove that the checkpoint and safety container names differ. The local suite uses the Azure SDK with a fixture transport to exercise the upload acknowledgement and listing. A disagreement records an incident and blocks both new claims and fresh admission for existing claims. Live provider and role evidence remain required.
+
+The [immutable storage adapter](../adapters/README.md#azure-storage) reads the deployed policies as a scoped Azure CLI Reader and reads the pinned checkpoint and safety versions as the runtime. It checks the required retention and legal hold and looks for enabled lifecycle deletion rules that can match the safety container.

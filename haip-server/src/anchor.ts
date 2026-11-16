@@ -5,8 +5,9 @@ import { canonicalise, digestBytes, parseJson, verifyRecord } from '@haip/protoc
 import type { SignedRecord, TrustManifest } from '@haip/protocol';
 import { requireThat } from './errors.js';
 
-const minimumRetention = (record: SignedRecord) =>
-  Date.parse(record.protected.issued_at) + 90 * 86400000;
+export const minimumAnchorRetentionDays = 90;
+export const minimumAnchorRetention = (record: SignedRecord) =>
+  Date.parse(record.protected.issued_at) + minimumAnchorRetentionDays * 86400000;
 const maximumRecordBytes = 64 * 1024;
 
 export interface AnchorAcceptance {
@@ -21,6 +22,73 @@ export interface AnchorStore {
   accept(record: SignedRecord): Promise<AnchorAcceptance>;
   history(ledger: string, generation: string): Promise<{ sequence: number; head: string }[]>;
 }
+
+export async function listAzureVersions(
+  container: ContainerClient,
+  prefix: string,
+  { maxVersions = Infinity, abortSignal }: { maxVersions?: number; abortSignal?: AbortSignal } = {},
+) {
+  const versions = [],
+    names = new Set<string>();
+  for await (const item of container.listBlobsFlat({
+    prefix,
+    abortSignal,
+    includeVersions: true,
+    includeSnapshots: true,
+    includeDeleted: true,
+    includeDeletedWithVersions: true,
+  })) {
+    requireThat(
+      !item.deleted && !item.hasVersionsOnly && item.isCurrentVersion === true,
+      503,
+      'anchor_deleted_version',
+    );
+    requireThat(
+      item.versionId && !item.snapshot && !names.has(item.name) && versions.length < maxVersions,
+      503,
+      'anchor_version_conflict',
+    );
+    names.add(item.name);
+    versions.push(item);
+  }
+  return versions;
+}
+
+export async function readAzureVersion(
+  container: ContainerClient,
+  key: string,
+  version: string,
+  permanent = false,
+  abortSignal?: AbortSignal,
+) {
+  const blob = container.getBlobClient(key).withVersion(version);
+  const properties = await blob.getProperties({ abortSignal });
+  requireThat(properties.versionId === version, 503, 'anchor_version_conflict');
+  requireThat(
+    properties.immutabilityPolicyMode?.toLowerCase() === 'locked' &&
+      properties.immutabilityPolicyExpiresOn,
+    503,
+    'anchor_retention_invalid',
+  );
+  if (permanent) requireThat(properties.legalHold === true, 503, 'recovery_hold_missing');
+  const { contentLength, etag } = properties;
+  requireThat(
+    typeof contentLength === 'number' &&
+      Number.isSafeInteger(contentLength) &&
+      contentLength > 0 &&
+      contentLength <= maximumRecordBytes &&
+      etag,
+    503,
+    'anchor_history_invalid',
+  );
+  const bytes = await blob.downloadToBuffer(0, contentLength, {
+    ...(abortSignal ? { abortSignal } : {}),
+    conditions: { ifMatch: etag },
+  });
+  requireThat(bytes.length === contentLength && isUtf8(bytes), 503, 'anchor_history_invalid');
+  return { body: bytes.toString('utf8'), retainedUntil: properties.immutabilityPolicyExpiresOn };
+}
+
 /** Optional production backend using policies inherited from its container. */
 export class AzureAnchor implements AnchorStore {
   readonly production = true;
@@ -62,61 +130,11 @@ export class AzureAnchor implements AnchorStore {
   private namespace(ledger: string, generation: string) {
     return `${this.prefix}/${ledger}/${generation}/`;
   }
-  protected async objects(prefix: string) {
-    const versions = [],
-      names = new Set<string>();
-    for await (const item of this.container.listBlobsFlat({
-      prefix,
-      includeVersions: true,
-      includeSnapshots: true,
-      includeDeleted: true,
-      includeDeletedWithVersions: true,
-    })) {
-      requireThat(
-        !item.deleted && !item.hasVersionsOnly && item.isCurrentVersion === true,
-        503,
-        'anchor_deleted_version',
-      );
-      requireThat(
-        item.versionId && !item.snapshot && !names.has(item.name),
-        503,
-        'anchor_version_conflict',
-      );
-      names.add(item.name);
-      versions.push(item);
-    }
-    return versions;
-  }
-  protected async readVersion(key: string, version: string, permanent = false) {
-    const blob = this.container.getBlobClient(key).withVersion(version);
-    const properties = await blob.getProperties();
-    requireThat(properties.versionId === version, 503, 'anchor_version_conflict');
-    requireThat(
-      properties.immutabilityPolicyMode?.toLowerCase() === 'locked' &&
-        properties.immutabilityPolicyExpiresOn,
-      503,
-      'anchor_retention_invalid',
-    );
-    if (permanent) requireThat(properties.legalHold === true, 503, 'recovery_hold_missing');
-    const { contentLength, etag } = properties;
-    requireThat(
-      typeof contentLength === 'number' &&
-        Number.isSafeInteger(contentLength) &&
-        contentLength > 0 &&
-        contentLength <= maximumRecordBytes &&
-        etag,
-      503,
-      'anchor_history_invalid',
-    );
-    const bytes = await blob.downloadToBuffer(0, contentLength, { conditions: { ifMatch: etag } });
-    requireThat(bytes.length === contentLength && isUtf8(bytes), 503, 'anchor_history_invalid');
-    return { body: bytes.toString('utf8'), retainedUntil: properties.immutabilityPolicyExpiresOn };
-  }
   protected async createVersion(key: string, record: SignedRecord, permanent = false) {
     const body = canonicalise(record);
     const length = Buffer.byteLength(body);
     requireThat(length <= maximumRecordBytes, 503, 'anchor_history_invalid');
-    requireThat(minimumRetention(record) > Date.now(), 503, 'anchor_retention_expired');
+    requireThat(minimumAnchorRetention(record) > Date.now(), 503, 'anchor_retention_expired');
     let acknowledgedVersion: string | undefined;
     try {
       const uploaded = await this.container.getBlockBlobClient(key).upload(body, length, {
@@ -130,7 +148,9 @@ export class AzureAnchor implements AnchorStore {
       if (e.statusCode !== 412 && !(e.statusCode === 409 && e.code === 'BlobAlreadyExists'))
         throw error;
     }
-    const versions = (await this.objects(key)).filter((item) => item.name === key);
+    const versions = (await listAzureVersions(this.container, key)).filter(
+      (item) => item.name === key,
+    );
     requireThat(versions.length === 1, 503, 'anchor_version_conflict');
     const version = versions[0]!.versionId!;
     requireThat(
@@ -138,7 +158,7 @@ export class AzureAnchor implements AnchorStore {
       503,
       'anchor_version_conflict',
     );
-    const actual = await this.readVersion(key, version, permanent);
+    const actual = await readAzureVersion(this.container, key, version, permanent);
     if (acknowledgedVersion !== undefined)
       requireThat(actual.body === body, 503, 'anchor_conflict');
     return { ...actual, version };
@@ -167,7 +187,7 @@ export class AzureAnchor implements AnchorStore {
     const stored = await this.createVersion(key, record);
     requireThat(stored.body === canonicalise(record), 503, 'anchor_conflict');
     requireThat(
-      stored.retainedUntil.getTime() >= minimumRetention(record),
+      stored.retainedUntil.getTime() >= minimumAnchorRetention(record),
       503,
       'anchor_retention_invalid',
     );
@@ -181,8 +201,11 @@ export class AzureAnchor implements AnchorStore {
   }
   async history(ledger: string, generation: string) {
     const records = [];
-    for (const item of await this.objects(this.namespace(ledger, generation))) {
-      const actual = await this.readVersion(item.name, item.versionId!);
+    for (const item of await listAzureVersions(
+      this.container,
+      this.namespace(ledger, generation),
+    )) {
+      const actual = await readAzureVersion(this.container, item.name, item.versionId!);
       const record = parseJson(actual.body) as SignedRecord;
       const p = record.payload as {
         ledger_id: string;
@@ -213,7 +236,7 @@ export class AzureAnchor implements AnchorStore {
         throw new Error('anchor_history_invalid');
       }
       requireThat(
-        actual.retainedUntil.getTime() >= minimumRetention(record),
+        actual.retainedUntil.getTime() >= minimumAnchorRetention(record),
         503,
         'anchor_history_invalid',
       );
@@ -242,7 +265,7 @@ export class AzureSafetyStore extends AzureAnchor {
     const record = parseJson(body) as SignedRecord;
     this.verifyFence(key, record);
     requireThat(
-      retainedUntil.getTime() >= minimumRetention(record),
+      retainedUntil.getTime() >= minimumAnchorRetention(record),
       503,
       'anchor_retention_invalid',
     );
@@ -250,10 +273,13 @@ export class AzureSafetyStore extends AzureAnchor {
   }
   async read(key: string): Promise<SignedRecord | undefined> {
     const path = this.key(key),
-      versions = (await this.objects(path)).filter((v) => v.name === path);
+      versions = (await listAzureVersions(this.container, path)).filter((v) => v.name === path);
     if (!versions.length) return undefined;
     requireThat(versions.length === 1, 503, 'anchor_version_conflict');
-    return this.readFence(key, await this.readVersion(path, versions[0]!.versionId!, true));
+    return this.readFence(
+      key,
+      await readAzureVersion(this.container, path, versions[0]!.versionId!, true),
+    );
   }
   async create(key: string, record: SignedRecord): Promise<SignedRecord> {
     const path = this.key(key);
