@@ -1,0 +1,35 @@
+tests/standalone-recovery.test.ts
+  s_08f73032aa8e41::t_eff58a194cd328 4,203-213,222-223,242-244,259
+  s_08f73032aa8e41::t_7cd2e99fd407b6 154-164,224-229,245-258
+haip-server/migrations/010_discarded_notifications.sql
+  s_08f73032aa8e41::t_3ea99d0bc1a955 1-7
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_3ea99d0bc1a955 306-309,330,394-396,448-452
+tests/notifications.test.ts
+  s_08f73032aa8e41::t_eff58a194cd328 213-218,220-229,236,245-255,306-308
+  s_08f73032aa8e41::t_a257c1b3337441 3,256-282,286-291,304-305
+  s_08f73032aa8e41::t_7cd2e99fd407b6 230-235,237-244,283-285,292-303
+  s_08f73032aa8e41::t_105c7eac2ee5e7 219
+haip-server/src/recovery.ts
+  s_08f73032aa8e41::t_3ea99d0bc1a955 196-199
+OPERATIONS.md
+  s_08f73032aa8e41::t_338a11e4170577 77
+  s_08f73032aa8e41::t_75934a689328b0 124
+  s_08f73032aa8e41::t_a257c1b3337441 78,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41155ffcd0f15e8c25b4929e3d46e48d7507eefd",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
