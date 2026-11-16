@@ -53,7 +53,7 @@ For a passing live result, retain a redacted observation of the configured authe
 
 ## Azure storage
 
-Build the exact checkout with `npm run build`. Use the isolated Azure account and containers configured for the acceptance run. The account in the plan's `anchor` component uses provider `Azure Blob Storage` and the actual Azure region. The adapter reads policy through a scoped Azure CLI Reader session and reads signed blobs through the configured HAIP runtime identity. Both credential paths use TLS and the storage endpoints selected from the account name.
+Build the exact checkout with `npm run build`. Use the isolated Azure account and containers configured for the acceptance run. The account in the plan's `anchor` component uses provider `Azure Blob Storage` and the actual Azure region. The adapter selects the reviewed subscription in a scoped Azure CLI Reader session and reads signed blobs through the configured HAIP runtime identity. Both credential paths use TLS and the storage endpoints selected from the account name.
 
 Configure `immutable_storage.command` with these arguments, replacing the paths and removing its `unrun_reason`. Allow 90 seconds for the check.
 

@@ -257,7 +257,6 @@ export async function collectImmutableStorage(
   const credential =
     managementCredential ??
     new AzureCliCredential({
-      tenantId: settings.tenant_id,
       subscription: settings.subscription_id,
       processTimeoutInMs: 10_000,
     });

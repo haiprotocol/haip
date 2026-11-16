@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import { toHttpHeadersLike } from '@azure/core-http-compat';
@@ -309,6 +309,48 @@ test('the Azure check reads exact policies and both signed versions through sepa
   assert.ok(result.observations.policy_etag_digests.safetyPolicy);
   assert.equal(result.observations.safety_policy_days, 91);
   assert.equal(result.observations.safety_container_legal_hold, true);
+});
+
+test('the Azure CLI Reader selects the reviewed subscription', async (t) => {
+  if (process.platform === 'win32')
+    return t.skip('The acceptance runner uses POSIX process groups');
+  const directory = await mkdtemp(join(tmpdir(), 'haip-azure-cli-'));
+  const previousPath = process.env.PATH;
+  try {
+    const fixture = azureFixture();
+    const argumentsPath = join(directory, 'arguments.json');
+    await writeFile(
+      join(directory, 'az'),
+      `#!/usr/bin/env node
+const { writeFileSync } = require('node:fs');
+const args = process.argv.slice(2);
+writeFileSync(${JSON.stringify(argumentsPath)}, JSON.stringify(args));
+if (args.includes('--tenant') && args.includes('--subscription')) process.exit(2);
+process.stdout.write(JSON.stringify({ accessToken: 'fixture-arm-token', expires_on: Math.floor(Date.now() / 1000) + 3600 }));
+`,
+      { mode: 0o700 },
+    );
+    process.env.PATH = `${directory}${delimiter}${previousPath ?? ''}`;
+    const result = await collectImmutableStorage(fixture.plan, fixture.settings, {
+      ...fixture.options,
+      managementCredential: undefined,
+    });
+    assert.equal(result.passed, true);
+    assert.deepEqual(JSON.parse(await readFile(argumentsPath, 'utf8')), [
+      'account',
+      'get-access-token',
+      '--output',
+      'json',
+      '--resource',
+      'https://management.azure.com',
+      '--subscription',
+      fixture.settings.subscription_id,
+    ]);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('only lifecycle rules outside the safety scope or explicitly disabled pass', async () => {
