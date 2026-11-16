@@ -1,0 +1,25 @@
+deployment/managed-authority.md
+  s_08f73032aa8e41::t_1eafd0ff5e3793 3,29
+  s_08f73032aa8e41::t_1cccc36f83a741 30
+tests/managed-http.test.ts
+  s_08f73032aa8e41::t_0f69a0b6b9c9b0 105-107
+  s_08f73032aa8e41::t_83c08593b43563 1-104,108-112
+haip-server/src/store.ts
+  s_08f73032aa8e41::t_ef2e5aa64ea2b6 4,43,115,137-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0baa1037a9abf05dfb43cd421970f8872c86e3e9",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
