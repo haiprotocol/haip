@@ -134,10 +134,15 @@ export class ReviewService {
     if (!rows[0]) throw missing();
     return rows[0];
   }
-  async owned(tx: Tx, p: Principal, id: string, includeMaterial = true): Promise<RequestRow> {
+  async owned(
+    tx: Tx,
+    p: Principal,
+    id: string,
+    access: boolean | 'status' = true,
+  ): Promise<RequestRow> {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw missing();
     const { rows } = await tx.query(
-      `SELECT tenant,id,producer,route,data,retained_bytes,${includeMaterial ? 'material' : 'NULL::jsonb AS material'} FROM haip_requests WHERE tenant=$1 AND id=$2`,
+      `SELECT tenant,id,producer,route,data,retained_bytes,${access === true ? 'material' : 'NULL::jsonb AS material'} FROM haip_requests WHERE tenant=$1 AND id=$2`,
       [p.tenant, id],
     );
     const row: RequestRow | undefined = rows[0];
@@ -145,6 +150,14 @@ export class ReviewService {
     if (p.kind === 'producer' && row.producer === p.id) return row;
     if (p.kind === 'operator') return row;
     if (p.kind === 'human') {
+      const requester = row.data.request.requester;
+      if (
+        access === 'status' &&
+        requester?.subject === p.id &&
+        requester.source === 'operator_directory' &&
+        p.config.identity_certain !== false
+      )
+        return row;
       const route = await this.route(tx, p, row.route);
       if (route.config.reviewers.includes(p.id)) return row;
     }
@@ -276,16 +289,16 @@ export class ReviewService {
   }
   async notifications(
     tx: Tx,
-    p: Principal,
     row: RequestRow,
     now: Date,
-    recipients: string[],
+    recipients: readonly string[],
+    recipientRole: 'reviewer' | 'requester',
   ): Promise<void> {
     if (!this.config.smtp) return;
     for (const id of [...new Set(recipients)]) {
       const { rows } = await tx.query(
         "SELECT config FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
-        [p.tenant, id],
+        [row.tenant, id],
       );
       const c = rows[0]?.config;
       if (!c?.enabled || !c.email_verified || !c.email) continue;
@@ -294,11 +307,13 @@ export class ReviewService {
         "INSERT INTO haip_outbox(id,tenant,producer,request_id,kind,destination,body,created_at) VALUES($1,$2,$3,$4,'smtp',$5,$6,$7)",
         [
           job,
-          p.tenant,
+          row.tenant,
           row.producer,
           row.id,
           c.email,
           JSON.stringify({
+            recipient_id: id,
+            recipient_role: recipientRole,
             subject: 'HAIP review update',
             text: `Review ${row.id}\n${row.data.request.summary}\nDeadline: ${row.data.request.review_deadline}\n${this.config.origin}/review/${row.id}\nSign in to review. This email cannot approve a request.`,
           }),
@@ -403,7 +418,7 @@ export class ReviewService {
         );
         row.data.reminder_at = iso(now);
         const route = await this.route(tx, p, row.route);
-        await this.notifications(tx, p, row, now, route.config.reviewers);
+        await this.notifications(tx, row, now, route.config.reviewers, 'reviewer');
         await this.event(tx, p, row, now, 'reminder');
         await this.save(tx, row);
         return { request_id: id, notification: this.config.smtp ? 'queued' : 'polling-only' };
@@ -418,7 +433,7 @@ export class ReviewService {
       return this.idempotent(tx, p, 'discard:' + id, key, {}, async () => {
         row.data.private_discard_at = iso(now);
         await this.refresh(tx, p, row, now, p);
-        await this.notifications(tx, p, row, now, [row.data.request.requester.subject]);
+        await this.notifications(tx, row, now, [row.data.request.requester.subject], 'requester');
         return this.statusIn(tx, p, row, now);
       });
     });
@@ -453,7 +468,7 @@ export class ReviewService {
   async status(p: Principal, id: string) {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
-      return this.statusIn(tx, p, await this.owned(tx, p, id, false), now, true);
+      return this.statusIn(tx, p, await this.owned(tx, p, id, 'status'), now, true);
     });
   }
   async list(p: Principal, filter: string | undefined, offset = 0) {
@@ -1020,7 +1035,7 @@ export class ReviewService {
       retained_bytes: size,
     };
     await this.event(tx, p, row, now, 'created');
-    await this.notifications(tx, p, row, now, route.config.reviewers);
+    await this.notifications(tx, row, now, route.config.reviewers, 'reviewer');
     await this.save(tx, row);
     return this.statusIn(tx, p, row, now);
   }
@@ -1376,7 +1391,7 @@ export class ReviewService {
             d.request,
           );
           await this.event(tx, p, row, now, 'decision');
-          await this.notifications(tx, p, row, now, [d.request.requester.subject]);
+          await this.notifications(tx, row, now, [d.request.requester.subject], 'requester');
           await this.save(tx, row);
           return receipt;
         },

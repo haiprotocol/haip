@@ -900,7 +900,8 @@ async function app(expectedBundle: AppBinding, candidateBinding: CandidateBindin
       'document',
       'Private material is unavailable. Retained signed records remain available below.',
     );
-    showError(error);
+    if (!(error instanceof Error) || !['not_found', 'material_deleted'].includes(error.message))
+      showError(error);
     return;
   }
   const r = material.request;

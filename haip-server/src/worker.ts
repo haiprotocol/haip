@@ -263,23 +263,32 @@ export class OutboxWorker {
         principal,
       };
     }
-    const directory = (
+    const recipient = (
       await tx.query(
-        "SELECT id,config FROM haip_principals WHERE tenant=$1 AND kind='human' AND config->>'email'=$2 ORDER BY id",
-        [item.tenant, item.destination],
+        `SELECT directory.config, CASE $4::text
+           WHEN 'requester' THEN request.data->'request'->'requester'->>'subject'=directory.id
+           WHEN 'reviewer' THEN EXISTS (
+             SELECT 1 FROM haip_routes route WHERE route.tenant=request.tenant AND route.id=request.route
+               AND route.config->'reviewers' ? directory.id
+           ) ELSE false END AS eligible
+         FROM haip_requests request
+         JOIN haip_principals directory ON directory.tenant=request.tenant AND directory.id=$2 AND directory.kind='human'
+         WHERE request.tenant=$1 AND request.id=$3`,
+        [item.tenant, item.body.recipient_id, item.request_id, item.body.recipient_role],
       )
-    ).rows as { id: string; config: Principal['config'] }[];
+    ).rows[0] as { config: Principal['config']; eligible: boolean } | undefined;
+    const authorised =
+      recipient?.eligible === true &&
+      recipient.config.enabled &&
+      recipient.config.email_verified === true &&
+      recipient.config.email === item.destination;
     return {
-      authorised: directory.some((row) => row.config.enabled && row.config.email_verified === true),
+      authorised,
       revision: digest({
         kind: item.kind,
         destination: item.destination,
         body: digest(item.body),
-        directory: directory.map((row) => ({
-          id: row.id,
-          enabled: row.config.enabled,
-          email_verified: row.config.email_verified === true,
-        })),
+        authorised,
       }),
     };
   }
@@ -295,6 +304,17 @@ export class OutboxWorker {
       if (item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000) {
         await tx.query(
           "UPDATE haip_outbox SET state='failed',error='delivery_window_expired',claim_until=NULL,claim_revision=NULL WHERE id=$1",
+          [item.id],
+        );
+        return;
+      }
+      if (
+        item.kind === 'smtp' &&
+        (typeof item.body?.recipient_id !== 'string' ||
+          !['reviewer', 'requester'].includes(item.body.recipient_role))
+      ) {
+        await tx.query(
+          "UPDATE haip_outbox SET state='failed',error='notification_recipient_unknown',claim_until=NULL,claim_revision=NULL WHERE id=$1",
           [item.id],
         );
         return;
@@ -442,9 +462,13 @@ export class OutboxWorker {
                 : 'expired';
           await this.service.event(tx, principal, row, now, 'anchor_accepted');
           if (row.data.grant_state === 'available')
-            await this.service.notifications(tx, principal, row, now, [
-              row.data.request.requester.subject,
-            ]);
+            await this.service.notifications(
+              tx,
+              row,
+              now,
+              [row.data.request.requester.subject],
+              'requester',
+            );
           await this.service.save(tx, row);
         }
         const remaining = await tx.query(

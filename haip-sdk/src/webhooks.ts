@@ -1,5 +1,13 @@
-import type { SignedRecord, TrustManifest, RequestChangedEvent, Signed } from '@haip/protocol';
+import type {
+  SignedRecord,
+  TrustManifest,
+  RequestChangedEvent,
+  RequestStatus,
+  Signed,
+} from '@haip/protocol';
 import { digest, verifyRecord } from '@haip/protocol/crypto';
+
+const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 export interface WebhookIdentity {
   issuer: string;
@@ -38,7 +46,7 @@ export function verifyWebhook(
   if (
     !p ||
     typeof p.delivery_id !== 'string' ||
-    !/^[a-f0-9-]{36}$/.test(p.delivery_id) ||
+    !uuid.test(p.delivery_id) ||
     !Number.isFinite(Date.parse(p.timestamp)) ||
     p.timestamp !== record.protected.issued_at ||
     Math.abs(now - Date.parse(p.timestamp)) >= 300000
@@ -49,8 +57,10 @@ export function verifyWebhook(
   if (
     event?.type !== 'haip.request.changed' ||
     event.event_id !== p.event_id ||
-    !/^[a-f0-9-]{36}$/.test(event.request_id) ||
-    !/^[a-f0-9-]{36}$/.test(event.event_id) ||
+    typeof event.request_id !== 'string' ||
+    typeof event.event_id !== 'string' ||
+    !uuid.test(event.request_id) ||
+    !uuid.test(event.event_id) ||
     !Number.isSafeInteger(event.revision) ||
     event.revision < 1 ||
     event.status_ref !== identity.issuer + '/v2/requests/' + event.request_id ||
@@ -78,7 +88,9 @@ export class PostgresWebhookInbox {
         CREATE TABLE IF NOT EXISTS haip_status_refresh (
         issuer text NOT NULL, tenant text NOT NULL, producer text NOT NULL, request_id uuid NOT NULL,
         revision bigint NOT NULL, refreshed_revision bigint NOT NULL DEFAULT 0,
-        PRIMARY KEY(issuer,tenant,producer,request_id));`);
+        PRIMARY KEY(issuer,tenant,producer,request_id));
+        CREATE INDEX IF NOT EXISTS haip_status_refresh_pending
+        ON haip_status_refresh(issuer,tenant,producer,request_id) WHERE revision>refreshed_revision;`);
     } finally {
       tx.release();
     }
@@ -122,6 +134,83 @@ export class PostgresWebhookInbox {
       throw error;
     } finally {
       tx.release();
+    }
+  }
+
+  async pendingRefreshes(
+    identity: WebhookIdentity,
+    { after, limit = 50 }: { after?: string; limit?: number } = {},
+  ) {
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      (after !== undefined && (typeof after !== 'string' || !uuid.test(after)))
+    )
+      throw new Error('webhook_refresh_page');
+    const tx = await this.database.connect();
+    try {
+      const { rows } = await tx.query(
+        `SELECT request_id,revision FROM haip_status_refresh
+         WHERE issuer=$1 AND tenant=$2 AND producer=$3 AND revision>refreshed_revision
+           AND ($4::uuid IS NULL OR request_id>$4)
+         ORDER BY request_id LIMIT $5`,
+        [identity.issuer, identity.tenant, identity.producer, after ?? null, limit],
+      );
+      return (rows as { request_id: string; revision: number | string }[]).map((row) => ({
+        requestId: row.request_id,
+        revision: Number(row.revision),
+      }));
+    } finally {
+      tx.release();
+    }
+  }
+
+  /** Record the revision returned by an authenticated status read. The observation grants no execution authority. */
+  async refreshStatus(
+    identity: WebhookIdentity,
+    requestId: string,
+    client: { readonly origin: string; status(id: string): Promise<RequestStatus> },
+  ): Promise<RequestStatus | undefined> {
+    if (client.origin !== identity.issuer) throw new Error('webhook_status_origin');
+    if (typeof requestId !== 'string' || !uuid.test(requestId))
+      throw new Error('webhook_status_request');
+    const key = [identity.issuer, identity.tenant, identity.producer, requestId];
+    const lookup = await this.database.connect();
+    let expected: number;
+    try {
+      const { rows } = await lookup.query(
+        `SELECT revision FROM haip_status_refresh
+         WHERE issuer=$1 AND tenant=$2 AND producer=$3 AND request_id=$4 AND revision>refreshed_revision`,
+        key,
+      );
+      if (!rows[0]) return;
+      expected = Number(rows[0].revision);
+    } finally {
+      lookup.release();
+    }
+    const status = await client.status(requestId);
+    if (
+      status?.request?.id !== requestId ||
+      status.request.tenant !== identity.tenant ||
+      status.request.producer !== identity.producer ||
+      status.request_digest !== digest(status.request) ||
+      !Number.isSafeInteger(status.revision) ||
+      status.revision < expected
+    )
+      throw new Error('webhook_status_mismatch');
+
+    const progress = await this.database.connect();
+    try {
+      const updated = await progress.query(
+        `UPDATE haip_status_refresh SET refreshed_revision=$5
+         WHERE issuer=$1 AND tenant=$2 AND producer=$3 AND request_id=$4
+           AND refreshed_revision<$5 AND revision<=$5`,
+        [...key, status.revision],
+      );
+      return updated.rowCount ? status : undefined;
+    } finally {
+      progress.release();
     }
   }
 }

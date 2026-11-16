@@ -237,32 +237,33 @@ export function installAuth(
         return rows[0];
       });
     } else {
-      const pagePath = new URL(req.originalUrl, config.origin).pathname;
       const token = cookie(req, '__Host-haip');
-      if (
-        !token &&
-        req.method === 'GET' &&
-        (/^\/review\/[a-f0-9-]{36}$/.test(pagePath) || pagePath === '/inbox')
-      ) {
-        res.redirect('/auth/login?return_to=' + encodeURIComponent(pagePath));
-        return;
+      const session = token
+        ? await store.read(async (tx) => {
+            const { rows } = await tx.query<{ data: HumanSession }>(
+              'SELECT data FROM haip_sessions WHERE token_hash=$1 AND expires_at>clock_timestamp()',
+              [digestBytes(token)],
+            );
+            const data = rows[0]?.data;
+            if (!data?.id || !data.tenant) return;
+            const { rows: users } = await tx.query<Principal>(
+              "SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
+              [data.tenant, data.id],
+            );
+            const user = users[0];
+            requireThat(user?.config.enabled, 401, 'unauthenticated');
+            return { user, data };
+          })
+        : undefined;
+      if (!session && req.method === 'GET') {
+        const pagePath = new URL(req.originalUrl, config.origin).pathname;
+        if (/^\/review\/[a-f0-9-]{36}$/.test(pagePath) || pagePath === '/inbox') {
+          res.redirect('/auth/login?return_to=' + encodeURIComponent(pagePath));
+          return;
+        }
       }
-      requireThat(token, 401, 'unauthenticated');
-      const { user, data } = await store.read(async (tx) => {
-        const { rows } = await tx.query<{ data: HumanSession }>(
-          'SELECT data FROM haip_sessions WHERE token_hash=$1 AND expires_at>clock_timestamp()',
-          [digestBytes(token)],
-        );
-        const data = rows[0]?.data;
-        requireThat(data?.id && data.tenant, 401, 'unauthenticated');
-        const { rows: users } = await tx.query<Principal>(
-          "SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
-          [data.tenant, data.id],
-        );
-        const user = users[0];
-        requireThat(user?.config.enabled, 401, 'unauthenticated');
-        return { user, data };
-      });
+      requireThat(session, 401, 'unauthenticated');
+      const { user, data } = session;
       req.principal = user;
       req.humanSession = data;
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {

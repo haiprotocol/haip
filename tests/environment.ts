@@ -189,8 +189,11 @@ export async function environment({
     }
     throw new Error('Outbox did not settle');
   }
-  async function login(subject = 'reviewer') {
-    const first = await fetch(origin + '/auth/login', { redirect: 'manual' });
+  async function login(subject = 'reviewer', { path = '/auth/login', previousCookie = '' } = {}) {
+    const first = await fetch(origin + path, {
+      redirect: 'manual',
+      ...(previousCookie ? { headers: { Cookie: previousCookie } } : {}),
+    });
     const cookie = first.headers.getSetCookie()[0]!.split(';')[0]!;
     const url = new URL(first.headers.get('location')!);
     const signIn = await fetch(url.origin + '/authorize', {
@@ -201,7 +204,7 @@ export async function environment({
     });
     const callback = await fetch(signIn.headers.get('location')!, {
       redirect: 'manual',
-      headers: { Cookie: cookie },
+      headers: { Cookie: [cookie, previousCookie].filter(Boolean).join('; ') },
     });
     if (callback.status !== 302)
       throw new Error('OIDC callback ' + callback.status + ': ' + (await callback.text()));
@@ -215,6 +218,7 @@ export async function environment({
     return {
       cookie: sessionCookie,
       csrf: session.csrf,
+      returnTo: callback.headers.get('location'),
       async call(path: string, body?: unknown, headers: Record<string, string> = {}) {
         const response = await fetch(origin + path, {
           method: body === undefined ? 'GET' : 'POST',
