@@ -69,6 +69,20 @@ Set `runtime_credential` to `managed_identity` when the configured user-assigned
 
 The adapter issues management GET requests and blob lists, properties and pinned reads. It requires versioning, the two locked policies, the safety legal hold and at least 90 days of locked retention from each signed issue time. An enabled lifecycle deletion rule with no prefix, or with any prefix that can match the safety container, fails the check. Review the resulting private file and its digest alongside the writer permissions and independent administration evidence. The file records the plan and settings digests, policy ETag digests when returned, exact version digests and retention times. [Azure policy API](https://learn.microsoft.com/en-us/rest/api/storagerp/blob-containers/get-immutability-policy?view=rest-storagerp-2025-08-01) [Azure lifecycle scope](https://learn.microsoft.com/en-us/azure/storage/blobs/lifecycle-management-policy-faq)
 
+## Azure writer
+
+Configure `writer_permissions.command` on the approved isolated deployment with these arguments. Allow 240 seconds and remove the check's `unrun_reason`.
+
+```sh
+node deployment/adapters/azure-writer-permissions.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/storage.json
+```
+
+Use the same settings and pinned originals as the immutable storage check. Add a fresh `writer_probe_id` UUID for each approved run. For `managed_identity`, add `runtime_identity_resource_id` from the Bicep output and give the Azure CLI Reader access to inspect that resource as well as the storage scopes and their role definitions. A `client_secret` principal reads its own identity in Microsoft Graph and must belong to the deployment's tenant. Set the plan's `independent_administration_asserted` after that administration has been verified. Recalculate `plan_digest` after adding the command to the final plan. [Read a service principal](https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get?view=graph-rest-1.0)
+
+The preflight resolves the exact runtime principal, checks the effective role assignments at and above both evidence containers and follows the provider's pagination. It includes inherited and group grants returned by Azure. Assignments must be scoped to the two evidence containers and limited to blob add and read. The immutable storage preflight also checks the deployed policies and exact signed originals before a canary is written. An administrator must independently check the scope and any delegated access outside the role listing. [Azure role listing](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-assignments-list-rest)
+
+Each run creates two small blobs under `haip-acceptance/writer-probes/`, one per container. They are retained by the tested policies. Record their expected retention and cost before authorising the probe. The adapter repeats the conditional create, tries to replace and delete the exact synthetic versions, and rereads them after the denials. Blob hold and retention probes target the checkpoint canary. The management probes use the already configured private access values, a hold tag confirmed absent and an unused policy ETag. An unexpected success stops the exercise, and an account key response body is discarded. A passing result includes the same assignment digests before and after the probes. [Clear Legal Hold](https://learn.microsoft.com/en-us/rest/api/storagerp/blob-containers/clear-legal-hold?view=rest-storagerp-2025-08-01) [Extend Immutability Policy](https://learn.microsoft.com/en-us/rest/api/storagerp/blob-containers/extend-immutability-policy?view=rest-storagerp-2025-08-01)
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.

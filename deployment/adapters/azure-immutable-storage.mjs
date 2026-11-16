@@ -1,10 +1,5 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  AzureCliCredential,
-  ClientSecretCredential,
-  ManagedIdentityCredential,
-} from '@azure/identity';
 import { BlobServiceClient } from '@azure/storage-blob';
 import { parseJson, verifyRecord } from '@haip/protocol/crypto';
 import {
@@ -20,43 +15,38 @@ import {
   readJsonDocument,
   sha256,
 } from './evidence.mjs';
+import {
+  armUrl,
+  azureReader,
+  azureRequest,
+  azureToken,
+  boundedJson,
+  managementOrigin,
+  matches,
+  regionName,
+  runtimeIdentity,
+  sameId,
+  storageTarget,
+  storageVersion,
+  uuidPattern,
+} from './azure-acceptance.mjs';
 
 const checkId = 'immutable_storage';
-const managementOrigin = 'https://management.azure.com';
-const apiVersion = '2025-08-01';
-const maximumResponseBytes = 1024 * 1024;
-const uuidPattern = '[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}';
-const uuid = new RegExp(`^${uuidPattern}$`, 'i');
 const checkpointPath = new RegExp(`^(${uuidPattern})/(${uuidPattern})/([0-9]{16})\\.json$`);
 const safetyPath = /^safety\/([a-f0-9]{64})\.json$/;
 const digest = /^sha256:[a-f0-9]{64}$/;
-const matches = (pattern, value) => typeof value === 'string' && pattern.test(value);
-const regionName = (value) =>
-  typeof value === 'string' && value.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 function settingsFor(plan, settings) {
   const deployment = plan.deployment;
-  const component = deployment.components.find((item) => item.kind === 'anchor');
-  const { account, resource_group, subscription_id, tenant_id, runtime_client_id } = settings;
-  const { anchor_prefix, runtime_credential, trust_manifest } = settings;
+  const target = storageTarget(plan, settings);
+  const { anchor_prefix, trust_manifest } = settings;
   const { checkpoint, safety } = settings;
   if (
-    component?.provider !== 'Azure Blob Storage' ||
-    component.identity_label !== deployment.runtime_identity_label ||
-    !regionName(component.region) ||
-    !matches(/^[a-z0-9]{3,24}$/, account) ||
-    !matches(/^[a-zA-Z0-9_.()-]{1,90}$/, resource_group) ||
-    resource_group.endsWith('.') ||
-    ![subscription_id, tenant_id, runtime_client_id].every((value) => matches(uuid, value)) ||
-    !matches(/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/, anchor_prefix) ||
-    anchor_prefix.length > 200 ||
-    !['managed_identity', 'client_secret'].includes(runtime_credential) ||
     trust_manifest?.issuer !== deployment.trusted_origin ||
     trust_manifest?.protocol_revision !== deployment.protocol_revision ||
     !Array.isArray(trust_manifest?.keys) ||
     trust_manifest.keys.length < 1 ||
-    trust_manifest.keys.length > 128 ||
-    checkpoint?.container === safety?.container
+    trust_manifest.keys.length > 128
   )
     throw new Error('Invalid Azure storage acceptance settings');
   for (const [sample, path] of [
@@ -64,8 +54,6 @@ function settingsFor(plan, settings) {
     [safety, safetyPath],
   ]) {
     if (
-      !matches(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, sample?.container) ||
-      sample.container.includes('--') ||
       typeof sample.key !== 'string' ||
       !sample.key.startsWith(`${anchor_prefix}/`) ||
       !matches(path, sample.key.slice(anchor_prefix.length + 1)) ||
@@ -74,47 +62,18 @@ function settingsFor(plan, settings) {
     )
       throw new Error('Invalid exact version sample');
   }
-  return {
-    accountId: `/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Storage/storageAccounts/${account}`,
-    origin: `https://${account}.blob.core.windows.net`,
-    component,
-  };
-}
-
-function runtimeIdentity(settings, env) {
-  const { runtime_client_id, runtime_credential, tenant_id } = settings;
-  if (runtime_credential === 'managed_identity')
-    return new ManagedIdentityCredential(runtime_client_id);
-  const secret = env.HAIP_ACCEPTANCE_AZURE_RUNTIME_CLIENT_SECRET;
-  if (!secret) throw new Error('Runtime client secret is required');
-  return new ClientSecretCredential(tenant_id, runtime_client_id, secret);
+  return target;
 }
 
 async function managementResponse(id, token, request) {
   try {
-    const response = await request(`${managementOrigin}${id}?api-version=${apiVersion}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await azureRequest(armUrl(id), token, request);
     if (response.status !== 200 && response.status !== 404) {
       await response.body?.cancel();
       return { status: response.status };
     }
-    const chunks = [];
-    let size = 0;
-    for await (const chunk of response.body ?? []) {
-      size += chunk.length;
-      if (size > maximumResponseBytes) throw new Error('Management response exceeds limit');
-      chunks.push(chunk);
-    }
-    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    const reportedId = body?.id;
-    const bound =
-      response.status === 200 &&
-      typeof reportedId === 'string' &&
-      reportedId.toLowerCase() === id.toLowerCase();
+    const body = await boundedJson(response);
+    const bound = response.status === 200 && sameId(body?.id, id);
     const etag = response.headers.get('etag') ?? body?.etag;
     return {
       status: response.status,
@@ -244,7 +203,10 @@ export async function collectImmutableStorage(
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0')
     throw new Error('TLS verification is required');
   const now = new Date();
-  const { accountId, origin, component } = settingsFor(plan, settings);
+  const { accountId, origin, component, serviceId, checkpointId, safetyId } = settingsFor(
+    plan,
+    settings,
+  );
   const { checkpoint, safety } = settings;
   const storage = new BlobServiceClient(
     origin,
@@ -254,34 +216,21 @@ export async function collectImmutableStorage(
       httpClient: blobHttpClient,
     },
   );
-  const credential =
-    managementCredential ??
-    new AzureCliCredential({
-      subscription: settings.subscription_id,
-      processTimeoutInMs: 10_000,
-    });
-  const token = await credential.getToken(`${managementOrigin}/.default`, {
-    abortSignal: AbortSignal.timeout(15_000),
-  });
-  if (!token?.token) throw new Error('Azure Resource Manager reader authentication failed');
-
-  const service = `${accountId}/blobServices/default`;
-  const checkpointContainer = `${service}/containers/${checkpoint.container}`;
-  const safetyContainer = `${service}/containers/${safety.container}`;
+  const token = await azureToken(managementCredential ?? azureReader(settings), managementOrigin);
   const paths = {
     account: accountId,
-    service,
-    checkpoint: checkpointContainer,
-    safety: safetyContainer,
-    checkpointPolicy: `${checkpointContainer}/immutabilityPolicies/default`,
-    safetyPolicy: `${safetyContainer}/immutabilityPolicies/default`,
+    service: serviceId,
+    checkpoint: checkpointId,
+    safety: safetyId,
+    checkpointPolicy: `${checkpointId}/immutabilityPolicies/default`,
+    safetyPolicy: `${safetyId}/immutabilityPolicies/default`,
     lifecycle: `${accountId}/managementPolicies/default`,
   };
   const responses = Object.fromEntries(
     await Promise.all(
       Object.entries(paths).map(async ([name, id]) => [
         name,
-        await managementResponse(id, token.token, request),
+        await managementResponse(id, token, request),
       ]),
     ),
   );
@@ -354,7 +303,7 @@ export async function collectImmutableStorage(
       account_digest: sha256(accountId),
       runtime_client_digest: sha256(settings.runtime_client_id),
       anchor_revision: component.revision,
-      storage_api_version: apiVersion,
+      storage_api_version: storageVersion,
       checkpoint_policy_days: policyDays(responses.checkpointPolicy.properties),
       safety_policy_days: policyDays(responses.safetyPolicy.properties),
       safety_container_legal_hold: safetyProperties?.hasLegalHold === true,
