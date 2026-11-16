@@ -1,0 +1,35 @@
+deployment/azure/main.bicep
+  s_08f73032aa8e41::t_375dab6c019291 37-38,133,153
+haip-server/src/anchor.ts
+  s_08f73032aa8e41::t_375dab6c019291 71,95-96
+tests/authority.test.ts
+  s_08f73032aa8e41::t_375dab6c019291 252
+  s_08f73032aa8e41::t_2062d971c9f693 253-256
+tests/azure-anchor.test.ts
+  s_08f73032aa8e41::t_375dab6c019291 58,61,78,116,141,143-145,156-158
+deployment/README.md
+  s_08f73032aa8e41::t_375dab6c019291 25
+deployment/acceptance.md
+  s_08f73032aa8e41::t_375dab6c019291 80,84
+tests/deployment-assets.test.ts
+  s_08f73032aa8e41::t_375dab6c019291 374
+  s_08f73032aa8e41::t_2062d971c9f693 375-378
+deployment/azure/README.md
+  s_08f73032aa8e41::t_375dab6c019291 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c94669cb7f153a57102d88f1fdd78d6ac8969363",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
