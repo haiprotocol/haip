@@ -1,0 +1,28 @@
+deployment/neon/roles.sql
+  s_08f73032aa8e41::t_20ffa5af743252 1-32,34-52
+  s_08f73032aa8e41::t_430cdf8d99429d 33
+deployment/neon/README.md
+  s_08f73032aa8e41::t_20ffa5af743252 1-2,4-9
+  s_08f73032aa8e41::t_b251600e830caf 3
+tests/neon-roles.test.ts
+  s_08f73032aa8e41::t_430cdf8d99429d 1-35,40-41,46-56,63-65,69-80
+  s_08f73032aa8e41::t_0c7ef22b5bdaff 36-39,42-45,57-62,66-68
+deployment/vercel-neon.md
+  s_08f73032aa8e41::t_fa4969bf8b358f 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da921797283cc057958b757749407cc4d72b1fd4",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
