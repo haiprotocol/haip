@@ -75,7 +75,7 @@ npm run demo
 
 The demo starts a temporary database, local sign-in and filesystem checkpoint fixture. It prints its localhost URL and temporary test credentials. Use the [HTTP walkthrough](examples/http/README.md) to submit a review and sign in as `reviewer`. Stop the demo with Ctrl-C to clear its database and keys. The [development container guide](deployment/development.md) covers the Docker/Compose setup.
 
-The [local Dex test](deployment/adapters/README.md#local-fixtures) runs a separate OIDC provider with Caddy, PostgreSQL and Chromium on one machine. It exercises the browser sign-in and directory checks over HTTPS without a hosted identity account.
+Run the [local deployment rehearsal](deployment/README.md#local-use) to exercise browser sign-in over HTTPS, notification delivery, encrypted database restoration and restart recovery on one machine.
 
 Build with `npm run build`, provide explicit database, signing, trust, OIDC and separate sandbox-origin configuration, then run `npm run start -w @haip/server`. There are no default identities or approval credentials. The local bootstrap command creates an operator, who configures humans, producers, publishers and routes through the administration API. See [operations](OPERATIONS.md) for the exact configuration.
 

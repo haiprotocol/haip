@@ -4,7 +4,17 @@ These files are reviewed examples for the HAIP reference service. They do not in
 
 ## Local use
 
-Run the [local demonstration](../README.md#reference-service) for the API, reviewer sign-in, isolated Agent UI and signed receipts. `npm run check` also exercises local SMTP and HTTPS delivery and the built backup and recovery commands against PostgreSQL with verified TLS. The restart test uses disposable data and keeps signed checkpoint and safety records in a local fixture outside the database backup.
+Run the [local demonstration](../README.md#reference-service) for the API, reviewer sign-in, isolated Agent UI and signed receipts. For the deployment rehearsal, use Node 24 and PostgreSQL 17 on macOS or Linux. Put Caddy, Dex, OpenSSL, `htpasswd`, `promtool`, `prometheus` and `alertmanager` on `PATH`. Run these commands from the repository root:
+
+```sh
+npm ci
+npx playwright install chromium
+npm run check:local
+```
+
+The rehearsal runs the reference suite with the Caddy proxy, adds browser sign-in against a local Dex issuer and exercises Prometheus rules and Alertmanager delivery. It uses temporary certificates and loopback services. The reference suite tests local SMTP and HTTPS delivery and runs the built backup and recovery commands against PostgreSQL with verified TLS. Signed checkpoint and safety records live in a disposable fixture outside the database backup.
+
+Set `HAIP_TEST_PG_BIN` for a non-default PostgreSQL installation. `HAIP_TEST_CADDY`, `HAIP_TEST_DEX` and `HAIP_TEST_CHROMIUM` can select installed binaries. Once the dependencies are installed, the rehearsal needs no provider account. Production acceptance still needs proof of storage retention and writer restrictions under independent administration. See [deployment acceptance](acceptance.md).
 
 ## Managed hosting
 

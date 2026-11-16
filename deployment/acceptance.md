@@ -1,6 +1,6 @@
 # Deployment acceptance
 
-Status: **unrun**. Local evidence is recorded in [`ACCEPTANCE.md`](../ACCEPTANCE.md). Real acceptance needs an approved isolated deployment, independently administered storage and a real identity application. This record does not authorise a cloud resource, subscription, deployment or other provider mutation.
+Production acceptance is **unrun**. Use the [local deployment rehearsal](README.md#local-use) to exercise the service on one machine. [`ACCEPTANCE.md`](../ACCEPTANCE.md) maps the local evidence to the release requirements. Production acceptance needs an isolated deployment with independently administered immutable storage, its own identity application and verified HTTPS origins.
 
 Record the exact source commit, service artifact digest, protocol and configuration revisions, provider regions, role labels, identity application revision, UTC times and digests of original evidence. Keep secrets, tokens, cookies, private keys, database URLs and private review material out of the evidence collection.
 
