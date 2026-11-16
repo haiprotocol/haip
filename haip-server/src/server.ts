@@ -14,7 +14,6 @@ import { registerPrincipal, registerRoute } from './admin.js';
 import { ProtocolError, requireThat } from './errors.js';
 import { Metrics, prometheus } from './metrics.js';
 import { validate } from './validation.js';
-import { requireBoundBundle } from './bundle.js';
 import { principalRateKey, requestRateLimit, type RequestLimiter } from './rate-limit.js';
 import { createViewBootstrap } from './sandbox-app.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -219,17 +218,8 @@ export function createApp(
   );
   app.get('/v2/requests/:id/app', principalAdmission, async (req, res) => {
     human(req);
-    const data = await service.material(req.principal, pathId(req));
-    const bundle = data.request.review.bundle;
-    requireThat(bundle, 404, 'not_found');
-    const found = (
-      await service.store.pool.query(
-        'SELECT html,manifest FROM haip_bundles WHERE tenant=$1 AND id=$2 AND publisher=$3',
-        [req.principal.tenant, bundle.id, bundle.publisher],
-      )
-    ).rows[0];
-    requireBoundBundle(found, req.principal.tenant, bundle);
-    const scope = bundleScope(req.principal.tenant, bundle);
+    const { material: data, bundle } = await service.appMaterial(req.principal, pathId(req));
+    const scope = bundleScope(req.principal.tenant, bundle.manifest);
     requireThat(
       Buffer.byteLength(JSON.stringify(data.payload)) <= data.request.limits.inline_result_bytes,
       413,
@@ -241,8 +231,7 @@ export function createApp(
       content: [{ type: 'text', text: 'Stored review payload' }],
       structuredContent: { payload: data.payload },
     };
-    // The identity below is what the host verifies and the View is shown. Every value is
-    // bound by binding_digest; the snapshots are committed by their own digests.
+    // The host verifies the identity shown to the View through binding_digest. Each snapshot has its own digest.
     const identity = {
       profile: AGENT_UI_PROFILE,
       protocol_revision: data.request.protocol_revision,
@@ -254,10 +243,10 @@ export function createApp(
         supersedes: data.request.supersedes ?? null,
       },
       bundle: {
-        id: found.manifest.id,
-        publisher: found.manifest.publisher,
-        digest: found.manifest.digest,
-        created_at: found.manifest.created_at,
+        id: bundle.manifest.id,
+        publisher: bundle.manifest.publisher,
+        digest: bundle.manifest.digest,
+        created_at: bundle.manifest.created_at,
       },
       source: {
         tenant: req.principal.tenant,
@@ -270,7 +259,7 @@ export function createApp(
     res.json({
       ...identity,
       binding_digest: digest(identity),
-      html: found.html,
+      html: bundle.html,
       origin,
       scope,
       input,
@@ -352,14 +341,15 @@ export function createApp(
   );
   app.get('/v2/admin/ledger', principalAdmission, async (req, res) => {
     requireThat(req.principal.kind === 'operator', 403, 'operator_required');
-    res.json(
-      (
-        await service.store.pool.query(
-          'SELECT * FROM haip_audit WHERE tenant=$1 AND sequence>$2 ORDER BY sequence LIMIT 100',
-          [req.principal.tenant, offset(req.query.after)],
-        )
-      ).rows,
-    );
+    const ledger = await service.store.read(async (tx) => {
+      await service.principal(tx, req.principal);
+      const { rows } = await tx.query(
+        'SELECT * FROM haip_audit WHERE tenant=$1 AND sequence>$2 ORDER BY sequence LIMIT 100',
+        [req.principal.tenant, offset(req.query.after)],
+      );
+      return rows;
+    });
+    res.json(ledger);
   });
   app.get('/v2/admin/metrics', principalAdmission, async (req, res) =>
     res.json(await metrics.snapshot(service, req.principal)),

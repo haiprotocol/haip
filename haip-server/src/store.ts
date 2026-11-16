@@ -106,11 +106,16 @@ export class Store {
       tx.release(discard);
     }
   }
-  async transaction<T>(tenant: string, fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {
-    const ids = new Set<string>();
-    const result = await this.inTransaction('BEGIN', async (tx) => {
+  async write<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    return this.inTransaction('BEGIN', async (tx) => {
       await tx.query("SET LOCAL lock_timeout = '10s'");
       await tx.query("SET LOCAL statement_timeout = '30s'");
+      return fn(tx);
+    });
+  }
+  async transaction<T>(tenant: string, fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {
+    const ids = new Set<string>();
+    const result = await this.write(async (tx) => {
       await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [tenant]);
       const { rows } = await tx.query('SELECT clock_timestamp() AS now');
       if (this.dispatchOutbox) this.outbox.set(tx, ids);

@@ -77,6 +77,7 @@ export class OutboxWorker {
       'fixture_transport_forbidden',
     );
   }
+  /** Standalone startup checks the existing process owner before opening listeners. */
   async reconcile(): Promise<void> {
     const { service: s } = this;
     this.maintenanceCursors.clear();
@@ -115,43 +116,52 @@ export class OutboxWorker {
         });
     }
   }
+  private async stampOperation(tenant: string, name: string, result: 'succeeded_at' | 'failed_at') {
+    await this.service.store.write((tx) =>
+      tx.query(
+        `INSERT INTO haip_tenant_operations(tenant,name,${result}) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET ${result}=EXCLUDED.${result}`,
+        [tenant, name],
+      ),
+    );
+  }
   private async operation<T>(tenant: string, name: string, run: () => Promise<T>): Promise<T> {
     try {
       const result = await run();
-      await this.service.store.pool.query(
-        'INSERT INTO haip_tenant_operations(tenant,name,succeeded_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET succeeded_at=EXCLUDED.succeeded_at',
-        [tenant, name],
-      );
+      await this.stampOperation(tenant, name, 'succeeded_at');
       return result;
     } catch (error) {
       // A database outage may also prevent this stamp; alerts additionally check last success.
-      await this.service.store.pool
-        .query(
-          'INSERT INTO haip_tenant_operations(tenant,name,failed_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET failed_at=EXCLUDED.failed_at',
-          [tenant, name],
-        )
-        .catch(() => {});
+      await this.stampOperation(tenant, name, 'failed_at').catch(() => {});
       throw error;
     }
   }
+  private async allTenants() {
+    return this.service.store.read(async (tx) => {
+      const { rows } = await tx.query<{ id: string }>('SELECT id FROM haip_tenants ORDER BY id');
+      return rows;
+    });
+  }
   async tick(): Promise<number> {
     let completed = 0;
-    for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
-      .rows)
+    for (const t of await this.allTenants())
       completed += await this.operation(t.id, 'outbox', () => this.drain(t.id));
     return completed;
   }
 
   async readyJobs(after?: string): Promise<{ ids: string[]; next?: string }> {
-    const { rows } = await this.service.store.pool.query<{ id: string }>(
-      after === undefined
-        ? 'SELECT id FROM haip_tenants ORDER BY id LIMIT 6'
-        : 'SELECT id FROM haip_tenants WHERE id>$1 ORDER BY id LIMIT 6',
-      after === undefined ? [] : [after],
-    );
-    const tenants = rows.slice(0, 5);
-    const items = (await Promise.all(tenants.map(({ id }) => this.readyTenantJobs(id, 10)))).flat();
-    return { ids: items.map(({ id }) => id), ...(rows.length > 5 ? { next: tenants[4]!.id } : {}) };
+    return this.service.store.read(async (tx) => {
+      const { rows } = await tx.query<{ id: string }>(
+        after === undefined
+          ? 'SELECT id FROM haip_tenants ORDER BY id LIMIT 6'
+          : 'SELECT id FROM haip_tenants WHERE id>$1 ORDER BY id LIMIT 6',
+        after === undefined ? [] : [after],
+      );
+      const tenants = rows.slice(0, 5);
+      const ids: string[] = [];
+      for (const tenant of tenants)
+        ids.push(...(await this.readyTenantJobs(tx, tenant.id, 10)).map(({ id }) => id));
+      return { ids, ...(rows.length > 5 ? { next: tenants[4]!.id } : {}) };
+    });
   }
 
   async runJob(id: string): Promise<JobSchedule> {
@@ -161,8 +171,8 @@ export class OutboxWorker {
       'outbox_job_invalid',
     );
     const query = () =>
-      this.service.store.pool
-        .query<{
+      this.service.store.read(async (tx) => {
+        const { rows } = await tx.query<{
           tenant: string;
           kind: OutboxItem['kind'];
           state: string;
@@ -172,8 +182,9 @@ export class OutboxWorker {
           `SELECT tenant,kind,state,GREATEST(next_at,claim_until) AS retry_at,
        GREATEST(next_at,claim_until)<=statement_timestamp() AS ready FROM haip_outbox WHERE id=$1`,
           [id],
-        )
-        .then(({ rows }) => rows[0]);
+        );
+        return rows[0];
+      });
     let item = await query();
     if (item?.state === 'pending') {
       if (item.kind === 'checkpoint' && !this.anchor) return { state: 'unavailable' };
@@ -188,8 +199,8 @@ export class OutboxWorker {
     return { state: 'pending', retry_at: item.retry_at.toISOString() };
   }
 
-  private async readyTenantJobs(tenant: string, limit: number) {
-    const { rows } = await this.service.store.pool.query<{ id: string }>(
+  private async readyTenantJobs(tx: Tx, tenant: string, limit: number) {
+    const { rows } = await tx.query<{ id: string }>(
       `SELECT id FROM haip_outbox WHERE tenant=$1 AND state='pending'
          AND GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz))<=statement_timestamp()
          ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"}
@@ -200,7 +211,7 @@ export class OutboxWorker {
   }
 
   private async drain(tenant: string): Promise<number> {
-    const jobs = await this.readyTenantJobs(tenant, 50);
+    const jobs = await this.service.store.read((tx) => this.readyTenantJobs(tx, tenant, 50));
     let completed = 0;
     for (const { id } of jobs) completed += await this.runClaimedJob(tenant, id);
     return completed;
@@ -484,16 +495,17 @@ export class OutboxWorker {
   async cleanup(): Promise<CleanupResult> {
     const result: CleanupResult = { examined: 0, changed: 0, stalled: 0, more: false };
     // Expired sessions belong to the whole service, not to every tenant's request page.
-    const sessions = await this.collect(
-      this.service.store.pool,
-      'haip_sessions',
-      'expires_at<=statement_timestamp()',
-      [],
-      'expires_at,token_hash',
+    const sessions = await this.service.store.write((tx) =>
+      this.collect(
+        tx,
+        'haip_sessions',
+        'expires_at<=statement_timestamp()',
+        [],
+        'expires_at,token_hash',
+      ),
     );
     result.more = (await pruneRequestAdmission(this.service.store.pool)) || sessions.more;
-    for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
-      .rows)
+    for (const t of await this.allTenants())
       await this.operation(t.id, 'retention', async () => {
         for (let page = 0; page < maintenancePageLimit; page++) {
           const swept = await this.sweep(t.id, this.maintenanceCursors.get(t.id));
@@ -642,14 +654,14 @@ export class OutboxWorker {
   }
   /** Only fixed internal table names/expressions reach this helper; values stay parameterised. */
   private async collect(
-    queryable: Pick<Tx, 'query'>,
+    tx: Tx,
     table: CollectionTable,
     where: string,
     values: unknown[],
     order: string,
     update?: string,
   ): Promise<{ changed: number; more: boolean }> {
-    const result = await queryable.query(
+    const result = await tx.query(
       `WITH candidates AS MATERIALIZED (
          SELECT ctid FROM ${table} retained WHERE ${where} ORDER BY ${order}
          LIMIT ${collectionLimit + 1} FOR UPDATE SKIP LOCKED

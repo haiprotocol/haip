@@ -1085,19 +1085,34 @@ export class ReviewService {
     }
     requireThat(valid, 409, 'material_integrity_mismatch');
   }
+  private async readMaterial(tx: Tx, p: Principal, id: string, now: Date) {
+    const row = await this.owned(tx, await this.principal(tx, p), id);
+    this.requireStoredIntegrity(row);
+    this.project(row, now);
+    requireThat(row.material, 410, 'material_deleted');
+    return {
+      request: row.data.request,
+      request_digest: row.data.request_digest,
+      ...row.material,
+      candidate: row.data.candidate ?? null,
+    };
+  }
   async material(p: Principal, id: string) {
+    return this.store.read((tx, now) => this.readMaterial(tx, p, id, now));
+  }
+  async appMaterial(p: Principal, id: string) {
+    requireThat(p.kind === 'human', 403, 'human_required');
     return this.store.read(async (tx, now) => {
-      p = await this.principal(tx, p);
-      const row = await this.owned(tx, p, id);
-      this.requireStoredIntegrity(row);
-      this.project(row, now);
-      requireThat(row.material, 410, 'material_deleted');
-      return {
-        request: row.data.request,
-        request_digest: row.data.request_digest,
-        ...row.material,
-        candidate: row.data.candidate ?? null,
-      };
+      const material = await this.readMaterial(tx, p, id, now);
+      const binding = material.request.review.bundle;
+      requireThat(binding, 404, 'not_found');
+      const { rows } = await tx.query<{ html: unknown; manifest: unknown }>(
+        'SELECT html,manifest FROM haip_bundles WHERE tenant=$1 AND id=$2 AND publisher=$3',
+        [p.tenant, binding.id, binding.publisher],
+      );
+      const bundle = rows[0];
+      requireBoundBundle(bundle, p.tenant, binding);
+      return { material, bundle };
     });
   }
   async eligible(tx: Tx, p: Principal, row: RequestRow): Promise<void> {
