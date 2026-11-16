@@ -37,10 +37,30 @@ Header probes alone return `blocked` after successful checks. A live run with a 
 
 The trusted health probe requires the current runtime headers. An unexpected trusted Host must receive 403, 404 or 421 without a redirect. A front-end proxy that closes the connection instead remains a failed probe requiring review. The sandbox probes require the current reference service policy, including its empty connection allowlist and absent network reporting destinations.
 
+## Identity
+
+Use an isolated tenant with a test requester and a distinct reviewer who each have a mapped provider account. Add both to a disposable route with separation of duties enabled. Create a pending review from `examples/http/review.json` with a producer owned by the test requester, and set `metadata.haip_acceptance_fixture` to `external_identity`. The adapter checks the marker, owner and empty candidate slot before attempting a requester proposal. Use a fresh review for each run.
+
+Prepare a private JSON settings file containing `issuer`, `client_id`, `client_auth`, `review_id`, `reviewer` and `requester`. The issuer must be the exact HTTPS issuer. Set `client_auth` to `client_secret_basic` or `client_secret_post` and use HAIP directory principal IDs for the two people. If the service uses OAuth discovery, set `discovery` to `oauth2`. With a disposable third account outside the directory, set `unmapped_account` to `true` to exercise its refusal.
+
+```sh
+node deployment/adapters/external-identity.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/identity.json
+```
+
+Use those arguments in `external_identity.command` and set `timeout_ms` to `900000`. Install Chromium with `npx playwright install chromium` and use a desktop session. Include any required display variables in the plan's `adapter_env`. The adapter opens a new tab for each attempt. Use the reviewer account twice, the requester once and the reviewer for each of the three altered requests. Use the unmapped account if configured, then sign in as the reviewer once more. Each attempt allows 100 seconds. Running the adapter directly displays the prompts in the terminal.
+
+For a passing live result, retain a redacted observation of the configured authentication method at the token endpoint. In the settings file, add a `provider_observation` object containing `source_commit`, `service_artifact_digest`, `configuration_revision`, `identity_revision`, `issuer`, `client_id`, `client_auth`, `digest`, `reference` and `recorded_at`. Copy the identity component's revision from the plan. The digest covers the retained observation, the reference starts with `private-evidence:`, and the timestamp is in UTC. The adapter checks those bindings and the evidence reference. A successful browser run with the token endpoint observation pending reports `blocked`. The files record probe results and digests. Keep credentials, cookies, callback URLs and token contents out of those files and the retained observation.
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.
 
 ```sh
 node deployment/adapters/origins-tls.mjs /private/haip-fixture/plan.json /private/haip-fixture/evidence --fixture-ca /private/haip-fixture/ca.pem
+```
+
+With PostgreSQL 17, Dex, Caddy, OpenSSL and `htpasswd` available locally, the identity test runs both token authentication methods over loopback HTTPS. It uses temporary accounts and a temporary certificate authority. The test observes outbound token exchanges, including refusal of an altered PKCE challenge.
+
+```sh
+HAIP_TEST_DEX=dex HAIP_TEST_CADDY=caddy node --import tsx --test tests/dex-oidc.integration.ts
 ```

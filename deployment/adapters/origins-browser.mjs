@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { chromium } from '@playwright/test';
 import { getDomain } from 'tldts';
-import { validHostSessionCookie } from './origins-tls.mjs';
+import { validHostCookie } from './origins-tls.mjs';
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const fixtureMarker = 'origins_tls';
@@ -123,7 +123,7 @@ export async function collectOriginsBrowser(plan, reviewId, { fixturePins } = {}
       'browser_host_session',
       callback?.status() === 302 &&
         headers.length === 1 &&
-        validHostSessionCookie(headers[0]) &&
+        validHostCookie(headers[0]) &&
         sessions.length === 1 &&
         session.domain === trusted.hostname &&
         session.path === '/' &&

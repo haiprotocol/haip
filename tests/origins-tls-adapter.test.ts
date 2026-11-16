@@ -16,6 +16,7 @@ import { createApp, createSandboxApp } from '../haip-server/src/server.js';
 import type { ReviewService } from '../haip-server/src/service.js';
 import { environment } from './environment.js';
 import { caddyFixture, caddyResponse } from './fixtures/caddy.js';
+import { localCertificates } from './fixtures/certificates.js';
 
 const execute = promisify(execFile);
 const cookie = '__Host-haip=' + 's'.repeat(43);
@@ -56,62 +57,15 @@ async function fixture(
   } = {},
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'haip-origin-tls-'));
-  const caPath = join(directory, 'ca.pem');
-  const keyPath = join(directory, 'server.key');
-  const csrPath = join(directory, 'server.csr');
-  const certPath = join(directory, 'server.pem');
-  const extensionPath = join(directory, 'extensions.cnf');
   let redirects = 0;
   let applications:
     | { trusted: ReturnType<typeof createApp>; sandbox: ReturnType<typeof createSandboxApp> }
     | undefined;
   try {
-    await execute('openssl', [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-keyout',
-      join(directory, 'ca.key'),
-      '-out',
-      caPath,
-      '-days',
-      '1',
-      '-subj',
-      '/CN=HAIP local fixture CA',
+    const { ca, caPath, keyPath, certPath } = await localCertificates(directory, [
+      'DNS:review.trusted.test',
+      'DNS:*.sandbox.test',
     ]);
-    await execute('openssl', [
-      'req',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-keyout',
-      keyPath,
-      '-out',
-      csrPath,
-      '-subj',
-      '/CN=review.trusted.test',
-    ]);
-    await writeFile(extensionPath, 'subjectAltName=DNS:review.trusted.test,DNS:*.sandbox.test\n');
-    await execute('openssl', [
-      'x509',
-      '-req',
-      '-in',
-      csrPath,
-      '-CA',
-      caPath,
-      '-CAkey',
-      join(directory, 'ca.key'),
-      '-CAcreateserial',
-      '-out',
-      certPath,
-      '-days',
-      '1',
-      '-extfile',
-      extensionPath,
-    ]);
-    const ca = await readFile(caPath);
     const service = options.service;
     if (service && process.env.HAIP_TEST_CADDY) {
       const proxy = await caddyFixture(

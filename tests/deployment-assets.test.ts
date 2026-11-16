@@ -399,3 +399,58 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.match(caddy, /frame-ancestors 'none'/);
   assert.doesNotMatch(caddy, /reverse_proxy (?!127\.0\.0\.1)/);
 });
+
+test('identity acceptance refuses token evidence from a different identity revision', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'haip-identity-evidence-'));
+  try {
+    const input = await plan();
+    const identityPath = join(directory, 'identity.json');
+    const planPath = join(directory, 'plan.json');
+    const evidencePath = join(directory, 'evidence');
+    const issuer = 'https://issuer.identity.test';
+    const clientId = 'fixture-client';
+    const clientAuth = 'client_secret_basic';
+    const staleReference = 'private-evidence:stale-provider-observation';
+    await writeFile(planPath, JSON.stringify(input), { mode: 0o600 });
+    await writeFile(
+      identityPath,
+      JSON.stringify({
+        issuer,
+        client_id: clientId,
+        client_auth: clientAuth,
+        review_id: 'd595aaa5-5658-445d-9d52-38fbb93bb881',
+        reviewer: 'fixture-reviewer',
+        requester: 'fixture-requester',
+        provider_observation: {
+          source_commit: input.source.commit,
+          service_artifact_digest: input.deployment.service_artifact_digest,
+          configuration_revision: input.deployment.configuration_revision,
+          identity_revision: 'stale-identity-revision',
+          issuer,
+          client_id: clientId,
+          client_auth: clientAuth,
+          digest: `sha256:${'a'.repeat(64)}`,
+          reference: staleReference,
+          recorded_at: new Date().toISOString(),
+        },
+      }),
+      { mode: 0o600 },
+    );
+    const adapter = join(root, 'deployment/adapters/external-identity.mjs');
+    await assert.rejects(
+      execute(process.execPath, [adapter, planPath, evidencePath, identityPath], { cwd: root }),
+      (error: unknown) => {
+        const failure = error as { code?: number; stdout: string; stderr: string };
+        assert.equal(failure.code, 1);
+        const result = JSON.parse(failure.stdout);
+        assert.equal(result.status, 'failed');
+        assert.deepEqual(result.evidence, []);
+        assert.ok(!`${failure.stdout}${failure.stderr}`.includes(staleReference));
+        return true;
+      },
+    );
+    await assert.rejects(stat(evidencePath), { code: 'ENOENT' });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

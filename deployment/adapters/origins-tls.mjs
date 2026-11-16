@@ -1,16 +1,20 @@
 #!/usr/bin/env node
-import { createHash, randomUUID, X509Certificate } from 'node:crypto';
+import { createHash, X509Certificate } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { constants } from 'node:fs';
-import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { request } from 'node:https';
 import { isIP } from 'node:net';
-import { isAbsolute, dirname, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { checkServerIdentity } from 'node:tls';
 import { fileURLToPath } from 'node:url';
 import { getDomain } from 'tldts';
+import {
+  sha256 as hash,
+  readAcceptancePlan,
+  privateDirectory,
+  privateEvidence,
+} from './evidence.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const maximumBytes = 1024 * 1024;
 const scopeA = 'a'.repeat(64);
 const scopeB = 'b'.repeat(64);
@@ -30,18 +34,15 @@ const securityHeaders = [
   'reporting-endpoints',
   'report-to',
 ];
-const hash = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-const inside = (directory, path) => {
-  const local = relative(directory, path);
-  return local === '' || (local !== '..' && !local.startsWith(`..${sep}`) && !isAbsolute(local));
-};
 const errorCode = (error) =>
   /^[A-Z0-9_]{1,80}$/.test(error?.code ?? '') ? error.code : 'PROBE_ERROR';
 const assertion = (name, passed, detail) => ({ name, passed, detail });
 
-export function validHostSessionCookie(value) {
+export function validHostCookie(value, name = '__Host-haip') {
+  const prefix = `${name}=`;
   return (
-    /^__Host-haip=[a-zA-Z0-9_-]{32,256}(?:;|$)/.test(value) &&
+    value.startsWith(prefix) &&
+    /^[a-zA-Z0-9_-]{32,256}(?:;|$)/.test(value.slice(prefix.length)) &&
     /;\s*Secure(?:;|$)/i.test(value) &&
     /;\s*HttpOnly(?:;|$)/i.test(value) &&
     /;\s*Path=\/(?:;|$)/i.test(value) &&
@@ -337,7 +338,7 @@ async function probe(url, name, options) {
             ),
             session_cookie_attributes_valid: (incoming.headers['set-cookie'] ?? [])
               .filter((value) => value.startsWith('__Host-haip='))
-              .every(validHostSessionCookie),
+              .every((value) => validHostCookie(value)),
           });
         });
       },
@@ -541,39 +542,6 @@ export async function collectOriginsTls(plan, options = {}) {
   };
 }
 
-async function privateDirectory(directory) {
-  if (!isAbsolute(directory)) throw new Error('Evidence directory must be absolute');
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  const info = await lstat(directory);
-  if (!info.isDirectory() || info.isSymbolicLink() || info.mode & 0o077)
-    throw new Error('Evidence directory must be a private directory with mode 0700');
-  const canonical = await realpath(directory);
-  if (inside(await realpath(root), canonical))
-    throw new Error('Evidence must remain outside the repository');
-  return canonical;
-}
-
-async function privateEvidence(directory, document) {
-  const name = `origins-tls-${randomUUID()}.json`;
-  const bytes = Buffer.from(JSON.stringify(document, null, 2) + '\n');
-  const file = await open(
-    resolve(directory, name),
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-    0o600,
-  );
-  try {
-    await file.writeFile(bytes);
-  } finally {
-    await file.close();
-  }
-  return {
-    name: 'origins-tls-probes',
-    digest: hash(bytes),
-    recorded_at: document.recorded_at,
-    reference: `private-evidence:${name}`,
-  };
-}
-
 async function main() {
   const [planPath, evidenceDirectory, ...flags] = process.argv.slice(2);
   const usage =
@@ -596,11 +564,7 @@ async function main() {
     process.env.HAIP_ACCEPTANCE_CHECK_ID !== 'origins_tls'
   )
     throw new Error('This adapter serves origins_tls only');
-  const bytes = await readFile(planPath);
-  if (bytes.length > maximumBytes) throw new Error('Plan exceeds 1 MiB');
-  const plan = JSON.parse(bytes.toString('utf8'));
-  if (plan.document_type !== 'plan' || plan.schema_version !== 'haip.deployment.acceptance.v1')
-    throw new Error('Expected an HAIP deployment acceptance plan');
+  const { plan, digest } = await readAcceptancePlan(planPath);
   const directory = await privateDirectory(evidenceDirectory);
   const reviewId = settings.get('--review-id');
   const caPath = settings.get('--fixture-ca');
@@ -650,9 +614,11 @@ async function main() {
         ? 'The TLS and browser checks completed against a loopback fixture. Deployed origin and identity evidence remains required.'
         : 'The TLS, routing, session and browser boundary checks passed against the isolated deployment.';
   }
-  document.plan_digest = hash(bytes);
+  document.plan_digest = digest;
   document.source_commit = plan.source?.commit ?? null;
-  result.evidence.push(await privateEvidence(directory, document));
+  result.evidence.push(
+    await privateEvidence(directory, 'origins-tls', 'origins-tls-probes', document),
+  );
   process.stdout.write(JSON.stringify(result) + '\n');
 }
 

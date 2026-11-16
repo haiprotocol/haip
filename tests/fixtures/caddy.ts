@@ -103,7 +103,7 @@ export function caddyResponse(url: URL, ca: Buffer) {
           hostname: '127.0.0.1',
           servername: url.hostname,
           port: Number(url.port),
-          path: url.pathname,
+          path: url.pathname + url.search,
           headers: { Host: url.host },
           ca,
           signal: AbortSignal.timeout(5000),
