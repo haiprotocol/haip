@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { SMTPServer } from 'smtp-server';
 import { environment } from './environment.js';
 import { freePort } from './fixtures/postgres.js';
@@ -206,6 +207,102 @@ test('SMTP refuses a transferred address, a removed reviewer and an unbound old 
     );
   } finally {
     await close();
+  }
+});
+
+test('discard sends one owner status link and clears earlier notification copies', async () => {
+  const { env, messages, close } = await mailFixture();
+  try {
+    const requester = 'requester@test.invalid';
+    for (const id of ['reviewer', 'requester'])
+      await env.principal(id, 'human', verifiedHuman(env, id, `${id}@test.invalid`));
+    await env.put('/v2/admin/routes/review', { ...env.route, reviewers: ['reviewer'] });
+    const summary = 'Summary from before discard';
+    const created = await env.api('/v2/requests', env.request(false, { summary }));
+    assert.equal(created.status, 201);
+    const id = created.body.request.id;
+    await env.flush();
+    assert.equal(messages.length, 1);
+    assert.ok(messages[0].body.includes(summary));
+
+    for (let retry = 0; retry < 2; retry++)
+      assert.equal((await env.api(`/v2/requests/${id}/discard`, {})).status, 200);
+    const rows = (
+      await env.store.pool.query(
+        "SELECT state,body,destination,accepted,claim_until,claim_revision FROM haip_outbox WHERE tenant=$1 AND request_id=$2 AND kind='smtp' ORDER BY created_at",
+        ['test-tenant', id],
+      )
+    ).rows;
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows[0], {
+      state: 'accepted',
+      body: {},
+      destination: null,
+      accepted: null,
+      claim_until: null,
+      claim_revision: null,
+    });
+    assert.equal(rows[1].destination, requester);
+    assert.doesNotMatch(rows[1].body.text, /Summary from before discard/);
+    assert.ok(rows[1].body.text.includes(`${env.origin}/review/${id}`));
+
+    await env.flush();
+    const notices = messages.filter(({ to }) => to === requester);
+    assert.equal(notices.length, 1);
+    assert.match(notices[0].body, /Review material was deleted/);
+    assert.doesNotMatch(notices[0].body, /Summary from before discard/);
+  } finally {
+    await close();
+  }
+});
+
+test('migration clears legacy mail for discarded reviews and preserves active queues', async () => {
+  const env = await environment();
+  try {
+    const create = async () => {
+      const result = await env.api('/v2/requests', env.request());
+      assert.equal(result.status, 201);
+      return result.body.request.id as string;
+    };
+    const discarded = await create();
+    const active = await create();
+    assert.equal((await env.api(`/v2/requests/${discarded}/discard`, {})).status, 200);
+    const jobs = [
+      { request: discarded, state: 'accepted' },
+      { request: discarded, state: 'pending' },
+      { request: active, state: 'pending' },
+    ].map((job) => ({ ...job, id: randomUUID() }));
+    const text = 'Legacy review summary';
+    for (const job of jobs) {
+      await env.store.pool.query(
+        `INSERT INTO haip_outbox(id,tenant,kind,request_id,state,destination,body)
+         VALUES($1,'test-tenant','smtp',$2,$3,'reviewer@test.invalid',jsonb_build_object('text',$4::text))`,
+        [job.id, job.request, job.state, text],
+      );
+    }
+    await env.store.pool.query(
+      "DELETE FROM haip_migrations WHERE name='010_discarded_notifications.sql'",
+    );
+    await env.store.migrate();
+    const { rows } = await env.store.pool.query(
+      'SELECT id,state,body,destination FROM haip_outbox WHERE id=ANY($1::uuid[])',
+      [jobs.map(({ id }) => id)],
+    );
+    assert.equal(rows.length, jobs.length);
+    assert.deepEqual(
+      rows.find(({ id }) => id === jobs[0].id),
+      { id: jobs[0].id, state: 'accepted', body: {}, destination: null },
+    );
+    assert.deepEqual(
+      rows.find(({ id }) => id === jobs[1].id),
+      { id: jobs[1].id, state: 'expired', body: {}, destination: null },
+    );
+    assert.deepEqual(
+      rows.find(({ id }) => id === jobs[2].id),
+      { id: jobs[2].id, state: 'pending', body: { text }, destination: 'reviewer@test.invalid' },
+    );
+  } finally {
+    await env.close();
   }
 });
 

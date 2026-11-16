@@ -303,6 +303,10 @@ export class ReviewService {
     recipientRole: 'reviewer' | 'requester',
   ): Promise<void> {
     if (!this.config.smtp) return;
+    const link = `${this.config.origin}/review/${row.id}`;
+    const text = row.data.material_deleted
+      ? `Review ${row.id}\nReview material was deleted.\n${link}\nSign in to view the current status.`
+      : `Review ${row.id}\n${row.data.request.summary}\nDeadline: ${row.data.request.review_deadline}\n${link}\nSign in to review. This email cannot approve a request.`;
     for (const id of [...new Set(recipients)]) {
       const { rows } = await tx.query(
         "SELECT config FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
@@ -323,7 +327,7 @@ export class ReviewService {
             recipient_id: id,
             recipient_role: recipientRole,
             subject: 'HAIP review update',
-            text: `Review ${row.id}\n${row.data.request.summary}\nDeadline: ${row.data.request.review_deadline}\n${this.config.origin}/review/${row.id}\nSign in to review. This email cannot approve a request.`,
+            text,
           }),
           now,
         ],
@@ -387,7 +391,9 @@ export class ReviewService {
         'decision.propose:' + row.id,
       ]);
       await tx.query(
-        "UPDATE haip_outbox SET body='{}',destination=NULL,state=CASE WHEN state='pending' THEN 'expired' ELSE state END WHERE tenant=$1 AND request_id=$2 AND kind='smtp'",
+        `UPDATE haip_outbox SET body='{}',destination=NULL,accepted=NULL,claim_until=NULL,claim_revision=NULL,
+           state=CASE WHEN state='pending' THEN 'expired' ELSE state END
+         WHERE tenant=$1 AND request_id=$2 AND kind='smtp'`,
         [row.tenant, row.id],
       );
       await this.audit(
@@ -439,9 +445,11 @@ export class ReviewService {
       requireThat(['producer', 'operator'].includes(p.kind), 403, 'producer_required');
       const row = await this.owned(tx, p, id);
       return this.idempotent(tx, p, 'discard:' + id, key, {}, async () => {
-        row.data.private_discard_at = iso(now);
-        await this.refresh(tx, p, row, now, p);
-        await this.notifications(tx, row, now, [row.data.request.requester.subject], 'requester');
+        if (!row.data.material_deleted) {
+          row.data.private_discard_at = iso(now);
+          await this.refresh(tx, p, row, now, p);
+          await this.notifications(tx, row, now, [row.data.request.requester.subject], 'requester');
+        }
         return this.statusIn(tx, p, row, now);
       });
     });

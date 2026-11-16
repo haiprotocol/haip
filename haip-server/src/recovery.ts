@@ -193,7 +193,10 @@ export async function recoverTenant(
     await tx.query('UPDATE haip_bundles SET html=NULL,retained_bytes=0 WHERE tenant=$1', [tenant]);
     await tx.query('UPDATE haip_idempotency SET result=NULL WHERE tenant=$1', [tenant]);
     await tx.query(
-      "UPDATE haip_outbox SET state='expired',body='{}',destination=NULL WHERE tenant=$1 AND state='pending'",
+      `UPDATE haip_outbox SET body='{}',destination=NULL,claim_until=NULL,claim_revision=NULL,
+         state=CASE WHEN state='pending' THEN 'expired' ELSE state END,
+         accepted=CASE WHEN kind='smtp' THEN NULL ELSE accepted END
+       WHERE tenant=$1 AND (state='pending' OR kind='smtp')`,
       [tenant],
     );
     await tx.query(

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -151,6 +151,17 @@ test(
       });
       const original = await generation(source);
       assert.equal(original.fenced, true);
+      const mail = ['accepted', 'failed', 'expired', 'pending'].map((state) => ({
+        id: randomUUID(),
+        state,
+      }));
+      const restoredMail = async () =>
+        (
+          await restored.pool.query(
+            'SELECT id,state,body,destination,accepted,attempts,error,claim_until,claim_revision FROM haip_outbox WHERE tenant=$1 AND id=ANY($2::uuid[])',
+            [tenant, mail.map(({ id }) => id)],
+          )
+        ).rows;
       await serve(pg.url, async () => {
         assert.equal((await generation(source)).fenced, false);
         assert.equal(await metrics(token), 200);
@@ -189,6 +200,17 @@ test(
         const wrongHost = new URL(pg.url);
         wrongHost.hostname = 'localhost';
         await assert.rejects(backup(wrongHost.href, 'create'), /backup_database_command_failed/);
+        for (const { id, state } of mail) {
+          await source.pool.query(
+            `INSERT INTO haip_outbox(id,tenant,kind,state,destination,body,accepted,attempts,error,next_at,claim_until,claim_revision)
+             VALUES($1,$2,'smtp',$3,'reviewer@test.invalid','{"text":"Old notification body"}',
+               CASE WHEN $3='accepted' THEN '{"smtp_accepted":true}'::jsonb END,1,
+               CASE WHEN $3='failed' THEN 'delivery_window_expired' END,clock_timestamp()+interval '1 day',
+               CASE WHEN $3='pending' THEN clock_timestamp()+interval '1 day' END,
+               CASE WHEN $3='pending' THEN 'old-claim' END)`,
+            [id, tenant, state],
+          );
+        }
         const backupResult = await backup(pg.url, 'create');
         assert.equal(JSON.parse(backupResult.stdout).encrypted, 'AES-256-GCM');
       });
@@ -197,6 +219,14 @@ test(
       const restoreResult = await backup(targetUrl.href, 'restore');
       assert.equal(JSON.parse(restoreResult.stdout).admission, 'fenced');
       assert.deepEqual(await generation(restored), original);
+      const beforeRecovery = await restoredMail();
+      assert.equal(beforeRecovery.length, mail.length);
+      assert.ok(
+        beforeRecovery.every(
+          ({ body, destination }) =>
+            body.text === 'Old notification body' && destination === 'reviewer@test.invalid',
+        ),
+      );
       await leavesListenersClosed(targetUrl.href);
 
       const recovery = await offline(targetUrl.href, ['--recover'], {
@@ -209,6 +239,24 @@ test(
       assert.equal(result.history_state, 'matching_retained_prefix');
       assert.notEqual(result.generation, original.generation);
       assert.deepEqual(await generation(restored), { generation: result.generation, fenced: true });
+      const afterRecovery = await restoredMail();
+      assert.equal(afterRecovery.length, mail.length);
+      for (const { id, state } of mail) {
+        assert.deepEqual(
+          afterRecovery.find((row) => row.id === id),
+          {
+            id,
+            state: state === 'pending' ? 'expired' : state,
+            body: {},
+            destination: null,
+            accepted: null,
+            attempts: 1,
+            error: state === 'failed' ? 'delivery_window_expired' : null,
+            claim_until: null,
+            claim_revision: null,
+          },
+        );
+      }
       await serve(targetUrl.href, async () => {
         assert.equal(await metrics(token), 401);
         assert.equal(await metrics(newToken), 200);
