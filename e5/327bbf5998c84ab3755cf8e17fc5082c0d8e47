@@ -1,0 +1,22 @@
+deployment/adapters/README.md
+  s_08f73032aa8e41::t_539db8fc08af92 56
+tests/azure-immutable-storage.test.ts
+  s_08f73032aa8e41::t_539db8fc08af92 5,314-346
+  s_08f73032aa8e41::t_b398dc5589057e 347-355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5327bbf5998c84ab3755cf8e17fc5082c0d8e47",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
