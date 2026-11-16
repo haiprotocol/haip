@@ -1,3 +1,5 @@
+import { once } from 'node:events';
+import { createServer, type Server } from 'node:http';
 import { createApp } from './server.js';
 import { createViewBootstrap } from './sandbox-app.js';
 import { OutboxWorker } from './worker.js';
@@ -78,8 +80,21 @@ async function serve(
     throw new Error('Offline namespace recovery is required before opening production listeners');
   }
   const initialCleanup = await worker.cleanup();
-  const server = app.listen(Number(process.env.PORT ?? 8080), listenHost);
-  const sandbox = bootstrap.listen(Number(process.env.HAIP_SANDBOX_PORT ?? 8081), listenHost);
+  const server = createServer(app);
+  const sandbox = createServer(bootstrap);
+  const listeners = [server, sandbox];
+  try {
+    await Promise.all([
+      listen(server, Number(process.env.PORT ?? 8080), listenHost),
+      listen(sandbox, Number(process.env.HAIP_SANDBOX_PORT ?? 8081), listenHost),
+    ]);
+  } catch (error) {
+    for (const listener of listeners) {
+      listener.close();
+      listener.closeAllConnections();
+    }
+    throw error;
+  }
   let busy = false;
   const tick = setInterval(() => {
     if (busy) return;
@@ -122,4 +137,9 @@ async function serve(
       sandbox.close();
       void store.close();
     });
+}
+
+async function listen(server: Server, port: number, host: string) {
+  server.listen(port, host);
+  await once(server, 'listening');
 }

@@ -4,7 +4,7 @@ These files are reviewed examples for the HAIP reference service. They do not in
 
 ## Local use
 
-Run the [local demonstration](../README.md#reference-service) for the API, reviewer sign-in, isolated Agent UI and signed receipts. `npm run check` also exercises local SMTP and HTTPS delivery, encrypted backup and restore, and recovery after a missing database commit. The tests use disposable data and fixture identities.
+Run the [local demonstration](../README.md#reference-service) for the API, reviewer sign-in, isolated Agent UI and signed receipts. `npm run check` also exercises local SMTP and HTTPS delivery and the built backup and recovery commands against PostgreSQL with verified TLS. The restart test uses disposable data and keeps signed checkpoint and safety records in a local fixture outside the database backup.
 
 ## Managed hosting
 

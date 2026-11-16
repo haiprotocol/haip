@@ -102,7 +102,7 @@ An unchanged due page cannot loop forever or hide later requests: a cursor skips
 
 A crash after the local launch fence is potentially effectful. Report `uncertain` unless independently established evidence supports a stronger outcome. Operator reconciliation requires a reason and evidence. Abandonment does not refund an occurrence. Further work needs a new linked occurrence and fresh human review. The bounded counter fixture's local directory must remain durable. Do not delete its fence to resume it.
 
-Backups use authenticated AES-256-GCM encryption with a fresh nonce. Keep the raw 32-byte backup key in a separate secret store and set `HAIP_BACKUP_KEY_FILE`. Do not store it with backup files. Rotate backup keys by retaining each required key only for its remaining backup retention, and record the key version outside the encrypted file. Set `HAIP_DATABASE_URL` to the source or **empty isolated target**, and optionally set `HAIP_PG_BIN` to the matching PostgreSQL binary directory:
+Backups use authenticated AES-256-GCM encryption with a fresh nonce. Keep the raw 32-byte backup key in a separate secret store and set `HAIP_BACKUP_KEY_FILE`. Rotate backup keys by retaining each required key only for its remaining backup retention, and record the key version outside the encrypted file. Set `HAIP_DATABASE_URL` to the source or **empty isolated target**. Set `HAIP_PG_BIN` if the matching `pg_dump`, `pg_restore` and `psql` are outside `PATH`. For production use `HAIP_MODE=production` and a direct database connection. The backup tool verifies the database certificate and hostname using public roots or the private CA in `HAIP_DATABASE_CA_FILE`.
 
 ```sh
 node scripts/backup.mjs create /private/backups/snapshot.haipbak
@@ -110,7 +110,7 @@ node scripts/backup.mjs prune /private/backups
 node scripts/backup.mjs restore /private/backups/snapshot.haipbak
 ```
 
-Run creation and pruning through your approved operations scheduler. Prune at least daily and alert on failure. `.haipbak` files expire after 30 days. Restore authenticates the complete encrypted file before passing any bytes to PostgreSQL, refuses non-empty databases, restores in one transaction and fences every tenant. A temporary plaintext dump exists only inside a private local directory during authentication/restore and is removed on exit. Use encrypted local storage. Test evidence includes wrong-key and modified-ciphertext rejection and a real PostgreSQL restore without renewed deadlines.
+Run creation and pruning through your approved operations scheduler. Prune at least daily and alert on failure. `.haipbak` files expire after 30 days. Restore authenticates the complete encrypted file, then checks that the selected database is empty, imports the dump and fences every tenant in one transaction. Use encrypted local scratch storage with room for the authenticated dump and the expanded SQL. Both are private temporary files and the tool removes them when it exits normally or handles an error. Test evidence includes wrong-key and modified-ciphertext rejection and a real PostgreSQL restore without renewed deadlines.
 
 For **every restart or restoration** of a previously activated production namespace:
 

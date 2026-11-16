@@ -5,11 +5,24 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
-import pg from 'pg';
 
 const magic = Buffer.from('HAIPBAK1');
 const headerLength = 28; // version magic, UTC creation milliseconds, unique 96-bit GCM IV
 const retention = 30 * 86400000;
+const occupiedDatabase = 'HAP01';
+const requireEmptyDatabase = `
+DO $restore$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname <> 'information_schema' AND namespace.nspname !~ '^pg_'
+      AND relation.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE = '${occupiedDatabase}';
+  END IF;
+END
+$restore$;`;
 function decodeCredential(value: string): string {
   try {
     const decoded = decodeURIComponent(value);
@@ -33,7 +46,28 @@ function oneParameter(connection: URL, name: string): string | undefined {
 function passfileField(value: string): string {
   return passfilePassword(checkCredential(value));
 }
-async function child(command: string, args: string[], database: string) {
+
+function launch(command: string, args: string[], env: NodeJS.ProcessEnv, restore = false) {
+  const process = spawn(command, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let diagnostic = '';
+  // Keep database URLs and private dump content out of reports.
+  process.stderr.on('data', (chunk: Buffer) => {
+    if (restore && diagnostic.length < 4096)
+      diagnostic += chunk.toString('utf8', 0, 4096 - diagnostic.length);
+  });
+  const done = new Promise<void>((resolve, reject) => {
+    process.once('error', reject);
+    process.once('close', (code) => {
+      if (code === 0) resolve();
+      else if (restore && diagnostic.trimEnd().endsWith(occupiedDatabase))
+        reject(new Error('restore_requires_empty_database'));
+      else reject(new Error('backup_database_command_failed'));
+    });
+  });
+  return { process, done };
+}
+
+async function child(command: string, args: string[], database: string, restore = false) {
   let connection: URL;
   try {
     connection = new URL(database);
@@ -92,23 +126,20 @@ async function child(command: string, args: string[], database: string) {
       PGSSLPASSWORD: _sslpassword,
       ...environment
     } = globalThis.process.env;
-    const process = spawn(command, ['--dbname', connection.href, ...args], {
-      env: {
+    const started = launch(
+      command,
+      ['--no-password', '--dbname', connection.href, ...args],
+      {
         ...environment,
         PGPASSFILE: passfile,
         ...(sslPassword === undefined ? {} : { PGSSLPASSWORD: sslPassword }),
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    // Do not emit database URLs or private dump bytes in diagnostics.
-    process.stderr.resume();
-    const done = new Promise<void>((resolve, reject) => {
-      process.once('error', reject);
-      process.once('close', (code) =>
-        code === 0 ? resolve() : reject(new Error('backup_database_command_failed')),
-      );
-    }).finally(() => rm(directory, { recursive: true, force: true }));
-    return { process, done };
+      restore,
+    );
+    return {
+      process: started.process,
+      done: started.done.finally(() => rm(directory, { recursive: true, force: true })),
+    };
   } catch (error) {
     await rm(directory, { recursive: true, force: true });
     throw error;
@@ -170,10 +201,11 @@ export async function createBackup(database: string, file: string, key: Uint8Arr
 /** Target must be an empty, isolated database. Authenticate the whole file before pg_restore. */
 export async function restoreBackup(database: string, file: string, key: Uint8Array, bin = '') {
   keyCheck(key);
-  const directory = await mkdtemp(join(tmpdir(), 'haip-restore-'));
-  const dumpPath = join(directory, 'authenticated.dump');
   const source = await open(file, 'r');
+  let directory: string | undefined;
   try {
+    directory = await mkdtemp(join(tmpdir(), 'haip-restore-'));
+    const dumpPath = join(directory, 'authenticated.dump');
     const size = (await source.stat()).size;
     if (size <= headerLength + 16) throw new Error('backup_invalid');
     const header = Buffer.alloc(headerLength),
@@ -197,34 +229,41 @@ export async function restoreBackup(database: string, file: string, key: Uint8Ar
       decipher,
       createWriteStream(dumpPath, { flags: 'wx', mode: 0o600 }),
     );
-    const target = new pg.Client({ connectionString: database });
-    await target.connect();
-    try {
-      const tables = await target.query(
-        "SELECT 1 FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') LIMIT 1",
-      );
-      if (tables.rowCount) throw new Error('restore_requires_empty_database');
-    } finally {
-      await target.end();
-    }
-    const restore = await child(
+    const sqlPath = join(directory, 'restore.sql');
+    await writeFile(sqlPath, '', { flag: 'wx', mode: 0o600 });
+    const script = launch(
       join(bin, 'pg_restore'),
-      ['--single-transaction', '--exit-on-error', '--no-owner', '--no-acl', dumpPath],
+      ['--no-owner', '--no-acl', '--file', sqlPath, dumpPath],
+      { PATH: process.env.PATH },
+    );
+    script.process.stdout.resume();
+    await script.done;
+    await rm(dumpPath);
+    const restore = await child(
+      join(bin, 'psql'),
+      [
+        '--no-psqlrc',
+        '--single-transaction',
+        '--set=ON_ERROR_STOP=1',
+        '--set=VERBOSITY=sqlstate',
+        '--command=SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
+        "--command=SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('haip.schema',0))",
+        '--command',
+        requireEmptyDatabase,
+        "--command=SELECT pg_catalog.set_config('haip.restore_search_path', pg_catalog.current_setting('search_path'), true)",
+        '--file',
+        sqlPath,
+        "--command=SELECT pg_catalog.set_config('search_path', pg_catalog.current_setting('haip.restore_search_path'), true); UPDATE haip_tenants SET fenced=true",
+      ],
       database,
+      true,
     );
     restore.process.stdout.resume();
     await restore.done;
-    const restored = new pg.Client({ connectionString: database });
-    await restored.connect();
-    try {
-      await restored.query('UPDATE haip_tenants SET fenced=true');
-    } finally {
-      await restored.end();
-    }
     return { restored: true, admission: 'fenced', recovery_required: true };
   } finally {
     await source.close();
-    await rm(directory, { recursive: true, force: true });
+    if (directory) await rm(directory, { recursive: true, force: true });
   }
 }
 

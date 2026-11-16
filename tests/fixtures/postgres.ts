@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -10,7 +10,7 @@ export async function freePort(): Promise<number> {
   await new Promise<void>((r) => server.close(() => r()));
   return port;
 }
-export async function postgres() {
+export async function postgres({ tls = false } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'haip-test-pg-'));
   const bin =
     process.env.HAIP_TEST_PG_BIN ??
@@ -21,6 +21,32 @@ export async function postgres() {
     ['-D', directory, '-A', 'trust', '--no-locale', '-U', 'haip_test'],
     { stdio: 'pipe' },
   );
+  const caFile = tls ? join(directory, 'server.crt') : undefined;
+  if (caFile) {
+    const keyFile = join(directory, 'server.key');
+    execFileSync(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        keyFile,
+        '-out',
+        caFile,
+        '-days',
+        '1',
+        '-subj',
+        '/CN=HAIP local PostgreSQL',
+        '-addext',
+        'subjectAltName=IP:127.0.0.1',
+      ],
+      { stdio: 'pipe' },
+    );
+    await chmod(keyFile, 0o600);
+  }
   execFileSync(
     join(bin, 'pg_ctl'),
     [
@@ -29,7 +55,7 @@ export async function postgres() {
       '-l',
       join(directory, 'server.log'),
       '-o',
-      `-h 127.0.0.1 -p ${port} -k ${directory}`,
+      `-h 127.0.0.1 -p ${port} -k ${directory}${tls ? ' -c ssl=on' : ''}`,
       '-w',
       'start',
     ],
@@ -38,6 +64,8 @@ export async function postgres() {
   return {
     url: `postgresql://haip_test@127.0.0.1:${port}/postgres`,
     directory,
+    caFile,
+    bin,
     async close() {
       execFileSync(join(bin, 'pg_ctl'), ['-D', directory, '-m', 'immediate', '-w', 'stop'], {
         stdio: 'pipe',
