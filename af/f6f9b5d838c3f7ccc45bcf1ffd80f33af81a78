@@ -1,0 +1,45 @@
+deployment/README.md
+  s_08f73032aa8e41::t_19000e12265908 7
+haip-server/src/backup.ts
+  s_08f73032aa8e41::t_b3ba02f06abf0c 12-25,49-70,129-132,137-142,205,207-208,232-234,236-257,259,266
+tests/standalone-recovery.test.ts
+  s_08f73032aa8e41::t_abafb3618078aa 6,9,171,234,237,242-247,257
+  s_08f73032aa8e41::t_3672149c0b0d77 157-170,172-179,209
+  s_08f73032aa8e41::t_8a49bac3df64ee 19-107,109-126,128,131-143,146-150,152-156,180-188,192-194,196-208,210-227,229-233,235,238-241,248-255
+  s_08f73032aa8e41::t_07b571ff2b070f 127,129-130,189-191
+  s_08f73032aa8e41::t_cbe106f09be529 1-5,7-8,10-18,108,144-145,151,195,228,236,256,258-259
+OPERATIONS.md
+  s_08f73032aa8e41::t_999aaeecce4c20 105,113
+deployment/acceptance.md
+  s_08f73032aa8e41::t_f773eeecbebf19 67,70
+scripts/backup.mjs
+  s_08f73032aa8e41::t_1d1591ffcc4eca 3,11-20,23-24,29
+  s_08f73032aa8e41::t_8a49bac3df64ee 21-22
+tests/fixtures/postgres.ts
+  s_08f73032aa8e41::t_f8f4dcaae0c10e 1,25-26,36,48-49
+  s_08f73032aa8e41::t_a83290df0acbf2 13,24,27-35,37-47,58,67-68
+haip-server/src/main.ts
+  s_08f73032aa8e41::t_73dbf8a28072e8 1-2,83-97,141-144
+  s_08f73032aa8e41::t_2f021159352ddb 145
+tests/fixtures/standalone-storage.ts
+  s_08f73032aa8e41::t_f1b16be5b8d4da 1-22
+tests/backup.test.ts
+  s_08f73032aa8e41::t_8a49bac3df64ee 47-48,57-64,117-118,129-132
+  s_08f73032aa8e41::t_563e1733b15e66 19,27,38-46,49-56,92-116,119-128,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aff6f9b5d838c3f7ccc45bcf1ffd80f33af81a78",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
