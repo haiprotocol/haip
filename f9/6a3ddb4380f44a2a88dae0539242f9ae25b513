@@ -1,0 +1,33 @@
+haip-server/src/auth.ts
+  s_08f73032aa8e41::t_73b002df9f7343 85-99,103-107,109,111-112,134-139,142-147,168-171,173-174,176-177,183-185,201-210,231-238,251-258,261-265,298-300
+  s_08f73032aa8e41::t_d224b0a4762714 175
+haip-server/src/store.ts
+  s_08f73032aa8e41::t_0303e17d172ff9 109-110,113-118
+haip-server/src/server.ts
+  s_08f73032aa8e41::t_b0769c915afd4a 347-348
+  s_08f73032aa8e41::t_27cd1853fd8e33 221-222,234,246-249,262,344-346,349-352
+tests/worker-liveness.test.ts
+  s_08f73032aa8e41::t_95372b7a43feeb 5-18,158,163-164,173,288,305,307-308,316,319
+  s_08f73032aa8e41::t_c544705daff50c 165-172,309-315
+haip-server/src/worker.ts
+  s_08f73032aa8e41::t_c544705daff50c 499-505
+  s_08f73032aa8e41::t_11e75cb52f3a34 80,119-126,130,134,138-143,146,152-164,174-175,185-187,202-203,214,498,508,657,664
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_94c2f4ea2e5dd4 1088-1099,1101-1104,1106-1115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f96a3ddb4380f44a2a88dae0539242f9ae25b513",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
