@@ -28,7 +28,7 @@
     "example:app": "node scripts/build-choice-app.mjs"
   },
   "overrides": {
-    "nodemailer": "10.0.16"
+    "nodemailer": "10.1.4"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
