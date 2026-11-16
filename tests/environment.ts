@@ -2,7 +2,7 @@ import { randomBytes, generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Store } from '../haip-server/src/store.js';
+import { Store, type DispatchOutbox } from '../haip-server/src/store.js';
 import { ReviewService } from '../haip-server/src/service.js';
 import { createApp, createSandboxApp } from '../haip-server/src/server.js';
 import { bootstrapTenant } from '../haip-server/src/admin.js';
@@ -13,10 +13,16 @@ import { postgres, freePort } from './fixtures/postgres.js';
 import { identityProvider } from './fixtures/oidc.js';
 import { TestAnchor } from './fixtures/anchor.js';
 import type { ServiceConfig } from '../haip-server/src/config.js';
-export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}) {
+export async function environment({
+  dispatchOutbox,
+  ...options
+}: {
+  smtp?: ServiceConfig['smtp'];
+  dispatchOutbox?: DispatchOutbox;
+} = {}) {
   const pg = await postgres(),
     oidc = await identityProvider(),
-    store = new Store(pg.url);
+    store = new Store(pg.url, {}, dispatchOutbox);
   await store.migrate();
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const port = await freePort(),

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createPrivateKey } from 'node:crypto';
 import type { TokenCredential } from '@azure/identity';
 import { parseJson } from '@haip/protocol/crypto';
-import { Store } from './store.js';
+import { Store, type DispatchOutbox } from './store.js';
 import { createNeonStore } from './neon.js';
 import { ReviewService } from './service.js';
 import { AzureAnchor, AzureSafetyStore } from './anchor.js';
@@ -30,14 +30,17 @@ function modeOf(env: NodeJS.ProcessEnv) {
 export function createRuntimeStore(
   env: NodeJS.ProcessEnv,
   access: 'runtime' | 'administrative' = 'runtime',
+  dispatchOutbox?: DispatchOutbox,
 ): Store {
   const url = requiredEnv(env, 'HAIP_DATABASE_URL');
   const provider = env.HAIP_DATABASE_PROVIDER ?? 'postgres';
   const mode = modeOf(env);
+  if (access === 'administrative' && dispatchOutbox)
+    throw new Error('Offline database operations cannot dispatch outbox jobs');
   if (provider === 'neon') {
     if (mode !== 'production' || env.HAIP_DATABASE_CA_FILE)
       throw new Error('Neon requires production mode and public certificate verification');
-    return createNeonStore(url, access);
+    return createNeonStore(url, access, dispatchOutbox);
   }
   if (provider !== 'postgres') throw new Error('Unknown HAIP database provider');
   const connection = databaseConnection(
@@ -45,7 +48,7 @@ export function createRuntimeStore(
     url,
     env.HAIP_DATABASE_CA_FILE ? readFileSync(env.HAIP_DATABASE_CA_FILE, 'utf8') : undefined,
   );
-  return new Store(connection.url, connection.options);
+  return new Store(connection.url, connection.options, dispatchOutbox);
 }
 
 export function createRuntime(
@@ -53,9 +56,11 @@ export function createRuntime(
   {
     storageCredential,
     databaseAccess,
+    dispatchOutbox,
   }: {
     storageCredential?: TokenCredential;
     databaseAccess?: 'runtime' | 'administrative';
+    dispatchOutbox?: DispatchOutbox;
   } = {},
 ) {
   const required = (name: string) => requiredEnv(env, name);
@@ -113,7 +118,7 @@ export function createRuntime(
           : {}),
       }
     : undefined;
-  const service = new ReviewService(createRuntimeStore(env, databaseAccess), {
+  const service = new ReviewService(createRuntimeStore(env, databaseAccess, dispatchOutbox), {
     mode,
     origin,
     issuer: origin,

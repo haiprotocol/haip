@@ -152,7 +152,7 @@ test('cleanup caps request work, collects once per tenant, and expires sessions 
         assert.equal(
           held,
           0,
-          'session expiry is not repeated inside another tenant’s advisory lock',
+          'session expiry runs outside tenant advisory locks',
         );
       }
       return (query as any)(...args);
@@ -278,7 +278,7 @@ test('cleanup caps request work, collects once per tenant, and expires sessions 
   }
 });
 
-test('anchored and unanchored drains use tenant and readiness index bounds despite another tenant’s backlog', async () => {
+test('anchored and unanchored drains use tenant and readiness indexes despite a separate tenant backlog', async () => {
   const env = await environment();
   try {
     await env.flush();
@@ -291,7 +291,7 @@ test('anchored and unanchored drains use tenant and readiness index bounds despi
     const query = env.store.pool.query.bind(env.store.pool),
       statements = new Set<string>();
     env.store.pool.query = (async (...args: any[]) => {
-      if (String(args[0]).trimStart().startsWith('SELECT id,tenant FROM haip_outbox'))
+      if (String(args[0]).trimStart().startsWith('SELECT id FROM haip_outbox WHERE tenant='))
         statements.add(String(args[0]));
       return (query as any)(...args);
     }) as any;
@@ -302,7 +302,7 @@ test('anchored and unanchored drains use tenant and readiness index bounds despi
     for (const statement of statements) {
       const explained = await env.store.pool.query(
         'EXPLAIN(ANALYZE,BUFFERS,FORMAT JSON) ' + statement,
-        ['test-tenant'],
+        ['test-tenant', 50],
       );
       const plan = explained.rows[0]['QUERY PLAN'][0].Plan;
       const nodes: any[] = [];
@@ -326,7 +326,7 @@ test('anchored and unanchored drains use tenant and readiness index bounds despi
       );
       assert(
         Number(plan['Shared Hit Blocks'] ?? 0) + Number(plan['Shared Read Blocks'] ?? 0) < 100,
-        'an empty tenant does not scan another tenant’s 10000 pending jobs',
+        'an empty tenant does not scan 10000 pending jobs in another tenant',
       );
     }
   } finally {

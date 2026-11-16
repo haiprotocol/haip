@@ -43,6 +43,11 @@ interface ClaimedJob {
   revision: string;
   delivery?: unknown;
 }
+type DeliveryResult = { ok: true; acceptance: unknown } | { ok: false; error: unknown };
+
+export type JobSchedule =
+  { state: 'missing' | 'settled' | 'unavailable' } | { state: 'pending'; retry_at: string };
+
 interface MaintenanceCursor {
   at: string;
   id: string;
@@ -136,31 +141,81 @@ export class OutboxWorker {
       completed += await this.operation(t.id, 'outbox', () => this.drain(t.id));
     return completed;
   }
-  private async drain(tenant: string): Promise<number> {
-    const s = this.service;
-    const jobs = (
-      await s.store.pool.query(
-        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending'
+
+  async readyJobs(after?: string): Promise<{ ids: string[]; next?: string }> {
+    const { rows } = await this.service.store.pool.query<{ id: string }>(
+      after === undefined
+        ? 'SELECT id FROM haip_tenants ORDER BY id LIMIT 6'
+        : 'SELECT id FROM haip_tenants WHERE id>$1 ORDER BY id LIMIT 6',
+      after === undefined ? [] : [after],
+    );
+    const tenants = rows.slice(0, 5);
+    const items = (await Promise.all(tenants.map(({ id }) => this.readyTenantJobs(id, 10)))).flat();
+    return { ids: items.map(({ id }) => id), ...(rows.length > 5 ? { next: tenants[4]!.id } : {}) };
+  }
+
+  async runJob(id: string): Promise<JobSchedule> {
+    requireThat(
+      /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(id),
+      400,
+      'outbox_job_invalid',
+    );
+    const query = () =>
+      this.service.store.pool
+        .query<{
+          tenant: string;
+          kind: OutboxItem['kind'];
+          state: string;
+          retry_at: Date;
+          ready: boolean;
+        }>(
+          `SELECT tenant,kind,state,GREATEST(next_at,claim_until) AS retry_at,
+       GREATEST(next_at,claim_until)<=statement_timestamp() AS ready FROM haip_outbox WHERE id=$1`,
+          [id],
+        )
+        .then(({ rows }) => rows[0]);
+    let item = await query();
+    if (item?.state === 'pending') {
+      if (item.kind === 'checkpoint' && !this.anchor) return { state: 'unavailable' };
+      if (item.ready) {
+        const { tenant } = item;
+        await this.operation(tenant, 'outbox', () => this.runClaimedJob(tenant, id));
+        item = await query();
+      }
+    }
+    if (!item) return { state: 'missing' };
+    if (item.state !== 'pending') return { state: 'settled' };
+    return { state: 'pending', retry_at: item.retry_at.toISOString() };
+  }
+
+  private async readyTenantJobs(tenant: string, limit: number) {
+    const { rows } = await this.service.store.pool.query<{ id: string }>(
+      `SELECT id FROM haip_outbox WHERE tenant=$1 AND state='pending'
          AND GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz))<=statement_timestamp()
          ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"}
-         ORDER BY GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz)),created_at,id LIMIT 50`,
-        [tenant],
-      )
-    ).rows;
+         ORDER BY GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz)),created_at,id LIMIT $2`,
+      [tenant, limit],
+    );
+    return rows;
+  }
+
+  private async drain(tenant: string): Promise<number> {
+    const jobs = await this.readyTenantJobs(tenant, 50);
     let completed = 0;
-    for (const job of jobs) {
-      const claim = await this.claim(job.tenant, job.id);
-      if (!claim) continue;
-      let acceptance: unknown;
-      let error: unknown;
-      try {
-        acceptance = await this.deliver(claim);
-      } catch (caught) {
-        error = caught;
-      }
-      completed += await this.finalise(claim, acceptance, error);
-    }
+    for (const { id } of jobs) completed += await this.runClaimedJob(tenant, id);
     return completed;
+  }
+
+  private async runClaimedJob(tenant: string, id: string): Promise<number> {
+    const claim = await this.claim(tenant, id);
+    if (!claim) return 0;
+    let result: DeliveryResult;
+    try {
+      result = { ok: true, acceptance: await this.deliver(claim) };
+    } catch (error) {
+      result = { ok: false, error };
+    }
+    return this.finalise(claim, result);
   }
   private async destinationState(tx: Tx, item: OutboxItem): Promise<DestinationState> {
     if (item.kind === 'checkpoint') {
@@ -315,7 +370,7 @@ export class OutboxWorker {
       text: item.body.text,
     });
   }
-  private async finalise(claim: ClaimedJob, acceptance: unknown, error: unknown): Promise<number> {
+  private async finalise(claim: ClaimedJob, result: DeliveryResult): Promise<number> {
     return this.service.store.transaction(claim.item.tenant, async (tx, now) => {
       const item = (
         await tx.query(
@@ -327,17 +382,19 @@ export class OutboxWorker {
       const current = await this.destinationState(tx, item);
       if (current.revision !== item.claim_revision) {
         // A successful send was authorised at claim time. A failed send cannot retry after that authority changes.
-        if (error || item.kind === 'checkpoint') {
+        if (!result.ok || item.kind === 'checkpoint') {
           await tx.query(
             "UPDATE haip_outbox SET state='failed',error='destination_changed',claim_until=NULL,claim_revision=NULL WHERE id=$1",
             [item.id],
           );
           return 0;
         }
-      } else if (error) {
-        await this.retry(tx, item, now, error);
+      }
+      if (!result.ok) {
+        await this.retry(tx, item, now, result.error);
         return 0;
       }
+      const { acceptance } = result;
       if (item.kind === 'checkpoint') {
         const seq = item.body.payload.sequence;
         const rows = (

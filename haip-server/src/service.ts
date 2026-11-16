@@ -222,10 +222,12 @@ export class ReviewService {
       now,
     );
     // Every event gets a checkpoint; this is stricter than the five-minute/100-event bound.
+    const job = randomUUID();
     await tx.query(
       "INSERT INTO haip_outbox(id,tenant,request_id,kind,body) VALUES($1,$2,$3,'checkpoint',$4)",
-      [randomUUID(), p.tenant, request?.id ?? null, JSON.stringify(checkpoint)],
+      [job, p.tenant, request?.id ?? null, JSON.stringify(checkpoint)],
     );
+    this.store.noteOutboxJob(tx, job);
     return seq;
   }
   async event(tx: Tx, p: Principal, row: RequestRow, now: Date, reason: string): Promise<void> {
@@ -262,18 +264,14 @@ export class ReviewService {
       'INSERT INTO haip_events(tenant,producer,id,request_id,record,created_at) VALUES($1,$2,$3,$4,$5,$6)',
       [p.tenant, row.producer, record.payload.event_id, row.id, JSON.stringify(record), now],
     );
-    if (producer.config.webhook)
+    if (producer.config.webhook) {
+      const job = randomUUID();
       await tx.query(
         "INSERT INTO haip_outbox(id,tenant,producer,request_id,kind,destination,body) VALUES($1,$2,$3,$4,'webhook',$5,$6)",
-        [
-          randomUUID(),
-          p.tenant,
-          row.producer,
-          row.id,
-          producer.config.webhook,
-          JSON.stringify(record),
-        ],
+        [job, p.tenant, row.producer, row.id, producer.config.webhook, JSON.stringify(record)],
       );
+      this.store.noteOutboxJob(tx, job);
+    }
     await this.audit(tx, producer, now, 'RequestChangedEvent', record.payload, d.request);
   }
   async notifications(
@@ -291,10 +289,11 @@ export class ReviewService {
       );
       const c = rows[0]?.config;
       if (!c?.enabled || !c.email_verified || !c.email) continue;
+      const job = randomUUID();
       await tx.query(
         "INSERT INTO haip_outbox(id,tenant,producer,request_id,kind,destination,body,created_at) VALUES($1,$2,$3,$4,'smtp',$5,$6,$7)",
         [
-          randomUUID(),
+          job,
           p.tenant,
           row.producer,
           row.id,
@@ -306,6 +305,7 @@ export class ReviewService {
           now,
         ],
       );
+      this.store.noteOutboxJob(tx, job);
     }
   }
   /** Effective expiry is visible immediately, without making a GET request an audit actor. */

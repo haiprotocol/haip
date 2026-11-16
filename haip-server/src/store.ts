@@ -2,6 +2,7 @@ import pg, { type PoolClient } from 'pg';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 export type Tx = PoolClient;
+export type DispatchOutbox = (ids: readonly string[], signal: AbortSignal) => Promise<void>;
 
 const directory = new URL('../migrations/', import.meta.url);
 async function migrations() {
@@ -33,9 +34,39 @@ async function checkedMigrations(
 
 export class Store {
   readonly pool: pg.Pool;
-  constructor(url: string, options: pg.PoolConfig = {}) {
+  private readonly outbox = new WeakMap<Tx, Set<string>>();
+  constructor(
+    url: string,
+    options: pg.PoolConfig = {},
+    private readonly dispatchOutbox?: DispatchOutbox,
+  ) {
     this.pool = new pg.Pool({ max: 12, ...options, connectionString: url });
     this.pool.on('error', () => console.error('HAIP idle database connection lost'));
+  }
+  noteOutboxJob(tx: Tx, id: string) {
+    if (!this.dispatchOutbox) return;
+    const pending = this.outbox.get(tx);
+    if (!pending) throw new Error('outbox_transaction_required');
+    if (pending.size < 64) pending.add(id);
+  }
+
+  private async dispatchCommitted(ids: Set<string>) {
+    if (!this.dispatchOutbox || !ids.size) return;
+    const controller = new AbortController();
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error('outbox_dispatch_timeout'));
+      }, 2000);
+    });
+    try {
+      await Promise.race([this.dispatchOutbox([...ids], controller.signal), deadline]);
+    } catch {
+      console.error('HAIP outbox dispatch failed. Reconciliation will inspect persisted work.');
+    } finally {
+      clearTimeout(timer);
+    }
   }
   async requireSchema(): Promise<void> {
     const pending = await checkedMigrations(this.pool, await migrations()).catch((error) => {
@@ -63,7 +94,8 @@ export class Store {
     try {
       await tx.query(begin);
       const result = await run(tx);
-      await tx.query('COMMIT');
+      const commit = await tx.query('COMMIT');
+      if (commit.command !== 'COMMIT') throw new Error('database_commit_refused');
       return result;
     } catch (error) {
       await tx.query('ROLLBACK').catch(() => {
@@ -75,13 +107,21 @@ export class Store {
     }
   }
   async transaction<T>(tenant: string, fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {
-    return this.inTransaction('BEGIN', async (tx) => {
+    const ids = new Set<string>();
+    const result = await this.inTransaction('BEGIN', async (tx) => {
       await tx.query("SET LOCAL lock_timeout = '10s'");
       await tx.query("SET LOCAL statement_timeout = '30s'");
       await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [tenant]);
       const { rows } = await tx.query('SELECT clock_timestamp() AS now');
-      return fn(tx, rows[0].now);
+      if (this.dispatchOutbox) this.outbox.set(tx, ids);
+      try {
+        return await fn(tx, rows[0].now);
+      } finally {
+        this.outbox.delete(tx);
+      }
     });
+    await this.dispatchCommitted(ids);
+    return result;
   }
   /** Admission preflights and paginated reads never wait for the tenant's write lock. */
   async read<T>(fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {

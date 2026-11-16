@@ -1,5 +1,5 @@
 import { databaseConnection } from './startup.js';
-import { Store } from './store.js';
+import { Store, type DispatchOutbox } from './store.js';
 
 export function neonConnection(raw: string, access: 'runtime' | 'administrative') {
   let url: URL;
@@ -39,7 +39,11 @@ export function neonConnection(raw: string, access: 'runtime' | 'administrative'
   };
 }
 
-export function createNeonStore(raw: string, access: 'runtime' | 'administrative') {
+export function createNeonStore(
+  raw: string,
+  access: 'runtime' | 'administrative',
+  dispatchOutbox?: DispatchOutbox,
+) {
   const connection = neonConnection(raw, access);
-  return new Store(connection.url, connection.options);
+  return new Store(connection.url, connection.options, dispatchOutbox);
 }

@@ -103,6 +103,70 @@ test('a checkpoint claim releases the tenant lock and prevents a concurrent deli
   }
 });
 
+test('lost dispatch and delivery acknowledgements resume one committed outbox job', async () => {
+  const dispatched: string[][] = [];
+  let observe = false;
+  const env = await environment({
+    async dispatchOutbox(ids) {
+      if (!observe) return;
+      const visible = await env.store.transaction('test-tenant', (tx) =>
+        tx.query('SELECT id FROM haip_outbox WHERE id=ANY($1::uuid[])', [ids]),
+      );
+      assert.equal(visible.rowCount, ids.length);
+      dispatched.push([...ids]);
+      throw new Error('fixture dispatch acknowledgement lost');
+    },
+  });
+  const accept = env.anchor.accept.bind(env.anchor);
+  let deliveries = 0;
+  try {
+    await env.flush();
+    observe = true;
+    const principal = (
+      await env.store.pool.query(
+        "SELECT * FROM haip_principals WHERE tenant='test-tenant' AND id='operator'",
+      )
+    ).rows[0];
+    await assert.rejects(
+      env.store.transaction('test-tenant', async (tx, now) => {
+        await env.service.audit(tx, principal, now, 'ClaimFixture', { id: randomUUID() });
+        throw new Error('fixture rollback');
+      }),
+      /fixture rollback/,
+    );
+    assert.deepEqual(dispatched, []);
+    const id = await checkpoint(env);
+    assert.deepEqual(dispatched, [[id]]);
+    assert.deepEqual(await env.worker.readyJobs(), { ids: [id] });
+
+    env.anchor.accept = async (record) => {
+      const result = await accept(record);
+      if (++deliveries === 1) return Promise.reject(undefined);
+      return result;
+    };
+    const waiting = await env.worker.runJob(id);
+    assert.equal(waiting.state, 'pending');
+    const replacement = new OutboxWorker(env.service, env.anchor);
+    assert.deepEqual(await replacement.readyJobs(), { ids: [] });
+    assert.deepEqual(await replacement.runJob(id), waiting);
+    assert.equal(deliveries, 1);
+    await env.store.pool.query('UPDATE haip_outbox SET next_at=clock_timestamp() WHERE id=$1', [
+      id,
+    ]);
+    assert.deepEqual(await replacement.runJob(id), { state: 'settled' });
+    assert.deepEqual(await env.worker.runJob(id), { state: 'settled' });
+    assert.equal(deliveries, 2);
+    const final = await env.store.pool.query(
+      'SELECT state,attempts,claim_generation FROM haip_outbox WHERE id=$1',
+      [id],
+    );
+    assert.deepEqual(final.rows, [{ state: 'accepted', attempts: 2, claim_generation: 2 }]);
+  } finally {
+    env.anchor.accept = accept;
+    await env.close();
+  }
+});
+
 test('a failed checkpoint releases its claim and retries the same immutable record', async () => {
   const env = await environment();
   const accept = env.anchor.accept.bind(env.anchor);
