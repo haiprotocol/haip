@@ -1,6 +1,6 @@
 # Managed authority
 
-This design replaces process ownership with a durable database incarnation only after the hosted implementation passes review. The local proof is [`CommitWitness`](../haip-server/src/commit-witness.ts). The current runtime still uses one process per activated generation. No listener, scheduled job or management command enables the proposed witness.
+This design replaces process ownership with a durable database incarnation only after the hosted implementation passes review. [`CommitWitness`](../haip-server/src/commit-witness.ts) can protect the reference store's read and write transactions. The normal runtime still uses one process per activated generation. The managed transaction wiring is exercised in local fixtures.
 
 ## Binding
 
@@ -25,5 +25,7 @@ Quiesce callers, queued delivery and executors before explicit database restorat
 ## Evidence
 
 The [local PostgreSQL test](../tests/managed-witness.test.ts) uses three database copies and a separate filesystem store. It exercises normal replacement, refusal of stale identity and private material after restore, mismatched deployment or database, concurrent forked writes, store outage, lost witness acknowledgement and retirement. It proves neither live storage consistency nor full HAIP coverage. Keep the release hold until authenticated reads, grants and permits, delivery, encrypted restoration and overlapping old and new functions pass through this boundary on the deployed system.
+
+The [HTTP fixture](../tests/managed-http.test.ts) uses two real handler instances with separate pools. They share review state, issue a verifiable receipt and settle a scheduled outbox job. An ambiguous witness commit makes both instances refuse sessions, private material, ledger reads and scheduled work. Live activation, overlapping release recovery and externally enforced execution still require their own evidence.
 
 The proof serialises writes for the managed database and checks independent storage on guarded reads. Measure database contention, function latency and retained-record cost under the intended workload. Reject accesses that exceed the invocation or grant budget. Avoid a cache that can hide a newer witness or retirement record.

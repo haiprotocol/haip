@@ -1,6 +1,7 @@
 import pg, { type PoolClient } from 'pg';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import type { CommitWitness } from './commit-witness.js';
 export type Tx = PoolClient;
 export type DispatchOutbox = (ids: readonly string[], signal: AbortSignal) => Promise<void>;
 
@@ -39,6 +40,7 @@ export class Store {
     url: string,
     options: pg.PoolConfig = {},
     private readonly dispatchOutbox?: DispatchOutbox,
+    private readonly commitWitness?: CommitWitness,
   ) {
     this.pool = new pg.Pool({ max: 12, ...options, connectionString: url });
     this.pool.on('error', () => console.error('HAIP idle database connection lost'));
@@ -110,7 +112,7 @@ export class Store {
     return this.inTransaction('BEGIN', async (tx) => {
       await tx.query("SET LOCAL lock_timeout = '10s'");
       await tx.query("SET LOCAL statement_timeout = '30s'");
-      return fn(tx);
+      return this.commitWitness ? this.commitWitness.write(tx, () => fn(tx)) : fn(tx);
     });
   }
   async transaction<T>(tenant: string, fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {
@@ -132,8 +134,11 @@ export class Store {
   async read<T>(fn: (tx: Tx, now: Date) => Promise<T>): Promise<T> {
     return this.inTransaction('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', async (tx) => {
       await tx.query("SET LOCAL statement_timeout = '5s'");
-      const { rows } = await tx.query('SELECT clock_timestamp() AS now');
-      return fn(tx, rows[0].now);
+      const read = async () => {
+        const { rows } = await tx.query('SELECT clock_timestamp() AS now');
+        return fn(tx, rows[0].now);
+      };
+      return this.commitWitness ? this.commitWitness.read(tx, read) : read();
     });
   }
   async close(): Promise<void> {
