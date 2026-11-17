@@ -105,7 +105,15 @@ Configure `backup_recovery.command` with those paths and allow 300 seconds. Use 
 ]
 ```
 
-The adapter checks both input digests, restores with verified PostgreSQL TLS, applies pending migrations and verifies the signed canary before retirement. It runs the packaged offline recovery command, then checks the new fence, revoked grant, preserved receipt, cleared email copies and replacement operator. The evidence contains assertions and digests. A failing drill can leave the disposable target populated or the old generation retired. Review the recorded phase before using a fresh target for another attempt. Listener startup and rollback refusal have a separate acceptance check.
+The adapter checks both input digests, restores with verified PostgreSQL TLS, applies pending migrations and verifies the signed canary before retirement. It runs the packaged offline recovery command, then checks the new fence, revoked grant, preserved receipt, cleared email copies and replacement operator. The evidence contains assertions and digests. A failing drill can leave the disposable target populated or the old generation retired. Review the recorded phase before using a fresh target for another attempt.
+
+## Restart rollback
+
+Use the same adapter command in `restart_rollback.command`, with its own recovery settings and two empty databases. Reuse the encrypted backup and independent storage from the recovery check. Give each invocation its own restore target if both checks are in the same plan. Set `target_database` to the restart target and `rollback_database` to the second database. Use distinct names. Allow 900 seconds for the check.
+
+Provide the two administrative URLs as `HAIP_ACCEPTANCE_RESTART_DATABASE_URL` and `HAIP_ACCEPTANCE_ROLLBACK_DATABASE_URL`. Provide the runtime URLs for the same databases as `HAIP_ACCEPTANCE_RECOVERED_RUNTIME_DATABASE_URL` and `HAIP_ACCEPTANCE_ROLLBACK_RUNTIME_DATABASE_URL`. The runtime logins must be distinct from the restore roles and lack administrative role flags and membership in the restore roles. Set `HAIP_ACCEPTANCE_PRE_RECOVERY_PRODUCER_TOKEN` to the original bearer token for the synthetic review's producer. Use the plan's `adapter_env` and `secret_env` entries for those values.
+
+The check restores the same signed canary to both targets and recovers one copy. It starts the packaged runtime on temporary loopback ports using the runtime database role. It verifies both listeners and the new operator, then attempts a claim using the original producer credential and again after reprovisioning that producer. The second attempt must return `namespace_retired`. The check stops the recovered process and verifies that a second start of its generation and a start against the old database copy both refuse before opening listeners. A passing drill leaves both disposable copies fenced.
 
 ## Local fixtures
 
@@ -121,7 +129,7 @@ With PostgreSQL 17, Dex, Caddy, OpenSSL and `htpasswd` available locally, the id
 HAIP_TEST_DEX=dex HAIP_TEST_CADDY=caddy node --import tsx --test tests/dex-oidc.integration.ts
 ```
 
-After `npm run build`, run the backup adapter test to pack the server, restore a signed review over loopback PostgreSQL TLS and recover against separate fixture storage. A successful local drill reports `blocked` for deployment acceptance.
+After `npm run build`, run the backup adapter test to pack the server, restore a signed review over loopback PostgreSQL TLS and exercise recovery, restart and rollback against separate fixture storage. A successful local drill reports `blocked` for deployment acceptance.
 
 ```sh
 node --import tsx --test tests/backup-recovery-adapter.test.ts

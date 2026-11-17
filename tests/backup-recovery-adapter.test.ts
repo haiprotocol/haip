@@ -19,13 +19,15 @@ import { TestSafetyStore } from './fixtures/safety.js';
 const execute = promisify(execFile);
 
 test(
-  'backup acceptance uses the pinned package to restore and recover with fixture storage',
+  'acceptance uses the pinned package for recovery, restart and rollback refusal with fixture storage',
   { timeout: 90000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), 'haip-backup-adapter-'));
     const env = await environment({ singleTenant: true });
     const pg = await postgres({ tls: true });
     const target = new Store(pg.url);
+    let recoveredStore: Store | undefined;
+    let rollbackStore: Store | undefined;
     try {
       const origin = 'https://review.trusted.test';
       const tenant = 'test-tenant';
@@ -98,16 +100,24 @@ test(
       plan.deployment.service_artifact_digest = artifactDigest;
       const planPath = join(directory, 'plan.json');
       const settingsPath = join(directory, 'settings.json');
+      const restartSettingsPath = join(directory, 'restart-settings.json');
       const evidence = join(directory, 'evidence');
-      plan.checks.find((check: { id: string }) => check.id === 'backup_recovery').command = [
-        'node',
+      const backupCheck = plan.checks.find(
+        (check: { id: string }) => check.id === 'backup_recovery',
+      );
+      backupCheck.command = [
+        process.execPath,
         'deployment/adapters/backup-recovery.mjs',
         planPath,
         evidence,
         settingsPath,
       ];
-      delete plan.checks.find((check: { id: string }) => check.id === 'backup_recovery')
-        .unrun_reason;
+      delete backupCheck.unrun_reason;
+      const rollbackCheck = plan.checks.find(
+        (check: { id: string }) => check.id === 'restart_rollback',
+      );
+      rollbackCheck.command = [...backupCheck.command.slice(0, -1), restartSettingsPath];
+      delete rollbackCheck.unrun_reason;
       const {
         rows: [namespace],
       } = await env.store.pool.query('SELECT ledger_id,generation FROM haip_tenants WHERE id=$1', [
@@ -125,11 +135,11 @@ test(
         generation: namespace.generation,
         request_id: request.id,
       };
-      const writeInputs = async () => {
+      const writeInputs = async (path = settingsPath, input = settings) => {
         const bytes = JSON.stringify(plan);
-        settings.plan_digest = sha256(bytes);
+        input.plan_digest = sha256(bytes);
         await writeFile(planPath, bytes, { mode: 0o600 });
-        await writeFile(settingsPath, JSON.stringify(settings), { mode: 0o600 });
+        await writeFile(path, JSON.stringify(input), { mode: 0o600 });
       };
       const options = {
         environment: {
@@ -168,6 +178,7 @@ test(
 
       plan.deployment.service_artifact_digest = artifactDigest;
       await writeInputs();
+      await writeInputs(restartSettingsPath, { ...settings });
       const output = join(directory, 'acceptance.json');
       await execute(
         process.execPath,
@@ -181,6 +192,10 @@ test(
       assert.equal(report.summary.accepted, false);
       assert.equal(unapproved.status, 'blocked');
       assert.deepEqual(unapproved.evidence, []);
+      assert.equal(
+        report.checks.find((check: { id: string }) => check.id === 'restart_rollback').status,
+        'blocked',
+      );
 
       plan.deployment.independent_administration_asserted = true;
       const storagePath = join(directory, 'storage-settings.json');
@@ -206,25 +221,117 @@ test(
       );
 
       plan.deployment.independent_administration_asserted = false;
+      await target.pool.query('CREATE ROLE haip_recovery_runtime LOGIN');
+      await target.pool.query('CREATE DATABASE haip_restart');
+      await target.pool.query('CREATE DATABASE haip_rollback');
+      const recoveryUrl = new URL(pg.url);
+      recoveryUrl.pathname = '/haip_restart';
+      const rollbackUrl = new URL(pg.url);
+      rollbackUrl.pathname = '/haip_rollback';
+      recoveredStore = new Store(recoveryUrl.href);
+      rollbackStore = new Store(rollbackUrl.href);
+      for (const store of [recoveredStore, rollbackStore]) {
+        await store.pool.query(
+          'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO haip_recovery_runtime',
+        );
+        await store.pool.query(
+          'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE,SELECT ON SEQUENCES TO haip_recovery_runtime',
+        );
+      }
+      const asRuntime = (admin: URL) => {
+        const url = new URL(admin);
+        url.username = 'haip_recovery_runtime';
+        return url.href;
+      };
+      const restartSettings = {
+        ...settings,
+        target_database: 'haip_restart',
+        rollback_database: 'haip_restart',
+      };
+      const restartOptions = {
+        ...options,
+        checkId: 'restart_rollback',
+        environment: {
+          ...options.environment,
+          HAIP_ACCEPTANCE_RESTART_DATABASE_URL: recoveryUrl.href,
+          HAIP_ACCEPTANCE_RECOVERED_RUNTIME_DATABASE_URL: asRuntime(recoveryUrl),
+          HAIP_ACCEPTANCE_ROLLBACK_DATABASE_URL: rollbackUrl.href,
+          HAIP_ACCEPTANCE_ROLLBACK_RUNTIME_DATABASE_URL: asRuntime(rollbackUrl),
+          HAIP_ACCEPTANCE_PRE_RECOVERY_PRODUCER_TOKEN: env.credentials.producer,
+        },
+      };
+      await writeInputs(restartSettingsPath, restartSettings);
+      const shared = await collectBackupRecovery(
+        planPath,
+        evidence,
+        restartSettingsPath,
+        restartOptions,
+      );
+      assert.equal(shared.status, 'failed');
+      assert.equal(shared.assertions[0].name, 'settings');
+      restartSettings.rollback_database = 'haip_rollback';
+      await writeInputs(restartSettingsPath, restartSettings);
+      const elevated = await collectBackupRecovery(planPath, evidence, restartSettingsPath, {
+        ...restartOptions,
+        environment: {
+          ...restartOptions.environment,
+          HAIP_ACCEPTANCE_RECOVERED_RUNTIME_DATABASE_URL: recoveryUrl.href,
+        },
+      });
+      assert.equal(elevated.status, 'failed');
+      assert.equal(elevated.assertions.at(-1).name, 'restore_target');
+      for (const store of [target, recoveredStore, rollbackStore])
+        assert.equal(
+          (await store.pool.query("SELECT to_regclass('haip_tenants') AS present")).rows[0].present,
+          null,
+        );
+
+      const fixtureEnv = { ...restartOptions.environment, HAIP_TEST_STORAGE_ROOT: storage };
+      plan.adapter_env = Object.keys(fixtureEnv).filter((name) => name !== 'PATH');
+      plan.secret_env = plan.adapter_env.filter((name: string) =>
+        /_(?:DATABASE_URL|TOKEN|CLIENT_SECRET)$/.test(name),
+      );
+      plan.deployment.environment = 'local-recovery-fixture';
+      backupCheck.command[1] = rollbackCheck.command[1] = 'tests/fixtures/recovery-acceptance.mjs';
       await writeInputs();
-      const accepted = await collectBackupRecovery(planPath, evidence, settingsPath, options);
-      assert.equal(accepted.status, 'blocked', accepted.summary);
-      assert.equal(accepted.facts.scope, 'local_fixture');
-      assert.equal(accepted.facts.receipt_digest, digest(receipt.body));
-      assert.deepEqual(
-        accepted.assertions.map(({ name }: { name: string }) => name),
-        ['artifact', 'restore_target', 'encrypted_restore', 'offline_recovery'],
+      await writeInputs(restartSettingsPath, restartSettings);
+      const fixtureReportPath = join(directory, 'fixture-report.json');
+      await execute(
+        process.execPath,
+        [
+          'deployment/run-acceptance.mjs',
+          planPath,
+          fixtureReportPath,
+          '--allow-dirty',
+          '--allow-incomplete',
+        ],
+        { timeout: 30_000, env: fixtureEnv },
       );
-      assert.ok(accepted.assertions.every(({ passed }: { passed: boolean }) => passed));
-      const record = accepted.evidence[0];
-      const evidenceBytes = await readFile(
-        join(evidence, record.reference.slice('private-evidence:'.length)),
+      await execute(process.execPath, [
+        'deployment/run-acceptance.mjs',
+        '--validate',
+        fixtureReportPath,
+      ]);
+      const fixtureReport = JSON.parse(await readFile(fixtureReportPath, 'utf8'));
+      assert.equal(fixtureReport.summary.accepted, false);
+      const [recovery, restart] = [backupCheck.id, rollbackCheck.id].map((id) =>
+        fixtureReport.checks.find((check: { id: string }) => check.id === id),
       );
-      assert.equal(record.digest, sha256(evidenceBytes));
-      assert.doesNotMatch(
-        evidenceBytes.toString(),
-        /A private recovery canary|fixture-oidc-secret|postgresql:\/\//,
-      );
+      for (const check of [recovery, restart]) {
+        assert.equal(check.status, 'blocked', check.summary);
+        assert.equal(check.facts.scope, 'local_fixture');
+        assert.equal(check.facts.receipt_digest, digest(receipt.body));
+        assert.ok(check.assertions.every(({ passed }: { passed: boolean }) => passed));
+        const record = check.evidence[0];
+        const evidenceBytes = await readFile(
+          join(evidence, record.reference.slice('private-evidence:'.length)),
+        );
+        assert.equal(record.digest, sha256(evidenceBytes));
+        assert.doesNotMatch(
+          evidenceBytes.toString(),
+          /A private recovery canary|fixture-oidc-secret|postgresql:\/\//,
+        );
+      }
       const {
         rows: [restoredNamespace],
       } = await target.pool.query('SELECT generation,fenced FROM haip_tenants WHERE id=$1', [
@@ -232,8 +339,36 @@ test(
       ]);
       assert.notEqual(restoredNamespace.generation, namespace.generation);
       assert.equal(restoredNamespace.fenced, true);
+      assert.deepEqual(
+        recovery.assertions.map(({ name }: { name: string }) => name),
+        ['artifact', 'restore_target', 'encrypted_restore', 'offline_recovery'],
+      );
+      assert.deepEqual(
+        restart.assertions.map(({ name }: { name: string }) => name),
+        [
+          'artifact',
+          'restore_target',
+          'encrypted_restore',
+          'rollback_restore',
+          'offline_recovery',
+          'recovered_start',
+          'restart_refused',
+          'rollback_refused',
+        ],
+      );
+      assert.equal(restart.facts.old_claim_status, 401);
+      assert.equal(restart.facts.fresh_claim_status, 409);
+      const afterRollback = await rollbackStore.pool.query(
+        'SELECT generation,fenced FROM haip_tenants WHERE id=$1',
+        [tenant],
+      );
+      assert.deepEqual(afterRollback.rows, [{ generation: namespace.generation, fenced: true }]);
+      await assert.rejects(
+        env.service.recovery!.assertActive(tenant, namespace.generation),
+        /namespace_retired/,
+      );
     } finally {
-      await target.close();
+      await Promise.all([target.close(), recoveredStore?.close(), rollbackStore?.close()]);
       await pg.close();
       await env.close();
       await rm(directory, { recursive: true, force: true });

@@ -1,6 +1,6 @@
 # Deployment acceptance
 
-Production acceptance is **unrun**. Use the [local deployment rehearsal](README.md#local-use) to exercise the service on one machine. [`ACCEPTANCE.md`](../ACCEPTANCE.md) maps the local evidence to the release requirements. Production acceptance needs an isolated deployment with independently administered immutable storage, its own identity application and verified HTTPS origins.
+Use the [local deployment rehearsal](README.md#local-use) to exercise the standalone service on one machine. [`ACCEPTANCE.md`](../ACCEPTANCE.md) maps the local evidence to the release requirements. Production acceptance is **unrun**. It applies to an installed environment with independently administered immutable storage, its own identity application and verified HTTPS origins.
 
 Record the exact source commit, service artifact digest, protocol and configuration revisions, provider regions, role labels, identity application revision, UTC times and digests of original evidence. Keep secrets, tokens, cookies, private keys, database URLs and private review material out of the evidence collection.
 
@@ -63,13 +63,13 @@ The schema limits report size and field lengths. Evidence references should be o
 | Writer permissions | Read, list, version properties and conditional creation work. The writer cannot delete retained or safety data, clear holds, or administer retention and account policy.                                            | Local role and canary fixtures. Live run pending.         |
 | Immutable storage  | The exact returned version has locked retention for at least 90 days. A safety record also has a legal hold. No lifecycle expiry covers the safety container.                                                       | Local policy and SDK fixtures. Live run pending.          |
 | Duplicate conflict | An identical checkpoint retry recovers the original version. Changed content at one sequence refuses. Missing, changed, extra or deleted versions fence admission.                                                  | Local SDK and HTTP checks. Live run pending.              |
-| Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local checkpoint-only outage test. Live run pending.     |
+| Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local outage through grant expiry. Live run pending.     |
 | Backup recovery    | An encrypted dump of the isolated tenant restores to an empty database. Independent records remain outside the backup. Recovery retires the generation and reapplies deletion and revocation before listeners open. | Local packaged adapter and CLI. Live run pending.         |
 | Notifications      | A test recipient receives an ordinary link after its prior session ends. The receiver persists and deduplicates events, fetches authoritative status, and refuses expired delivery and redirects.                   | Local SMTP, TLS and status refresh. Live run pending.     |
 | Operations         | Independent keys and trust, encrypted disk, private backup storage, deletion within 30 days, worker and retention alerts, and incident routing.                                                                     | Local alert routing tested. Live run pending.             |
-| Restart rollback   | A previously activated generation cannot open production listeners. Recovery needs fresh provisioning and review. Rollback cannot enable automatic execution.                                                       | Local restart and rollback refused. Live run pending.     |
+| Restart rollback   | A previously activated generation cannot open production listeners. Recovery needs fresh provisioning and review. Rollback cannot enable automatic execution.                                                       | Local packaged runtime checks. Live run pending.          |
 
-Use the [backup recovery adapter](adapters/README.md#backup-recovery) to rehearse encrypted restoration against the reviewed server archive. The rollback check also needs evidence from starting the recovered runtime and attempting to reopen the retired generation.
+The local suite runs both [backup recovery](adapters/README.md#backup-recovery) and [restart and rollback](adapters/README.md#restart-rollback) against the same locally packed server. The runner validates the resulting report with its fixture checks marked `blocked` for production acceptance.
 
 ## Notification evidence
 

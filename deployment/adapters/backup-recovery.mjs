@@ -14,9 +14,11 @@ import {
 } from './evidence.mjs';
 import { stageExactFile, stageServerPackage } from './recovery-artifact.mjs';
 import { storageTarget } from './azure-acceptance.mjs';
+import { checkRecoveredStart, checkRestartRefused } from './recovery-restart.mjs';
 
 const execute = promisify(execFile);
-const checkId = 'backup_recovery';
+const backupCheck = 'backup_recovery';
+const restartCheck = 'restart_rollback';
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const sha = /^sha256:[a-f0-9]{64}$/;
 const window = 120_000;
@@ -65,11 +67,50 @@ function validatedSettings(plan, planDigest, settings) {
   requireCheck(
     typeof settings.tenant === 'string' && /^[A-Za-z0-9_.:@/-]{1,160}$/.test(settings.tenant),
   );
+}
+
+function databaseUrlFor(raw, name) {
   requireCheck(
-    typeof settings.target_database === 'string' &&
-      settings.target_database.length > 0 &&
-      settings.target_database.length <= 63,
+    typeof raw === 'string' && typeof name === 'string' && name.length > 0 && name.length <= 63,
   );
+  const url = new URL(raw);
+  requireCheck(decodeURIComponent(url.pathname.slice(1)) === name);
+  requireCheck(
+    [...url.searchParams.keys()].every((option) =>
+      ['sslmode', 'sslnegotiation', 'ssl', 'uselibpqcompat'].includes(option),
+    ),
+  );
+  return raw;
+}
+
+async function databaseIdentity(store, name) {
+  const {
+    rows: [identity],
+  } = await store.pool.query(
+    'SELECT current_database() AS name, inet_server_addr()::text AS address, inet_server_port() AS port, current_user AS role FROM pg_stat_ssl WHERE pid=pg_backend_pid() AND ssl',
+  );
+  requireCheck(identity?.name === name);
+  return identity;
+}
+
+async function verifyRuntimeDatabase(createRuntimeStore, env, name, expected) {
+  const store = createRuntimeStore(env);
+  try {
+    const { role, ...endpoint } = await databaseIdentity(store, name);
+    const { role: admin, ...adminEndpoint } = expected;
+    requireCheck(role !== admin && digest(endpoint) === digest(adminEndpoint));
+    const {
+      rows: [identity],
+    } = await store.pool.query(
+      `SELECT NOT (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls
+         OR pg_has_role(rolname, $1::name, 'MEMBER')) AS restricted
+       FROM pg_roles WHERE rolname=current_user`,
+      [admin],
+    );
+    requireCheck(identity?.restricted === true);
+  } finally {
+    await store.close();
+  }
 }
 
 async function storageEnvironment(plan, planDigest, settings, environment) {
@@ -127,7 +168,7 @@ function verifyCanary(before, settings, trust, issuer) {
       data.request.producer === request.producer &&
       data.request.authority_namespace === settings.generation &&
       data.request.purpose === 'authorise_execution' &&
-      data.request.metadata?.haip_acceptance_fixture === checkId &&
+      data.request.metadata?.haip_acceptance_fixture === backupCheck &&
       data.grant_state === 'available' &&
       data.audit_state === 'anchored' &&
       digest(data.request) === data.request_digest &&
@@ -144,6 +185,26 @@ function verifyCanary(before, settings, trust, issuer) {
     type: 'DecisionReceipt',
   });
   return digest(data.receipt);
+}
+
+async function restoreCanary(dist, backup, env, store, settings, trust) {
+  const restored = await execute(
+    process.execPath,
+    [join(dist, 'backup-command.js'), 'restore', backup],
+    {
+      env,
+      timeout: window,
+      maxBuffer: 32 * 1024,
+    },
+  );
+  const report = JSON.parse(restored.stdout);
+  requireCheck(
+    report.restored === true && report.admission === 'fenced' && report.recovery_required === true,
+  );
+  await store.migrate();
+  const before = await databaseCanary(store, settings);
+  const receiptDigest = verifyCanary(before, settings, trust, env.HAIP_ORIGIN);
+  return { canary: before.request.data.request, receiptDigest };
 }
 
 async function verifyRecovered(store, settings, recovery, receiptDigest, operator, token) {
@@ -183,6 +244,11 @@ async function verifyRecovered(store, settings, recovery, receiptDigest, operato
     [settings.tenant],
   );
   requireCheck(!rowCount);
+  const routes = await store.pool.query(
+    "SELECT 1 FROM haip_routes WHERE tenant=$1 AND (config->'reviewers' IS DISTINCT FROM '[]'::jsonb OR config->'allowed_producers' IS DISTINCT FROM '[]'::jsonb) LIMIT 1",
+    [settings.tenant],
+  );
+  requireCheck(!routes.rowCount);
   const { rows: recorded } = await store.pool.query(
     'SELECT new_generation,history_state FROM haip_recoveries WHERE tenant=$1 AND old_generation=$2',
     [settings.tenant, settings.generation],
@@ -194,12 +260,52 @@ async function verifyRecovered(store, settings, recovery, receiptDigest, operato
   );
 }
 
+async function producerBeforeRecovery(store, canary, oldToken) {
+  const {
+    rows: [producer],
+  } = await store.pool.query(
+    "SELECT config,token_hash FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='producer'",
+    [canary.tenant, canary.producer],
+  );
+  requireCheck(producer?.config.enabled === true && producer.token_hash === digestBytes(oldToken));
+  const { publisher, owner, routes } = producer.config;
+  return { enabled: true, publisher, owner, routes };
+}
+
+function processEnvironment(env, dist, fixture, offline) {
+  return {
+    ...env,
+    ...fixture?.environment,
+    ...(fixture
+      ? { HAIP_TEST_SERVER_DIST: dist, HAIP_TEST_EXPECT_OFFLINE: offline ? '1' : '0' }
+      : {}),
+  };
+}
+
+async function verifyRefusedStart(args, env, store, settings, generation) {
+  const incidents = async () =>
+    Number(
+      (
+        await store.pool.query(
+          "SELECT count(*) AS count FROM haip_incidents WHERE tenant=$1 AND code='namespace_recovery_required'",
+          [settings.tenant],
+        )
+      ).rows[0].count,
+    );
+  const before = await incidents();
+  await checkRestartRefused(args, env);
+  const { tenant } = await databaseCanary(store, settings);
+  requireCheck(tenant.generation === generation && (await incidents()) === before + 1);
+}
+
 export async function collectBackupRecovery(
   planPath,
   evidenceDirectory,
   settingsPath,
-  { environment = process.env, fixture } = {},
+  { environment = process.env, fixture, checkId = backupCheck } = {},
 ) {
+  requireCheck(checkId === backupCheck || checkId === restartCheck);
+  const restart = checkId === restartCheck;
   const { plan, digest: planDigest } = await readAcceptancePlan(planPath);
   const { bytes, document: settings } = await readJsonDocument(settingsPath);
   const directory = await privateDirectory(evidenceDirectory);
@@ -208,7 +314,7 @@ export async function collectBackupRecovery(
   const facts = { scope };
   let stage = 'settings';
   let status = 'failed';
-  let scratch, store;
+  let scratch, store, rollbackStore;
   const passed = (name, detail) => assertions.push({ name, passed: true, detail });
   try {
     validatedSettings(plan, planDigest, settings);
@@ -221,15 +327,30 @@ export async function collectBackupRecovery(
         facts,
       };
     }
-    const databaseUrl = environment.HAIP_ACCEPTANCE_RESTORE_DATABASE_URL;
-    requireCheck(typeof databaseUrl === 'string');
-    const targetUrl = new URL(databaseUrl);
-    requireCheck(decodeURIComponent(targetUrl.pathname.slice(1)) === settings.target_database);
-    requireCheck(
-      [...targetUrl.searchParams.keys()].every((name) =>
-        ['sslmode', 'sslnegotiation', 'ssl', 'uselibpqcompat'].includes(name),
-      ),
+    const databaseUrl = databaseUrlFor(
+      restart
+        ? environment.HAIP_ACCEPTANCE_RESTART_DATABASE_URL
+        : environment.HAIP_ACCEPTANCE_RESTORE_DATABASE_URL,
+      settings.target_database,
     );
+    const oldToken = environment.HAIP_ACCEPTANCE_PRE_RECOVERY_PRODUCER_TOKEN;
+    let recoveredRuntimeUrl, rollbackUrl, rollbackRuntimeUrl;
+    if (restart) {
+      requireCheck(settings.target_database !== settings.rollback_database);
+      requireCheck(typeof oldToken === 'string' && /^[A-Za-z0-9_-]{32,200}$/.test(oldToken));
+      recoveredRuntimeUrl = databaseUrlFor(
+        environment.HAIP_ACCEPTANCE_RECOVERED_RUNTIME_DATABASE_URL,
+        settings.target_database,
+      );
+      rollbackUrl = databaseUrlFor(
+        environment.HAIP_ACCEPTANCE_ROLLBACK_DATABASE_URL,
+        settings.rollback_database,
+      );
+      rollbackRuntimeUrl = databaseUrlFor(
+        environment.HAIP_ACCEPTANCE_ROLLBACK_RUNTIME_DATABASE_URL,
+        settings.rollback_database,
+      );
+    }
     const env = Object.fromEntries(
       runtimeVariables
         .filter((name) => environment[name] !== undefined)
@@ -256,57 +377,85 @@ export async function collectBackupRecovery(
     passed(stage, 'The staged server archive and encrypted backup matched the reviewed digests.');
 
     stage = 'restore_target';
-    const { createRuntime } = await import(pathToFileURL(join(dist, 'runtime.js')).href);
+    const { createRuntime, createRuntimeStore } = await import(
+      pathToFileURL(join(dist, 'runtime.js')).href
+    );
     const { service } = createRuntime(env, { databaseAccess: 'administrative' });
     store = service.store;
-    const identity = await store.pool.query('SELECT current_database() AS name');
-    requireCheck(identity.rows[0].name === settings.target_database);
-    passed(stage, 'The database connection used the expected target and verified TLS.');
+    const identity = await databaseIdentity(store, settings.target_database);
+    let rollbackAdmin, recoveredEnv, rollbackEnv, producerConfig;
+    if (restart) {
+      rollbackAdmin = { ...env, HAIP_DATABASE_URL: rollbackUrl };
+      rollbackStore = createRuntimeStore(rollbackAdmin, 'administrative');
+      const rollbackIdentity = await databaseIdentity(rollbackStore, settings.rollback_database);
+      recoveredEnv = { ...env, HAIP_DATABASE_URL: recoveredRuntimeUrl };
+      rollbackEnv = { ...env, HAIP_DATABASE_URL: rollbackRuntimeUrl };
+      await verifyRuntimeDatabase(
+        createRuntimeStore,
+        recoveredEnv,
+        settings.target_database,
+        identity,
+      );
+      await verifyRuntimeDatabase(
+        createRuntimeStore,
+        rollbackEnv,
+        settings.rollback_database,
+        rollbackIdentity,
+      );
+    }
+    passed(
+      stage,
+      restart
+        ? 'Both database targets used verified TLS. Each runtime login was separate from the restore role and had no administrative role flags.'
+        : 'The database connection used the expected target and verified TLS.',
+    );
 
     stage = 'encrypted_restore';
-    const restored = await execute(
-      process.execPath,
-      [join(dist, 'backup-command.js'), 'restore', backup],
-      { env, timeout: window, maxBuffer: 32 * 1024 },
-    );
-    const report = JSON.parse(restored.stdout);
-    requireCheck(
-      report.restored === true &&
-        report.admission === 'fenced' &&
-        report.recovery_required === true,
-    );
-    await store.migrate();
-    const before = await databaseCanary(store, settings);
-    const receiptDigest = verifyCanary(
-      before,
+    const { canary, receiptDigest } = await restoreCanary(
+      dist,
+      backup,
+      env,
+      store,
       settings,
       service.config.trust,
-      plan.deployment.trusted_origin,
     );
     passed(
       stage,
       'An authenticated restore fenced the isolated tenant and retained the signed canary and its private material.',
     );
 
+    const main = [...(fixture?.preload ?? []), join(dist, 'main.js')];
+    if (restart) {
+      stage = 'rollback_restore';
+      const prior = await restoreCanary(
+        dist,
+        backup,
+        rollbackAdmin,
+        rollbackStore,
+        settings,
+        service.config.trust,
+      );
+      requireCheck(prior.receiptDigest === receiptDigest);
+      producerConfig = await producerBeforeRecovery(store, canary, oldToken);
+      passed(
+        stage,
+        'The rollback target retained the same original receipt and the original producer credential matched the restored record.',
+      );
+    }
+
     stage = 'offline_recovery';
     const operator = 'recovery-' + randomUUID();
     const token = randomBytes(32).toString('base64url');
-    const result = await execute(
-      process.execPath,
-      [...(fixture?.preload ?? []), join(dist, 'main.js'), '--recover'],
-      {
-        env: {
-          ...env,
-          ...fixture?.environment,
-          ...(fixture ? { HAIP_TEST_SERVER_DIST: dist } : {}),
-          HAIP_RECOVERY_TENANT: settings.tenant,
-          HAIP_RECOVERY_OPERATOR: operator,
-          HAIP_RECOVERY_TOKEN: token,
-        },
-        timeout: window,
-        maxBuffer: 32 * 1024,
+    const result = await execute(process.execPath, [...main, '--recover'], {
+      env: {
+        ...processEnvironment(env, dist, fixture, true),
+        HAIP_RECOVERY_TENANT: settings.tenant,
+        HAIP_RECOVERY_OPERATOR: operator,
+        HAIP_RECOVERY_TOKEN: token,
       },
-    );
+      timeout: window,
+      maxBuffer: 32 * 1024,
+    });
     const recovery = JSON.parse(result.stdout);
     await verifyRecovered(store, settings, recovery, receiptDigest, operator, token);
     passed(
@@ -315,6 +464,49 @@ export async function collectBackupRecovery(
     );
     facts.recovered_generation_digest = sha256(recovery.generation);
     facts.receipt_digest = receiptDigest;
+    if (restart) {
+      stage = 'recovered_start';
+      const observed = await checkRecoveredStart({
+        args: main,
+        env: processEnvironment(recoveredEnv, dist, fixture, false),
+        request: canary,
+        operatorToken: token,
+        oldToken,
+        producerConfig,
+      });
+      facts.old_claim_status = observed.oldClaimStatus;
+      facts.fresh_claim_status = observed.freshClaimStatus;
+      passed(
+        stage,
+        'Both listeners opened on the recovered generation. The original credential and a reprovisioned producer could not claim the old grant.',
+      );
+
+      stage = 'restart_refused';
+      await verifyRefusedStart(
+        main,
+        processEnvironment(recoveredEnv, dist, fixture, true),
+        store,
+        settings,
+        recovery.generation,
+      );
+      passed(
+        stage,
+        'The recovered process generation refused a second start before opening listeners.',
+      );
+
+      stage = 'rollback_refused';
+      await verifyRefusedStart(
+        main,
+        processEnvironment(rollbackEnv, dist, fixture, true),
+        rollbackStore,
+        settings,
+        settings.generation,
+      );
+      passed(
+        stage,
+        'The old database copy stayed fenced and the retired generation refused to open either listener.',
+      );
+    }
     status = fixture ? 'blocked' : 'passed';
   } catch {
     assertions.push({
@@ -323,27 +515,25 @@ export async function collectBackupRecovery(
       detail: 'The recovery step failed or its observations differed from the plan.',
     });
   } finally {
-    await store?.close();
+    await Promise.all([store?.close(), rollbackStore?.close()]);
     if (scratch) await rm(scratch, { recursive: true, force: true });
   }
-  const evidence = await privateEvidence(
-    directory,
-    'backup-recovery',
-    'backup_recovery_observations',
-    {
-      recorded_at: new Date().toISOString(),
-      scope,
-      status,
-      source_commit: plan.source.commit,
-      service_artifact_digest: plan.deployment.service_artifact_digest,
-      plan_digest: planDigest,
-      settings_digest: sha256(bytes),
-      assertions,
-      facts,
-    },
-  );
+  const evidence = await privateEvidence(directory, 'backup-recovery', checkId + '_observations', {
+    recorded_at: new Date().toISOString(),
+    scope,
+    status,
+    check_id: checkId,
+    source_commit: plan.source.commit,
+    service_artifact_digest: plan.deployment.service_artifact_digest,
+    plan_digest: planDigest,
+    settings_digest: sha256(bytes),
+    assertions,
+    facts,
+  });
   const summary = {
-    passed: 'Encrypted restoration and offline recovery passed on the isolated deployment.',
+    passed: restart
+      ? 'Restart and database rollback checks passed on the isolated deployment.'
+      : 'Encrypted restoration and offline recovery passed on the isolated deployment.',
     blocked: 'The local recovery exercise passed with fixture storage.',
     failed: 'The backup recovery drill failed during ' + stage.replaceAll('_', ' ') + '.',
   }[status];
@@ -352,12 +542,13 @@ export async function collectBackupRecovery(
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [plan, evidence, settings, ...extra] = process.argv.slice(2);
+  const checkId = process.env.HAIP_ACCEPTANCE_CHECK_ID ?? backupCheck;
   if (
     !plan ||
     !evidence ||
     !settings ||
     extra.length ||
-    (process.env.HAIP_ACCEPTANCE_CHECK_ID && process.env.HAIP_ACCEPTANCE_CHECK_ID !== checkId)
+    ![backupCheck, restartCheck].includes(checkId)
   ) {
     console.error(
       'Usage: node deployment/adapters/backup-recovery.mjs PLAN EVIDENCE_DIRECTORY SETTINGS',
@@ -365,7 +556,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exitCode = 64;
   } else {
     try {
-      console.log(JSON.stringify(await collectBackupRecovery(plan, evidence, settings)));
+      console.log(
+        JSON.stringify(await collectBackupRecovery(plan, evidence, settings, { checkId })),
+      );
     } catch {
       console.error('Backup recovery adapter could not record evidence.');
       process.exitCode = 1;

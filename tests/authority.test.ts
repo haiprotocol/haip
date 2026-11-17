@@ -210,7 +210,7 @@ test('offline authority rejects tampering, stale nonces, clock skew and missing 
     t.mock.restoreAll();
   }
 });
-test('a checkpoint outage blocks a fresh claim and permit even when safety storage still works', async () => {
+test('a checkpoint outage blocks claims and permits and recovery preserves grant expiry', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'haip-checkpoint-outage-'));
   const originalRecovery = env.service.recovery;
   try {
@@ -254,9 +254,70 @@ test('a checkpoint outage blocks a fresh claim and permit even when safety stora
     const retryPermit = await env.api(`/v2/requests/${claimed.id}/admission`, permit);
     assert.equal(retryPermit.status, 200);
     assert.equal(retryPermit.body.payload.dispatch_before, claimed.receipt.payload.grant_deadline);
+
+    await env.put('/v2/admin/routes/review', {
+      ...env.route,
+      limits: { ...env.route.limits, grant_seconds: 3 },
+    });
+    const expiring = await authorise();
+    const expiringClaimed = await authorise();
+    await env.flush();
+    const expiringInput = claimInput(expiring, 'unclaimed-at-expiry');
+    const expiringConsumed = claimInput(expiringClaimed, 'claimed-before-expiry');
+    const expiringClaim = await env.api(
+      `/v2/requests/${expiringClaimed.id}/claims`,
+      expiringConsumed,
+    );
+    assert.equal(expiringClaim.status, 201);
+    assert.equal(
+      expiringClaim.body.payload.dispatch_before,
+      expiringClaimed.receipt.payload.grant_deadline,
+    );
+    const expiringPermit = {
+      claim_id: expiringClaim.body.payload.id,
+      execution_identity: expiringConsumed.execution_identity,
+      nonce: 'nonce-crossing-checkpoint-outage',
+    };
+    const pending = () =>
+      Promise.all([
+        env.api(`/v2/requests/${expiring.id}/claims`, expiringInput),
+        env.api(`/v2/requests/${expiringClaimed.id}/admission`, expiringPermit),
+      ]);
+    env.anchor.unavailable = true;
+    const during = await pending();
+    assert.deepEqual(
+      during.map(({ status }) => status),
+      [503, 503],
+    );
+    assert.deepEqual(
+      during.map(({ body }) => body.error),
+      ['anchor_unavailable', 'anchor_unavailable'],
+    );
+    await env.store.pool.query('SELECT pg_sleep_until(GREATEST($1::timestamptz,$2::timestamptz))', [
+      expiring.receipt.payload.grant_deadline,
+      expiringClaimed.receipt.payload.grant_deadline,
+    ]);
+    env.anchor.unavailable = false;
+    const after = await pending();
+    assert.deepEqual(
+      after.map(({ status }) => status),
+      [409, 409],
+    );
+    assert.deepEqual(
+      after.map(({ body }) => body.error),
+      ['grant_expired', 'grant_expired'],
+    );
+    for (const review of [expiring, expiringClaimed]) {
+      const status = await env.api('/v2/requests/' + review.id);
+      assert.equal(
+        status.body.receipt.payload.grant_deadline,
+        review.receipt.payload.grant_deadline,
+      );
+    }
   } finally {
     env.anchor.unavailable = false;
     env.service.recovery = originalRecovery;
+    await env.put('/v2/admin/routes/review', env.route);
     await rm(directory, { recursive: true, force: true });
   }
 });

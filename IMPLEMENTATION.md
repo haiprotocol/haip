@@ -6,7 +6,7 @@ The [8 October release review](RELEASE-READINESS.md) records the current release
 
 ## Managed hosting
 
-The standalone `2.0.0-draft.3` runtime supports local review and acceptance rehearsal. The existing Vercel Pro and Neon accounts are the preferred option if HAIP needs a shared hosted service. The [managed hosting plan](deployment/vercel-neon.md) covers serverless authority, larger payloads, Neon transactions, event-driven outbox delivery, browser isolation and storage access. Production acceptance and independent assurance still depend on the actual release and environment.
+Use the standalone `2.0.0-draft.3` runtime for [local review and acceptance rehearsal](deployment/README.md#local-use). If HAIP needs shared hosting, the [Vercel and Neon plan](deployment/vercel-neon.md) covers the serverless authority, payload, database, delivery, browser isolation and storage work that deployment would require.
 
 ## Ownership and baseline
 
@@ -51,9 +51,9 @@ Azure test transports check conditional writes, exact versions, inherited retent
 
 The historical Node, Python and Rust primitive runners retain 25 exact comparisons, including decimal responses and RFC 8032 vector 1. The standalone Python conformance client is separate and remains internally authored. Dependency audit and five current package contents are checked separately. Passing fixtures supply bounded evidence and leave independent assurance unresolved.
 
-## Remaining release dependencies
+## Release dependencies
 
-1. Validate an approved deployment's external identity, TLS and DNS, independent storage administration, writer restrictions, real immutable storage and restore procedure. No provider resource has been provisioned for this work. Free options come first.
+1. Run the local rehearsal on the release candidate. Production acceptance also requires evidence for the installed identity, TLS and DNS, independent storage administration, writer restrictions, immutable storage and restore procedure.
 2. Obtain an independently accountable implementation and independent security review, then keep CI passing on the exact release revision before calling the reference service production-ready.
 3. Keep contracts draft until the HAIP release gates pass. A reviewed draft source merge into `main`, stable package publication and production deployment are separate decisions with separate authorisation.
 4. Treat Plasm integration as downstream work owned by its maintainers. Live and durable contexts, credentials, dispatch accounting, continuations and schema-3 evidence are required for corresponding Plasm claims rather than a standalone HAIP release.

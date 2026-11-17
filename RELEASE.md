@@ -20,6 +20,8 @@ Optional Azure Blob locked WORM and permanent safety records support deployments
 
 ## Deployment
 
+Use the [local rehearsal](deployment/README.md#local-use) for browser sign-in, notification delivery, recovery and conformance on one machine. The checks below apply when preparing the production release.
+
 - Run the provider-neutral acceptance plan against independently administered storage: versioning, locked 90-day retention, permanent safety holds, exact reads, conflicts, writer restrictions and denial of deletion, hold removal or policy administration. Rehearse real restoration with storage independent of database backups. Adapter fixtures and a generated report cannot prove administrator separation by themselves.
 - Chosen external identity application, exact callback, directory mappings, session rotation, TLS reverse proxy, sandbox DNS/TLS and delivery endpoints. Generic OAuth metadata, Basic auth and local HTTPS replay persistence pass locally. A Clerk or Entra account is not integrated.
 - Key custody, independent trust distribution, backup deletion, incident routing, worker and retention alerts, and recovery on every restart. The Caddy and Bicep files are reviewed examples rather than an installed deployment.

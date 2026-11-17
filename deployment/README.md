@@ -1,6 +1,6 @@
 # Deployment examples
 
-These files are reviewed examples for the HAIP reference service. They do not install software, create a cloud resource, configure an account or establish production acceptance.
+Run the standalone HAIP reference service locally for development, conformance and recovery rehearsal. Use the deployment examples when preparing a shared installation.
 
 ## Local use
 
@@ -12,9 +12,11 @@ npx playwright install chromium
 npm run check:local
 ```
 
-The rehearsal runs the reference suite with the Caddy proxy, adds browser sign-in against a local Dex issuer and exercises Prometheus rules and Alertmanager delivery. It uses temporary certificates and loopback services. The reference suite tests local SMTP and HTTPS delivery and runs the built backup and recovery commands against PostgreSQL with verified TLS. Signed checkpoint and safety records live in a disposable fixture outside the database backup.
+The rehearsal uses loopback services and temporary certificates. It exercises the Caddy proxy, browser sign-in against a local Dex issuer, local SMTP and HTTPS delivery, and Prometheus rules and Alertmanager delivery.
 
-Set `HAIP_TEST_PG_BIN` for a non-default PostgreSQL installation. `HAIP_TEST_CADDY`, `HAIP_TEST_DEX` and `HAIP_TEST_CHROMIUM` can select installed binaries. Once the dependencies are installed, the rehearsal needs no provider account. Production acceptance still needs proof of storage retention and writer restrictions under independent administration. See [deployment acceptance](acceptance.md).
+The acceptance runner uses a locally packed server with PostgreSQL over verified TLS. It restores an encrypted backup into disposable databases and starts the recovered server with a restricted database role. A second start and a start from the old database copy must both refuse. Signed checkpoint and safety records live in a filesystem fixture outside the backup.
+
+Set `HAIP_TEST_PG_BIN` for a non-default PostgreSQL installation. `HAIP_TEST_CADDY`, `HAIP_TEST_DEX` and `HAIP_TEST_CHROMIUM` can select installed binaries. All of these checks run on one machine once the dependencies are installed. The [production acceptance checks](acceptance.md) apply to the actual installation, including storage retention and writer restrictions under independent administration.
 
 ## Managed hosting
 
