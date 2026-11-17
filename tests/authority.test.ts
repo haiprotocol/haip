@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { toHttpHeadersLike } from '@azure/core-http-compat';
 import { createHttpHeaders } from '@azure/core-rest-pipeline';
 import { BlobServiceClient, newPipeline } from '@azure/storage-blob';
+import type { AnchorProof } from '@haip/protocol';
 import { environment } from './environment.js';
 import { HAIPClient, verifyExecutionAuthority } from '@haip/sdk';
 import { digest, canonicalise, signRecord } from '@haip/protocol/crypto';
@@ -147,6 +148,30 @@ test('offline authority rejects tampering, stale nonces, clock skew and missing 
     },
   };
   const verified = await verifyExecutionAuthority(input);
+  const anchor = admission.record.payload.anchor as unknown as AnchorProof;
+  const checkpointPayload = anchor.checkpoint.payload as Record<string, unknown>;
+  assert.equal(checkpointPayload.generation, input.request.authority_namespace);
+  for (const [field, error] of [
+    ['generation', /Checkpoint execution namespace mismatch/],
+    ['ledger_id', /Signing identity or purpose mismatch/],
+  ] as const) {
+    const checkpoint = signRecord(
+      { ...checkpointPayload, [field]: randomUUID() },
+      anchor.checkpoint.protected,
+      env.service.config.signingKey,
+    );
+    const acceptance = await env.anchor.accept(checkpoint);
+    await input.verifyAnchor(checkpoint, acceptance);
+    const record = signRecord(
+      { ...admission.record.payload, anchor: { ...anchor, checkpoint, acceptance } },
+      admission.record.protected,
+      env.service.config.signingKey,
+    ) as typeof admission.record;
+    await assert.rejects(
+      verifyExecutionAuthority({ ...input, admission: { ...admission, record } }),
+      error,
+    );
+  }
   for (const purpose of ['review', undefined]) {
     const payload = { ...input.receipt.payload, purpose };
     if (purpose === undefined) delete payload.purpose;

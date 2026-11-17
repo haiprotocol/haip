@@ -620,20 +620,35 @@ def _signed_in_export(exported: Mapping[str, Any], record: Mapping[str, Any], na
         raise ConformanceError(name + " is missing from the export")
 
 
-def _verify_anchor(anchor: Mapping[str, Any], receipt: Mapping[str, Any], trust: Mapping[str, Any], config: Mapping[str, Any]) -> None:
+def _verify_anchor(
+    config: Mapping[str, Any],
+    request: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    anchor: Mapping[str, Any],
+) -> None:
     if not isinstance(anchor, dict) or not isinstance(anchor.get("checkpoint"), dict) or not isinstance(anchor.get("acceptance"), dict) or not isinstance(anchor.get("proof"), list) or not anchor["proof"]:
         raise ConformanceError("Missing checkpoint proof")
     checkpoint = anchor["checkpoint"]
     checkpoint_payload = checkpoint.get("payload", {})
     if not isinstance(checkpoint_payload, dict) or type(checkpoint_payload.get("sequence")) is not int or not 0 <= checkpoint_payload["sequence"] <= MAX_SAFE_INTEGER:
         raise ConformanceError("Invalid checkpoint sequence")
+    ledger_id = checkpoint_payload.get("ledger_id")
+    if not isinstance(ledger_id, str) or not ledger_id:
+        raise ConformanceError("Invalid checkpoint ledger")
+    generation = checkpoint_payload.get("generation")
+    if (
+        not isinstance(generation, str)
+        or not generation
+        or ("authority_namespace" in request and request["authority_namespace"] != generation)
+    ):
+        raise ConformanceError("Checkpoint execution namespace mismatch")
     verify_record(
         checkpoint,
-        trust,
+        config["trust"],
         {
             "issuer": config["origin"],
             "audience": "haip.audit",
-            "tenant": checkpoint_payload.get("ledger_id"),
+            "tenant": ledger_id,
             "type": "AuditCheckpoint",
             "purpose": "service",
         },
@@ -733,7 +748,7 @@ def _verify_execution_chain(
         raise ConformanceError("Invalid execution bound")
     anchor = admission_payload.get("anchor")
     _same(anchor, exported.get("anchor"), "Admission anchor differs from the export")
-    _verify_anchor(anchor, receipt, config["trust"], config)
+    _verify_anchor(config, request, receipt, anchor)
     result = {"execution_seconds": float(admission_payload["execution_seconds"])}
     if timing is not None:
         elapsed_mono = timing["received_mono"] - timing["started_mono"]
@@ -793,7 +808,7 @@ def _verify_persisted_execution_chain(
         raise ConformanceError("Invalid persisted authority timeline")
     if dispatch > confirmed + timedelta(seconds=request["limits"]["grant_seconds"]) or not 0 < admission_payload["execution_seconds"] <= request["limits"]["execution_seconds"] or claim_payload.get("execution_seconds") != admission_payload["execution_seconds"]:
         raise ConformanceError("Invalid persisted execution bound")
-    _verify_anchor(admission_payload.get("anchor"), receipt, config["trust"], config)
+    _verify_anchor(config, request, receipt, admission_payload.get("anchor"))
     return claim
 
 

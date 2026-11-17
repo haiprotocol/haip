@@ -14,6 +14,7 @@ import {
   type DecisionReceipt,
   type ExecutionClaim,
   type AdmissionStatus,
+  type AnchorProof,
   type DecisionCandidate,
   type DecisionRequest,
 } from '@haip/protocol';
@@ -252,14 +253,24 @@ export async function verifyExecutionAuthority(input: AuthorityInput) {
       p.execution_seconds === r.execution!.execution_seconds,
     'Admission mismatch',
   );
-  const anchor = p.anchor as any;
+  const anchor = p.anchor as unknown as AnchorProof;
   refuse(
     anchor?.checkpoint && anchor?.acceptance && Array.isArray(anchor.proof) && anchor.proof.length,
     'Missing checkpoint proof',
   );
+  const scope = anchor.checkpoint.payload as { ledger_id?: unknown; generation?: unknown } | null;
+  if (typeof scope?.ledger_id !== 'string' || !scope.ledger_id)
+    throw new Error('Invalid checkpoint ledger');
+  refuse(
+    typeof scope.generation === 'string' &&
+      scope.generation.length > 0 &&
+      (r.authority_namespace === undefined || r.authority_namespace === scope.generation),
+    'Checkpoint execution namespace mismatch',
+  );
   verifyRecord(anchor.checkpoint, input.trust, {
     issuer: input.issuer,
     audience: 'haip.audit',
+    tenant: scope.ledger_id,
     type: 'AuditCheckpoint',
     purpose: 'service',
   });

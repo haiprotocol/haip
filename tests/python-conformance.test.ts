@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { createHash, createPublicKey, verify } from 'node:crypto';
+import { createHash, createPublicKey, randomUUID, sign, verify } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -375,17 +375,41 @@ test('Python verifies execution and keeps one effect through a lost outcome resp
     assert.equal(second.count, 1);
     assert.equal(second.replayed, true);
     assert.equal(second.outcome_digest, first.outcome_digest);
-    assert.deepEqual(executionWrites, [
-      '/claims',
-      '/admission',
-      '/outcomes',
-      '/outcomes',
-      '/outcomes',
-    ]);
-    assert.match(outcomeKeys[0] ?? '', /^python-outcome-[a-f0-9]{64}$/);
-    assert.deepEqual(outcomeKeys, [outcomeKeys[0], outcomeKeys[0], outcomeKeys[0]]);
-    const database = new DatabaseSync(input.database, { readOnly: true });
+    const database = new DatabaseSync(input.database);
     try {
+      const saved = database
+        .prepare('SELECT evidence FROM execution_fences WHERE request_id=?')
+        .get(started.request_id);
+      assert(typeof saved?.evidence === 'string');
+      const evidence = JSON.parse(saved.evidence);
+      const { admission, request } = evidence;
+      const { anchor } = admission.payload;
+      assert.equal(anchor.checkpoint.payload.generation, request.authority_namespace);
+      const signed = (header: typeof admission.protected, payload: unknown) => {
+        const body = { protected: header, payload };
+        const signature = sign(
+          null,
+          Buffer.from(canonicalise(body)),
+          env.service.config.signingKey,
+        ).toString('base64url');
+        return { ...body, signature };
+      };
+      const checkpoint = signed(anchor.checkpoint.protected, {
+        ...anchor.checkpoint.payload,
+        generation: randomUUID(),
+      });
+      const acceptance = await env.anchor.accept(checkpoint);
+      evidence.admission = signed(admission.protected, {
+        ...admission.payload,
+        anchor: { ...anchor, checkpoint, acceptance },
+      });
+      database
+        .prepare('UPDATE execution_fences SET evidence=? WHERE request_id=?')
+        .run(canonicalise(evidence), started.request_id);
+      assert.match(
+        await pythonFailure('execution-finish', input),
+        /Checkpoint execution namespace mismatch/,
+      );
       assert.equal(
         database.prepare("SELECT value FROM counters WHERE name='default'").get()?.value,
         1,
@@ -407,6 +431,15 @@ test('Python verifies execution and keeps one effect through a lost outcome resp
     } finally {
       database.close();
     }
+    assert.deepEqual(executionWrites, [
+      '/claims',
+      '/admission',
+      '/outcomes',
+      '/outcomes',
+      '/outcomes',
+    ]);
+    assert.match(outcomeKeys[0] ?? '', /^python-outcome-[a-f0-9]{64}$/);
+    assert.deepEqual(outcomeKeys, [outcomeKeys[0], outcomeKeys[0], outcomeKeys[0]]);
   } finally {
     await env.close();
     await rm(counterDirectory, { recursive: true, force: true });

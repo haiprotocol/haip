@@ -28,10 +28,10 @@ The live fixture creates retained request data. Run it only against an isolated 
 
 The separate `execution-start` and `execution-finish` commands exercise one fixed counter increment with the draft execution profile. A human must confirm the request between them, and the service must complete anchoring before finish runs.
 
-Before the first effect, finish verifies the exported request, material, candidate, receipt, claim, admission, profiles, identities, digest links, time bounds and checkpoint proof. The command also compares the checkpoint with an independently obtained record path. The integration test permits the loopback-only filesystem anchor and reads its stored record directly.
+Before the first effect, finish verifies the exported request, material, candidate, receipt, claim, admission, profiles, identities, digest links, time bounds and checkpoint proof. It matches the signed checkpoint to its ledger and to the request's declared execution namespace, then compares it with an independently obtained record. The integration test uses a loopback filesystem anchor and reads its stored record directly.
 
 The counter and its request fence share one SQLite transaction with full synchronous writes. A committed result contains both the effect and its unique request fence. Re-running finish verifies the request and the original signed receipt, claim and admission retained with the fence, then sends the outcome with the original idempotency key. This works after private review material is discarded.
 
-The local test stops the client after the counter commits, then drops the next outcome response after HAIP records it. The following invocation verifies the original signed outcome. The test counts the actual SQLite effect and checks that the outcome retries obtain no new claims or admissions.
+The local test stops the client after the counter commits, then drops the next outcome response after HAIP records it. The following invocation verifies the original signed outcome. A validly signed checkpoint from another namespace is refused on replay. The test checks that SQLite records one effect and outcome retries use the original claim and admission.
 
 This counter is a bounded local execution fixture rather than a general executor. For a deployed service, pass `anchor_record_path` for a separately retrieved checkpoint record. Validating a provider's retention controls remains deployment acceptance work outside this client.
