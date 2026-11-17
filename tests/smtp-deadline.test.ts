@@ -214,7 +214,7 @@ test('timeout after SMTP DATA leaves acceptance unknown and lets later worker jo
     assert.equal(registered.status, 201);
     const later = (
       await env.store.pool.query(
-        "SELECT id FROM haip_outbox WHERE tenant='test-tenant' AND kind='checkpoint' ORDER BY created_at DESC,id DESC LIMIT 1",
+        "UPDATE haip_outbox SET next_at=clock_timestamp() WHERE tenant='test-tenant' AND checkpoint_batch_count IS NOT NULL RETURNING id",
       )
     ).rows[0].id;
     const order = (
@@ -254,21 +254,11 @@ test('timeout after SMTP DATA leaves acceptance unknown and lets later worker jo
     assert.equal(row.accepted, null);
     assert.equal(row.error, 'smtp_timeout');
     assert.equal(fixture.active, 0);
-    const checkpoints = (
-      await env.store.pool.query(
-        "SELECT state FROM haip_outbox WHERE request_id=$1 AND kind='checkpoint'",
-        [id],
-      )
-    ).rows;
-    assert(checkpoints.length > 0);
-    assert(
-      checkpoints.every((item: any) => item.state === 'accepted'),
-      'SMTP timeout must not stop remaining checkpoint jobs',
-    );
     assert.equal(
       (await env.store.pool.query('SELECT state FROM haip_outbox WHERE id=$1', [later])).rows[0]
         .state,
       'accepted',
+      'SMTP timeout must not stop the next checkpoint job',
     );
     fixture.lateAcknowledgement();
     await turn();

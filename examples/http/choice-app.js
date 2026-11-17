@@ -9,12 +9,13 @@ document.body.innerHTML = `
   <p id="envelope"></p>
   <div><label>Your choice <select id="choice">
     <option value="">Choose a response</option><option value="accept">Accept</option><option value="decline">Decline</option>
-  </select></label><button type="button" id="propose">Propose choice</button></div>
+  </select></label><button type="button" id="propose" disabled>Propose choice</button></div>
   <p id="feedback" role="status"></p>`;
 
 const probe = window.__HAIP_TEST_PROBE__
   ? (window.probe = { inputs: 0, results: 0, storage: false, forbidden: false })
   : undefined;
+const proposeButton = document.querySelector('#propose');
 
 const view = await connectView({
   name: 'Independent choice review',
@@ -29,12 +30,13 @@ const view = await connectView({
       null,
       2,
     );
+    proposeButton.disabled = false;
   },
 });
 document.querySelector('#envelope').textContent =
   `Request ${view.envelope.request.id} · bundle ${view.envelope.bundle.digest.slice(0, 19)}… · binding ${view.envelope.binding_digest.slice(0, 19)}…`;
 
-document.querySelector('#propose').onclick = async () => {
+proposeButton.onclick = async () => {
   const choice = document.querySelector('#choice').value;
   if (!['accept', 'decline'].includes(choice)) {
     document.querySelector('#feedback').textContent = 'Choose a response first.';

@@ -4,6 +4,10 @@ Status: **HAIP-owned draft implementation with local and hosted CI evidence. Sta
 
 The [8 October release review](RELEASE-READINESS.md) records the current release hold, newly confirmed defects and local corrections. Its validation belongs to the corrected source rather than the historical commits below. Deployment acceptance and independently accountable assurance remain open.
 
+## Managed hosting
+
+Use the standalone `2.0.0-draft.3` runtime for [local review and acceptance rehearsal](deployment/README.md#local-use). If HAIP needs shared hosting, the [Vercel and Neon plan](deployment/vercel-neon.md) covers the serverless authority, payload, database, delivery, browser isolation and storage work that deployment would require.
+
 ## Ownership and baseline
 
 PR #6 is based on HAIP 2 commit `c02bf330324b0ec8385a8438d112c258caec6161`. Existing packages were repurposed in place. HAIP 1 source and guidance remain in `archive/v1` and `docs/archive/v1`. The HAIP name, independent protocol, MIT attribution, website and `@haip` scope are retained.
@@ -13,7 +17,7 @@ PR #6 is based on HAIP 2 commit `c02bf330324b0ec8385a8438d112c258caec6161`. Exis
 ## Implemented HAIP responsibilities
 
 - Independent review and execution drafts, evolution and trust rules, JSON Schema, generated types and OpenAPI 3.1. Public response-schema checks and reusable review fixtures need no Plasm. Unsupported profiles fail without downgrade.
-- An internally authored Python 3.9 client using only the standard library supplies conformance evidence in a second language without importing a HAIP package. It verifies six frozen draft-3 wire vectors, rejects five changes to committed fields and exercises live HTTP review and execution, including durable replay after one counter effect.
+- An internally authored Python 3.9 client using only the standard library supplies conformance evidence in a second language without importing a HAIP package. It verifies six frozen draft-3 wire vectors, rejects five changes to committed fields and exercises live HTTP review and execution. When the outcome response is lost after commit, the client returns the original signed outcome on retry with one stored counter effect.
 - The native-isolate model check first binds its lifecycle, limits, purposes, execution profile and Agent UI messages to the current draft contract, then typechecks and exercises the Quint model.
 - The Node 24, Express 5 and PostgreSQL service provides immutable bindings, scoped credentials, publisher registrations, directory identities and operator routes. OIDC uses state, nonce and PKCE, server sessions, CSRF and separate trusted confirmation. OAuth metadata discovery and Basic client authentication support Clerk-style setup.
 - Rate limits for the service and each authenticated principal limit request admission without trusting proxy client addresses. The backup process passes database credentials through a private temporary password file rather than arguments visible on a child process and scrubs inherited PostgreSQL credential variables.
@@ -21,11 +25,11 @@ PR #6 is based on HAIP 2 commit `c02bf330324b0ec8385a8438d112c258caec6161`. Exis
 - Signed candidates and receipts, separate purpose and state dimensions, captured quotas, targeted invalidation, idempotency, cancellation, supersession and permanent occurrence consumption. Reviewer removal clears assignments without resetting quotas.
 - Exclusive claims, fresh admission, original deadlines, SDK verification, outcomes and reconciliation. The independent counter fixture persists one launch fence and refuses to repeat an uncertain effect or replay it to retry outcome reporting. Its single execution window includes initial reads. Fixed action, context and policy checks precede claims.
 - Transactional events and outbox, SMTP, owner notifications after sign-out, bounded delivery windows and restricted HTTPS webhooks. Durable generation and destination claims keep network waits outside the tenant transaction. SDK receiver verification and durable deduplication handle duplicate or out-of-order delivery before acknowledgement.
-- Optional Azure locked WORM storage uses separate checkpoint and safety containers, conditional add-only writes, exact version checks and a runtime role without replacement, deletion or policy administration. Separate permanent records bind ledger and process generation, retire old generations and fence occurrences and identities.
+- Optional Azure locked WORM storage uses separate checkpoint and safety containers, conditional add-only writes, and a runtime role limited to adding and reading blobs. Each confirmed decision makes a checkpoint due immediately. Routine writes share a checkpoint due at five minutes or 100 entries, with the original signed checkpoint fixed through retries. A successful upload must match the sole version in the listing. The local SDK and HTTP test verifies that a disagreement blocks claims and fresh admission. Permanent records bind ledger and process generation, retire old generations and fence occurrences and identities.
 - Offline recovery: retire independently before changing the database, conservatively reapply missing deletion or revocation, disable restored credentials, preserve original signatures and require new provisioning and review. Every restart of an activated production generation requires recovery. There is no transparent failover.
 - Checksum-verified migrations, AES-256-GCM backups, empty-target restore, admission fencing and 30-day pruning. Private retention clears response copies. Audit cleanup preserves commitments and permanent execution fences. Daily quotas use separate counters that survive cleanup, retries and credential rotation. Migration 003 pauses new creation until the next UTC day when upgrading request-derived quotas. Earlier-revision requests remain visible and safely cancellable or revocable, while proposal, confirmation, outcome and execution authority require recreation under the current revision.
 - Scoped JSON and Prometheus metrics, worker success and failure stamps, incidents, and deployment and alert examples that are not installed automatically. SDK, CLI, generic HTTP and Agent UI View examples, HITL v0.8 mapping, research runners, evaluation integrity checks, licences and v1 archive.
-- A provider-neutral acceptance runner validates an operator plan and collects bounded evidence from trusted adapters. Caddy and Azure Bicep examples describe the intended proxy and storage shape. Live infrastructure and acceptance evidence remain external.
+- A provider-neutral acceptance runner validates an operator plan and collects evidence through adapters for all ten deployment checks. The local operations drill observes firing and resolved alerts through Prometheus and Alertmanager. The Azure checks inspect policy and role assignments as a scoped Reader, verify the signed blob versions as the runtime and exercise writer permissions with disposable blobs. Production acceptance requires evidence from the installed environment.
 
 ## Validation and limits
 
@@ -43,13 +47,29 @@ Local tests use throwaway PostgreSQL, a local OIDC provider, browser/TLS/SMTP fi
 
 Additional regression checks cover state/nonce/PKCE and concurrent callbacks, same-OIDC identity aliases in separation of duties, unknown required execution profiles, exact admission expiry, real database lock waits and initial counter reads consuming either admission or execution time. Checkpoint acceptance crossing expiry is checked against stored state before a status read can refresh it. Cross-producer/tenant refusal covers claims, admission, outcomes, reconciliation and the other mutation endpoints.
 
+Credential tests hold claims and admission during checkpoint verification and hold confirmations before the tenant transaction or during recovery verification. They exercise rotation, logout and session expiry during those waits. A separate test checks that directory re-enablement requires a new session and that disabling one reviewer leaves other reviewers' sessions usable.
+
+Database timing tests block eligibility queries and occurrence updates after the tenant lock has been acquired. Confirmation, claim and admission refuse once their captured deadlines pass. The blocked claim leaves the occurrence unconsumed and the export contains only the records signed before the wait.
+
+The Prometheus test exercises a duplicate execution claim, prohibited self-review and altered stored material through HTTP. Each refusal increments the corresponding counter for its tenant. A separate test checks that pressure metrics match the inbox while expired rows are still retained.
+
+The deployment runner supplies the exact plan digest to the acceptance adapters. A regression uses a different configuration and artefact in one adapter, then verifies that the runner rejects that check and continues with an adapter using the original bytes.
+
+HITL tests cover the v0.8 input handoff, completed review, expiry, cancellation and supersession through public HTTP. Polling checks the retained response against the signed receipt and exercises both requester status access and producer material access. Migration 013 recovers cancellation times from retained events or the matching namespace recovery record.
+
+Retention tests let the audit clock expire while the rows are still stored. They check browser and HTTP visibility, cached creation, event pagination, ledger redaction and queued delivery. Cleanup removes the expired request and the worker can publish its detached checkpoint for the surviving ledger prefix.
+
+Evidence tests alter stored responses and replace signed receipts, checkpoint links and claims. Native material, exports and confirmation replays refuse altered evidence. Claims and admission require the original decision and its proof of inclusion in the checkpoint. A valid execution outcome can still be reported after private material has been discarded.
+
+Client tests keep signatures and checkpoint storage valid while changing the checkpoint's execution namespace or ledger. The SDK refuses either mismatch. The Python client refuses a namespace mismatch in its saved counter evidence before retrying an outcome.
+
 Azure test transports check conditional writes, exact versions, inherited retention and legal holds. The Bicep template prepares separate private containers and a restricted runtime identity, but it has not been provisioned and does not perform the independent administrator's policy lock or safety hold. Generic OAuth is tested. A real Clerk or Entra application is not configured. Local HTTPS and persistence tests do not validate a future deployment's network path. The validation manifest is a local run snapshot. Required exact-head checks govern each reviewed revision. GitHub Actions is enabled for this HAIP repository. The draft check workflow has read-only repository contents, while the CodeQL workflow can write security events. Both use standard public-repository runners. The `c39eb20` run did not publish or deploy anything.
 
 The historical Node, Python and Rust primitive runners retain 25 exact comparisons, including decimal responses and RFC 8032 vector 1. The standalone Python conformance client is separate and remains internally authored. Dependency audit and five current package contents are checked separately. Passing fixtures supply bounded evidence and leave independent assurance unresolved.
 
-## Remaining release dependencies
+## Release dependencies
 
-1. Validate an approved deployment's external identity, TLS and DNS, independent storage administration, writer restrictions, real immutable storage and restore procedure. No provider resource has been provisioned for this work. Free options come first.
+1. Run the local rehearsal on the release candidate. Production acceptance also requires evidence for the installed identity, TLS and DNS, independent storage administration, writer restrictions, immutable storage and restore procedure.
 2. Obtain an independently accountable implementation and independent security review, then keep CI passing on the exact release revision before calling the reference service production-ready.
 3. Keep contracts draft until the HAIP release gates pass. A reviewed draft source merge into `main`, stable package publication and production deployment are separate decisions with separate authorisation.
 4. Treat Plasm integration as downstream work owned by its maintainers. Live and durable contexts, credentials, dispatch accounting, continuations and schema-3 evidence are required for corresponding Plasm claims rather than a standalone HAIP release.

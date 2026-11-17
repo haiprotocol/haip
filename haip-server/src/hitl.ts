@@ -1,67 +1,77 @@
+import type { HitlHandoff, HitlPoll } from '@haip/protocol';
 import type { ReviewService } from './service.js';
 import type { Principal } from './config.js';
-import { requireThat } from './errors.js';
+import { ProtocolError, requireThat } from './errors.js';
+
 export const HITL_REVISION = '655eba84932669af057e3cd9cacb1c94ae51ae65';
-/** Browser review + authenticated polling only; inline submissions carry no authority. */
-export async function hitlStatus(service: ReviewService, principal: Principal, id: string) {
-  const s = await service.status(principal, id),
-    r = s.request;
-  requireThat(r.purpose === 'review', 409, 'hitl_review_only');
-  const state =
-    s.decision_state === 'confirmed'
-      ? 'completed'
-      : s.decision_state === 'superseded'
-        ? 'cancelled'
-        : s.decision_state;
-  if (state === 'pending')
-    return {
-      httpStatus: 202,
-      body: {
-        status: 'human_input_required',
-        hitl: {
-          spec_version: '0.8',
-          case_id: id,
-          review_url: s.review_link,
-          poll_url: `${service.config.origin}/v2/hitl/${id}/poll`,
-          type: 'input',
-          prompt: r.summary,
-          timeout:
-            Math.max(
-              1,
-              Math.ceil((Date.parse(r.review_deadline) - Date.parse(r.accepted_at)) / 1000),
-            ) + 's',
-          default_action: 'cancel',
-          created_at: r.accepted_at,
-          expires_at: r.review_deadline,
+const defaultAction = 'abort';
+
+function pollBody(review: Awaited<ReturnType<ReviewService['hitlReview']>>): HitlPoll {
+  const { request, receipt, candidate } = review;
+  const identity = { case_id: request.id, created_at: request.accepted_at };
+  const timing = { ...identity, expires_at: request.review_deadline };
+  switch (review.decisionState) {
+    case 'pending':
+      return { ...timing, status: 'pending' };
+    case 'expired':
+      requireThat(review.expiredAt, 409, 'hitl_transition_unknown');
+      return {
+        ...timing,
+        status: 'expired',
+        expired_at: review.expiredAt,
+        default_action: defaultAction,
+      };
+    case 'cancelled':
+    case 'superseded':
+      requireThat(review.cancelledAt, 409, 'hitl_transition_unknown');
+      return { ...timing, status: 'cancelled', cancelled_at: review.cancelledAt };
+    case 'confirmed':
+      requireThat(receipt, 409, 'material_integrity_mismatch');
+      return {
+        ...identity,
+        status: 'completed',
+        completed_at: receipt.payload.confirmed_at,
+        result: {
+          action: 'submit',
+          data: {
+            response: candidate?.response ?? null,
+            haip_receipt: receipt,
+            audit_state: review.auditState,
+            material_available: candidate !== undefined,
+          },
         },
-      },
-    };
-  return { httpStatus: 200, body: await hitlPoll(service, principal, id) };
+      };
+    default:
+      throw new ProtocolError(409, 'hitl_transition_unknown');
+  }
 }
-export async function hitlPoll(service: ReviewService, principal: Principal, id: string) {
-  const s = await service.status(principal, id),
-    r = s.request;
-  requireThat(r.purpose === 'review', 409, 'hitl_review_only');
-  if (s.decision_state !== 'confirmed')
-    return {
-      case_id: id,
-      status: s.decision_state === 'superseded' ? 'cancelled' : s.decision_state,
+
+export async function hitlStatus(service: ReviewService, principal: Principal, id: string) {
+  const review = await service.hitlReview(principal, id);
+  if (review.decisionState !== 'pending') return { httpStatus: 200, body: pollBody(review) };
+  const r = review.request;
+  const seconds = Math.max(
+    1,
+    Math.ceil((Date.parse(r.review_deadline) - Date.parse(r.accepted_at)) / 1000),
+  );
+  const body: HitlHandoff = {
+    status: 'human_input_required',
+    hitl: {
+      spec_version: '0.8',
+      case_id: r.id,
+      review_url: `${service.config.origin}/review/${r.id}`,
+      poll_url: `${service.config.origin}/v2/hitl/${r.id}/poll`,
+      type: 'input',
+      prompt: r.summary,
+      timeout: `PT${seconds}S`,
+      default_action: defaultAction,
       created_at: r.accepted_at,
       expires_at: r.review_deadline,
-    };
-  const audit = await service.export(principal, id);
-  return {
-    case_id: id,
-    status: 'completed',
-    completed_at: (s.receipt as any).payload.confirmed_at,
-    result: {
-      action: (s.receipt as any).payload.decision,
-      data: {
-        response: audit.material?.candidate?.response ?? null,
-        haip_receipt: s.receipt,
-        audit_state: s.audit_state,
-        material_available: !!audit.material,
-      },
     },
   };
+  return { httpStatus: 202, body };
+}
+
+export async function hitlPoll(service: ReviewService, principal: Principal, id: string) {
+  return pollBody(await service.hitlReview(principal, id));
 }

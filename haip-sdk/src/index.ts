@@ -14,10 +14,18 @@ import {
   type DecisionReceipt,
   type ExecutionClaim,
   type AdmissionStatus,
+  type AnchorProof,
   type DecisionCandidate,
   type DecisionRequest,
 } from '@haip/protocol';
-import { canonicalise, digest, digestBytes, parseJson, verifyRecord } from '@haip/protocol/crypto';
+import {
+  canonicalise,
+  digest,
+  digestBytes,
+  parseJson,
+  verifyCheckpointProof,
+  verifyRecord,
+} from '@haip/protocol/crypto';
 export * from '@haip/protocol';
 export { verifyWebhook, PostgresWebhookInbox } from './webhooks.js';
 export type { VerifiedWebhook, WebhookIdentity, InboxDatabase } from './webhooks.js';
@@ -245,42 +253,28 @@ export async function verifyExecutionAuthority(input: AuthorityInput) {
       p.execution_seconds === r.execution!.execution_seconds,
     'Admission mismatch',
   );
-  const anchor = p.anchor as any;
+  const anchor = p.anchor as unknown as AnchorProof;
   refuse(
     anchor?.checkpoint && anchor?.acceptance && Array.isArray(anchor.proof) && anchor.proof.length,
     'Missing checkpoint proof',
   );
+  const scope = anchor.checkpoint.payload as { ledger_id?: unknown; generation?: unknown } | null;
+  if (typeof scope?.ledger_id !== 'string' || !scope.ledger_id)
+    throw new Error('Invalid checkpoint ledger');
+  refuse(
+    typeof scope.generation === 'string' &&
+      scope.generation.length > 0 &&
+      (r.authority_namespace === undefined || r.authority_namespace === scope.generation),
+    'Checkpoint execution namespace mismatch',
+  );
   verifyRecord(anchor.checkpoint, input.trust, {
     issuer: input.issuer,
     audience: 'haip.audit',
+    tenant: scope.ledger_id,
     type: 'AuditCheckpoint',
     purpose: 'service',
   });
-  refuse(
-    anchor.proof[0].record_digest === digest(receipt),
-    'Checkpoint does not include the receipt',
-  );
-  let previous: string | undefined, sequence: number | undefined;
-  for (const node of anchor.proof) {
-    refuse(
-      Number.isSafeInteger(node.sequence) &&
-        node.head ===
-          digest({
-            previous: node.previous_head,
-            sequence: node.sequence,
-            record_digest: node.record_digest,
-          }) &&
-        (previous === undefined || node.previous_head === previous) &&
-        (sequence === undefined || node.sequence === sequence + 1),
-      'Invalid checkpoint chain',
-    );
-    previous = node.head;
-    sequence = node.sequence;
-  }
-  refuse(
-    previous === anchor.checkpoint.payload.head && sequence === anchor.checkpoint.payload.sequence,
-    'Checkpoint prefix mismatch',
-  );
+  verifyCheckpointProof(anchor, digest(receipt));
   await input.verifyAnchor(anchor.checkpoint, anchor.acceptance);
   const checked = Date.parse(p.checked_at),
     dispatch = Date.parse(p.dispatch_before);

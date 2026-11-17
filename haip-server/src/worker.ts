@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import { DEFAULT_LIMITS } from '@haip/protocol';
 import { digest } from '@haip/protocol/crypto';
 import type { ReviewService, RequestRow } from './service.js';
 import type { Principal } from './config.js';
-import type { AnchorStore } from './anchor.js';
+import { isAnchorConflict, type AnchorStore } from './anchor.js';
 import { deliverWebhook } from './delivery.js';
 import { deliverSMTP } from './smtp.js';
 import { requireThat } from './errors.js';
 import { RecoveryGuard } from './recovery.js';
+import { pruneRequestAdmission } from './rate-limit.js';
 import type { Tx } from './store.js';
 
 const maintenancePageSize = 50;
@@ -42,6 +44,11 @@ interface ClaimedJob {
   revision: string;
   delivery?: unknown;
 }
+type DeliveryResult = { ok: true; acceptance: unknown } | { ok: false; error: unknown };
+
+export type JobSchedule =
+  { state: 'missing' | 'settled' | 'unavailable' } | { state: 'pending'; retry_at: string };
+
 interface MaintenanceCursor {
   at: string;
   id: string;
@@ -71,6 +78,7 @@ export class OutboxWorker {
       'fixture_transport_forbidden',
     );
   }
+  /** Standalone startup checks the existing process owner before opening listeners. */
   async reconcile(): Promise<void> {
     const { service: s } = this;
     this.maintenanceCursors.clear();
@@ -109,57 +117,117 @@ export class OutboxWorker {
         });
     }
   }
+  private async stampOperation(tenant: string, name: string, result: 'succeeded_at' | 'failed_at') {
+    await this.service.store.write((tx) =>
+      tx.query(
+        `INSERT INTO haip_tenant_operations(tenant,name,${result}) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET ${result}=EXCLUDED.${result}`,
+        [tenant, name],
+      ),
+    );
+  }
   private async operation<T>(tenant: string, name: string, run: () => Promise<T>): Promise<T> {
     try {
       const result = await run();
-      await this.service.store.pool.query(
-        'INSERT INTO haip_tenant_operations(tenant,name,succeeded_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET succeeded_at=EXCLUDED.succeeded_at',
-        [tenant, name],
-      );
+      await this.stampOperation(tenant, name, 'succeeded_at');
       return result;
     } catch (error) {
       // A database outage may also prevent this stamp; alerts additionally check last success.
-      await this.service.store.pool
-        .query(
-          'INSERT INTO haip_tenant_operations(tenant,name,failed_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(tenant,name) DO UPDATE SET failed_at=EXCLUDED.failed_at',
-          [tenant, name],
-        )
-        .catch(() => {});
+      await this.stampOperation(tenant, name, 'failed_at').catch(() => {});
       throw error;
     }
   }
+  private async allTenants() {
+    return this.service.store.read(async (tx) => {
+      const { rows } = await tx.query<{ id: string }>('SELECT id FROM haip_tenants ORDER BY id');
+      return rows;
+    });
+  }
   async tick(): Promise<number> {
     let completed = 0;
-    for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
-      .rows)
+    for (const t of await this.allTenants())
       completed += await this.operation(t.id, 'outbox', () => this.drain(t.id));
     return completed;
   }
-  private async drain(tenant: string): Promise<number> {
-    const s = this.service;
-    const jobs = (
-      await s.store.pool.query(
-        `SELECT id,tenant FROM haip_outbox WHERE tenant=$1 AND state='pending'
+
+  async readyJobs(after?: string): Promise<{ ids: string[]; next?: string }> {
+    return this.service.store.read(async (tx) => {
+      const { rows } = await tx.query<{ id: string }>(
+        after === undefined
+          ? 'SELECT id FROM haip_tenants ORDER BY id LIMIT 6'
+          : 'SELECT id FROM haip_tenants WHERE id>$1 ORDER BY id LIMIT 6',
+        after === undefined ? [] : [after],
+      );
+      const tenants = rows.slice(0, 5);
+      const ids: string[] = [];
+      for (const tenant of tenants)
+        ids.push(...(await this.readyTenantJobs(tx, tenant.id, 10)).map(({ id }) => id));
+      return { ids, ...(rows.length > 5 ? { next: tenants[4]!.id } : {}) };
+    });
+  }
+
+  async runJob(id: string): Promise<JobSchedule> {
+    requireThat(
+      /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(id),
+      400,
+      'outbox_job_invalid',
+    );
+    const query = () =>
+      this.service.store.read(async (tx) => {
+        const { rows } = await tx.query<{
+          tenant: string;
+          kind: OutboxItem['kind'];
+          state: string;
+          retry_at: Date;
+          ready: boolean;
+        }>(
+          `SELECT tenant,kind,state,GREATEST(next_at,claim_until) AS retry_at,
+       GREATEST(next_at,claim_until)<=statement_timestamp() AS ready FROM haip_outbox WHERE id=$1`,
+          [id],
+        );
+        return rows[0];
+      });
+    let item = await query();
+    if (item?.state === 'pending') {
+      if (item.kind === 'checkpoint' && !this.anchor) return { state: 'unavailable' };
+      if (item.ready) {
+        const { tenant } = item;
+        await this.operation(tenant, 'outbox', () => this.runClaimedJob(tenant, id));
+        item = await query();
+      }
+    }
+    if (!item) return { state: 'missing' };
+    if (item.state !== 'pending') return { state: 'settled' };
+    return { state: 'pending', retry_at: item.retry_at.toISOString() };
+  }
+
+  private async readyTenantJobs(tx: Tx, tenant: string, limit: number) {
+    const { rows } = await tx.query<{ id: string }>(
+      `SELECT id FROM haip_outbox WHERE tenant=$1 AND state='pending'
          AND GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz))<=statement_timestamp()
          ${this.anchor ? '' : "AND kind IN ('smtp','webhook')"}
-         ORDER BY GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz)),created_at,id LIMIT 50`,
-        [tenant],
-      )
-    ).rows;
+         ORDER BY GREATEST(next_at,COALESCE(claim_until,'-infinity'::timestamptz)),created_at,id LIMIT $2`,
+      [tenant, limit],
+    );
+    return rows;
+  }
+
+  private async drain(tenant: string): Promise<number> {
+    const jobs = await this.service.store.read((tx) => this.readyTenantJobs(tx, tenant, 50));
     let completed = 0;
-    for (const job of jobs) {
-      const claim = await this.claim(job.tenant, job.id);
-      if (!claim) continue;
-      let acceptance: unknown;
-      let error: unknown;
-      try {
-        acceptance = await this.deliver(claim);
-      } catch (caught) {
-        error = caught;
-      }
-      completed += await this.finalise(claim, acceptance, error);
-    }
+    for (const { id } of jobs) completed += await this.runClaimedJob(tenant, id);
     return completed;
+  }
+
+  private async runClaimedJob(tenant: string, id: string): Promise<number> {
+    const claim = await this.claim(tenant, id);
+    if (!claim) return 0;
+    let result: DeliveryResult;
+    try {
+      result = { ok: true, acceptance: await this.deliver(claim) };
+    } catch (error) {
+      result = { ok: false, error };
+    }
+    return this.finalise(claim, result);
   }
   private async destinationState(tx: Tx, item: OutboxItem): Promise<DestinationState> {
     if (item.kind === 'checkpoint') {
@@ -196,25 +264,49 @@ export class OutboxWorker {
         principal,
       };
     }
-    const directory = (
+    const recipient = (
       await tx.query(
-        "SELECT id,config FROM haip_principals WHERE tenant=$1 AND kind='human' AND config->>'email'=$2 ORDER BY id",
-        [item.tenant, item.destination],
+        `SELECT directory.config, CASE $4::text
+           WHEN 'requester' THEN request.data->'request'->'requester'->>'subject'=directory.id
+           WHEN 'reviewer' THEN EXISTS (
+             SELECT 1 FROM haip_routes route WHERE route.tenant=request.tenant AND route.id=request.route
+               AND route.config->'reviewers' ? directory.id
+           ) ELSE false END AS eligible
+         FROM haip_requests request
+         JOIN haip_principals directory ON directory.tenant=request.tenant AND directory.id=$2 AND directory.kind='human'
+         WHERE request.tenant=$1 AND request.id=$3`,
+        [item.tenant, item.body.recipient_id, item.request_id, item.body.recipient_role],
       )
-    ).rows as { id: string; config: Principal['config'] }[];
+    ).rows[0] as { config: Principal['config']; eligible: boolean } | undefined;
+    const authorised =
+      recipient?.eligible === true &&
+      recipient.config.enabled &&
+      recipient.config.email_verified === true &&
+      recipient.config.email === item.destination;
     return {
-      authorised: directory.some((row) => row.config.enabled && row.config.email_verified === true),
+      authorised,
       revision: digest({
         kind: item.kind,
         destination: item.destination,
         body: digest(item.body),
-        directory: directory.map((row) => ({
-          id: row.id,
-          enabled: row.config.enabled,
-          email_verified: row.config.email_verified === true,
-        })),
+        authorised,
       }),
     };
+  }
+  private async expireDelivery(tx: Tx, item: OutboxItem, now: Date): Promise<boolean> {
+    if (item.kind === 'checkpoint') return false;
+    const retained = await tx.query(
+      `SELECT 1 FROM haip_requests WHERE tenant=$1 AND id=$2
+       AND data->'request'->>'audit_delete_at' > $3`,
+      [item.tenant, item.request_id, now.toISOString()],
+    );
+    if (retained.rowCount) return false;
+    await tx.query(
+      `UPDATE haip_outbox SET state='expired',error='audit_retention_expired',body='{}',
+       destination=NULL,accepted=NULL,claim_until=NULL,claim_revision=NULL WHERE id=$1`,
+      [item.id],
+    );
+    return true;
   }
   private async claim(tenant: string, id: string): Promise<ClaimedJob | undefined> {
     return this.service.store.transaction(tenant, async (tx, now) => {
@@ -225,9 +317,21 @@ export class OutboxWorker {
         )
       ).rows[0] as OutboxItem | undefined;
       if (!item) return;
+      if (await this.expireDelivery(tx, item, now)) return;
       if (item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000) {
         await tx.query(
           "UPDATE haip_outbox SET state='failed',error='delivery_window_expired',claim_until=NULL,claim_revision=NULL WHERE id=$1",
+          [item.id],
+        );
+        return;
+      }
+      if (
+        item.kind === 'smtp' &&
+        (typeof item.body?.recipient_id !== 'string' ||
+          !['reviewer', 'requester'].includes(item.body.recipient_role))
+      ) {
+        await tx.query(
+          "UPDATE haip_outbox SET state='failed',error='notification_recipient_unknown',claim_until=NULL,claim_revision=NULL WHERE id=$1",
           [item.id],
         );
         return;
@@ -261,7 +365,7 @@ export class OutboxWorker {
       const claimed = (
         await tx.query(
           `UPDATE haip_outbox SET attempts=attempts+1,claim_generation=claim_generation+1,
-           claim_until=clock_timestamp()+($2::text||' seconds')::interval,claim_revision=$3
+           claim_until=clock_timestamp()+($2::text||' seconds')::interval,claim_revision=$3,checkpoint_batch_count=NULL
            WHERE id=$1 RETURNING claim_generation`,
           [item.id, deliveryClaimSeconds, destination.revision],
         )
@@ -314,7 +418,7 @@ export class OutboxWorker {
       text: item.body.text,
     });
   }
-  private async finalise(claim: ClaimedJob, acceptance: unknown, error: unknown): Promise<number> {
+  private async finalise(claim: ClaimedJob, result: DeliveryResult): Promise<number> {
     return this.service.store.transaction(claim.item.tenant, async (tx, now) => {
       const item = (
         await tx.query(
@@ -323,29 +427,32 @@ export class OutboxWorker {
         )
       ).rows[0] as OutboxItem | undefined;
       if (!item) return 0;
+      if (!result.ok && (await this.expireDelivery(tx, item, now))) return 0;
       const current = await this.destinationState(tx, item);
       if (current.revision !== item.claim_revision) {
         // A successful send was authorised at claim time. A failed send cannot retry after that authority changes.
-        if (error || item.kind === 'checkpoint') {
+        if (!result.ok || item.kind === 'checkpoint') {
           await tx.query(
             "UPDATE haip_outbox SET state='failed',error='destination_changed',claim_until=NULL,claim_revision=NULL WHERE id=$1",
             [item.id],
           );
           return 0;
         }
-      } else if (error) {
-        await this.retry(tx, item, now, error);
+      }
+      if (!result.ok) {
+        await this.retry(tx, item, now, result.error);
         return 0;
       }
+      const { acceptance } = result;
       if (item.kind === 'checkpoint') {
         const seq = item.body.payload.sequence;
         const rows = (
           await tx.query(
             `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
              WHERE tenant=$1 AND data->>'audit_state'='pending'
-             AND (data->>'decision_sequence')::bigint <= $2
+             AND (data->>'decision_sequence')::bigint <= $2 AND data->'request'->>'audit_delete_at' > $3
              ORDER BY (data->>'decision_sequence')::bigint,id LIMIT 50`,
-            [item.tenant, seq],
+            [item.tenant, seq, now.toISOString()],
           )
         ).rows as RequestRow[];
         for (const row of rows) {
@@ -373,15 +480,19 @@ export class OutboxWorker {
                 : 'expired';
           await this.service.event(tx, principal, row, now, 'anchor_accepted');
           if (row.data.grant_state === 'available')
-            await this.service.notifications(tx, principal, row, now, [
-              row.data.request.requester.subject,
-            ]);
+            await this.service.notifications(
+              tx,
+              row,
+              now,
+              [row.data.request.requester.subject],
+              'requester',
+            );
           await this.service.save(tx, row);
         }
         const remaining = await tx.query(
           `SELECT 1 FROM haip_requests WHERE tenant=$1 AND data->>'audit_state'='pending'
-           AND (data->>'decision_sequence')::bigint <= $2 LIMIT 1`,
-          [item.tenant, seq],
+           AND (data->>'decision_sequence')::bigint <= $2 AND data->'request'->>'audit_delete_at' > $3 LIMIT 1`,
+          [item.tenant, seq, now.toISOString()],
         );
         if (remaining.rowCount) {
           // A newer checkpoint may cover a backlog, so finish it in bounded transactions. The receipt is diagnostic only because the next page checks independent storage again.
@@ -401,20 +512,14 @@ export class OutboxWorker {
   }
   private async retry(tx: Tx, item: OutboxItem, now: Date, error: unknown): Promise<void> {
     const code = error instanceof Error ? error.message : 'delivery_failed';
-    if (/anchor_(conflict|version_conflict|deleted_version|history_invalid)/.test(code)) {
-      await tx.query('INSERT INTO haip_incidents(tenant,code) VALUES($1,$2)', [item.tenant, code]);
-      await tx.query('UPDATE haip_tenants SET fenced=true WHERE id=$1', [item.tenant]);
-      await tx.query(
-        "UPDATE haip_requests SET data=jsonb_set(data,'{audit_state}','\"conflict\"') WHERE tenant=$1",
-        [item.tenant],
-      );
-    }
+    if (item.kind === 'checkpoint' && isAnchorConflict(code))
+      await this.service.fenceAnchor(tx, item.tenant, code);
     const expired =
       item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000;
     const attempt = item.attempts + (item.claim_until ? 0 : 1);
     await tx.query(
       `UPDATE haip_outbox SET state=$2,attempts=CASE WHEN claim_until IS NULL THEN attempts+1 ELSE attempts END,
-       error=$3,next_at=$4,claim_until=NULL,claim_revision=NULL WHERE id=$1`,
+       error=$3,next_at=$4,claim_until=NULL,claim_revision=NULL,checkpoint_batch_count=NULL WHERE id=$1`,
       [
         item.id,
         expired ? 'failed' : 'pending',
@@ -426,16 +531,17 @@ export class OutboxWorker {
   async cleanup(): Promise<CleanupResult> {
     const result: CleanupResult = { examined: 0, changed: 0, stalled: 0, more: false };
     // Expired sessions belong to the whole service, not to every tenant's request page.
-    const sessions = await this.collect(
-      this.service.store.pool,
-      'haip_sessions',
-      'expires_at<=statement_timestamp()',
-      [],
-      'expires_at,token_hash',
+    const sessions = await this.service.store.write((tx) =>
+      this.collect(
+        tx,
+        'haip_sessions',
+        'expires_at<=statement_timestamp()',
+        [],
+        'expires_at,token_hash',
+      ),
     );
-    result.more = sessions.more;
-    for (const t of (await this.service.store.pool.query('SELECT id FROM haip_tenants ORDER BY id'))
-      .rows)
+    result.more = (await pruneRequestAdmission(this.service.store.pool)) || sessions.more;
+    for (const t of await this.allTenants())
       await this.operation(t.id, 'retention', async () => {
         for (let page = 0; page < maintenancePageLimit; page++) {
           const swept = await this.sweep(t.id, this.maintenanceCursors.get(t.id));
@@ -491,10 +597,15 @@ export class OutboxWorker {
             t.id,
             row.id,
           ]);
-          await tx.query('DELETE FROM haip_outbox WHERE tenant=$1 AND request_id=$2', [
-            t.id,
-            row.id,
-          ]);
+          await tx.query(
+            "DELETE FROM haip_outbox WHERE tenant=$1 AND request_id=$2 AND kind<>'checkpoint'",
+            [t.id, row.id],
+          );
+          // A checkpoint commits the entire ledger prefix, so keep the job after its receipt is erased.
+          await tx.query(
+            "UPDATE haip_outbox SET request_id=NULL WHERE tenant=$1 AND request_id=$2 AND kind='checkpoint'",
+            [t.id, row.id],
+          );
           await tx.query(
             "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND (operation LIKE '%'||$2 OR result->'request'->>'id'=$2)",
             [t.id, row.id],
@@ -533,6 +644,7 @@ export class OutboxWorker {
     return this.service.store.transaction(tenant, async (tx, now) => {
       let more = false;
       const older = (milliseconds: number) => new Date(now.getTime() - milliseconds);
+      const auditCutoff = older(DEFAULT_LIMITS.audit_seconds * 1000);
       const run = async (
         table: CollectionTable,
         where: string,
@@ -552,21 +664,21 @@ export class OutboxWorker {
       );
       await run(
         'haip_audit',
-        'tenant=$1 AND record IS NOT NULL AND created_at<$2',
-        [tenant, older(90 * 86400000)],
+        'tenant=$1 AND record IS NOT NULL AND created_at<=$2',
+        [tenant, auditCutoff],
         'created_at,sequence',
         'record=NULL',
       );
       await run(
         'haip_outbox',
-        'tenant=$1 AND created_at<$2',
-        [tenant, older(90 * 86400000)],
+        "tenant=$1 AND created_at<=$2 AND (kind<>'checkpoint' OR state<>'pending')",
+        [tenant, auditCutoff],
         'created_at,id',
       );
       await run(
         'haip_idempotency',
-        'tenant=$1 AND result IS NOT NULL AND created_at<$2',
-        [tenant, older(90 * 86400000)],
+        'tenant=$1 AND result IS NOT NULL AND created_at<=$2',
+        [tenant, auditCutoff],
         'created_at',
         'result=NULL',
       );
@@ -584,14 +696,14 @@ export class OutboxWorker {
   }
   /** Only fixed internal table names/expressions reach this helper; values stay parameterised. */
   private async collect(
-    queryable: Pick<Tx, 'query'>,
+    tx: Tx,
     table: CollectionTable,
     where: string,
     values: unknown[],
     order: string,
     update?: string,
   ): Promise<{ changed: number; more: boolean }> {
-    const result = await queryable.query(
+    const result = await tx.query(
       `WITH candidates AS MATERIALIZED (
          SELECT ctid FROM ${table} retained WHERE ${where} ORDER BY ${order}
          LIMIT ${collectionLimit + 1} FOR UPDATE SKIP LOCKED

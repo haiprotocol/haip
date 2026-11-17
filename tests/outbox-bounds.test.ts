@@ -107,11 +107,20 @@ test('more than fifty unconfigured checkpoints cannot starve actual SMTP or TLS 
       )
     ).rows[0];
     await env.store.transaction('test-tenant', async (tx, now) => {
-      for (let i = 0; i < 55; i++)
+      for (let i = 0; i < 55; i++) {
         await env.service.audit(tx, p, now, 'FixtureMaintenance', { ordinal: i });
+        // Keep one sealed job per entry to reproduce a legacy backlog.
+        await tx.query(
+          'UPDATE haip_outbox SET checkpoint_batch_count=NULL,next_at=$2 WHERE tenant=$1 AND checkpoint_batch_count IS NOT NULL',
+          [p.tenant, now],
+        );
+      }
     });
     const created = await env.api('/v2/requests', env.request());
     assert.equal(created.status, 201);
+    await env.store.pool.query(
+      'UPDATE haip_outbox SET next_at=clock_timestamp() WHERE checkpoint_batch_count IS NOT NULL',
+    );
     const pending = () =>
       env.store.pool.query(
         "SELECT count(*) FROM haip_outbox WHERE kind='checkpoint' AND state='pending'",

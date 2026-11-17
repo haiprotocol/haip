@@ -5,7 +5,7 @@ description: 'Authenticate advisory events and persist them before acknowledging
 
 `verifyWebhook(record, trust, identity, now?)` checks the signed delivery envelope and nested event. `identity` contains independently expected `issuer`, `tenant` and `producer` values. The optional `now` is a millisecond timestamp for verification. Production consumers need a healthy clock.
 
-The helper enforces a strict five-minute delivery window, matching event/delivery identities and the expected status URL. A valid event remains advisory: fetch the current request status before making a decision about it.
+The helper enforces a strict five-minute delivery window, matching event and delivery identities and the expected status URL. Fetch authenticated status for current state.
 
 ```ts
 import { verifyWebhook, PostgresWebhookInbox } from '@haip/sdk';
@@ -18,8 +18,18 @@ await inbox.persist(delivery);
 // Only now return HTTP 2xx from your receiver.
 ```
 
-The database adapter supplies `connect()`, a connection's `query()` and `release()`. Persistence deduplicates by issuer, tenant, producer and event ID, rejects conflicting bodies for the same event, and retains the highest revision in a status-refresh queue. It tolerates retries and reordering across receiver restarts.
+The database adapter supplies `connect()`, a connection's `query()` and `release()`. Persistence deduplicates by issuer, tenant, producer and event ID, rejects conflicting bodies for the same event and retains the highest revision in a queue across receiver restarts.
 
-A consumer must implement its own bounded request parsing, private database configuration and status-refresh worker. There is no execution callback. A webhook, email or View message cannot confirm a human response or launch a protected action.
+Use the `HAIPClient` for the producer you are refreshing. Take a bounded page with `pendingRefreshes(identity, { after, limit })`. Pass the last request ID as `after` for the next page, then restart from the beginning on the next pass. Retry failed reads on a later pass.
+
+```ts
+const page = await inbox.pendingRefreshes(expectedIdentity);
+for (const { requestId } of page) {
+  const status = await inbox.refreshStatus(expectedIdentity, requestId, producerClient);
+  if (status) showStatus(status);
+}
+```
+
+`refreshStatus` calls the configured origin and checks the returned request, scope, digest and revision. It records a successful read only when that revision covers the queued event. It returns `undefined` when there is no pending read, a newer event arrives during the read or another worker has recorded the same or a later read. Treat the return value as a status observation. Use the execution profile's separate authority checks before any protected action.
 
 See [HTTP event polling](/protocol/essentials/transport) for the pull alternative and [monitoring](/server/monitoring) for delivery failures.

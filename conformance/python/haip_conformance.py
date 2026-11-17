@@ -7,6 +7,7 @@ import argparse
 import base64
 import copy
 import hashlib
+import http.client
 import json
 import math
 import os
@@ -23,6 +24,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 
 PROTOCOL_REVISION = "2.0.0-draft.3"
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 MAX_SAFE_INTEGER = 9007199254740991
 FIELD = 2**255 - 19
 ORDER = 2**252 + 27742317777372353535851937790883648493
@@ -392,14 +394,17 @@ class HaipClient:
             raise ConformanceError("Invalid HAIP origin") from error
         if parsed.scheme not in ("http", "https") or not parsed.netloc or not host or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
             raise ConformanceError("Origin must be an absolute origin without a trailing slash")
-        if parsed.scheme == "http" and host not in ("localhost", "127.0.0.1", "::1"):
+        if parsed.scheme == "http" and host not in LOOPBACK_HOSTS:
             raise ConformanceError("HAIP requires HTTPS outside exact loopback hosts")
         if not isinstance(token, str) or not token:
             raise ConformanceError("Bearer credential is required")
         self.origin = origin
         self.host = host
         self.token = token
-        self.opener = urllib.request.build_opener(_NoRedirect())
+        handlers = [_NoRedirect()]
+        if host in LOOPBACK_HOSTS:
+            handlers.append(urllib.request.ProxyHandler({}))
+        self.opener = urllib.request.build_opener(*handlers)
 
     def call(self, path: str, body: Any = None, idempotency: Optional[str] = None) -> Tuple[int, Any]:
         if not path.startswith("/") or path.startswith("//"):
@@ -414,14 +419,18 @@ class HaipClient:
             headers["Idempotency-Key"] = idempotency or secrets.token_urlsafe(24)
         request = urllib.request.Request(self.origin + path, data=data, headers=headers, method=method)
         try:
-            response = self.opener.open(request, timeout=15)
-        except urllib.error.HTTPError as error:
-            response = error
-        with response:
-            raw = response.read(32 * 1024 * 1024 + 1)
-            if len(raw) > 32 * 1024 * 1024:
-                raise ConformanceError("HTTP response exceeded the fixture limit")
-            return response.status, parse_json(raw.decode("utf-8"))
+            try:
+                response = self.opener.open(request, timeout=15)
+            except urllib.error.HTTPError as error:
+                response = error
+            with response:
+                status = response.status
+                raw = response.read(32 * 1024 * 1024 + 1)
+        except (OSError, http.client.HTTPException) as error:
+            raise ConformanceError("HAIP HTTP response was not received in full") from error
+        if len(raw) > 32 * 1024 * 1024:
+            raise ConformanceError("HTTP response exceeded the fixture limit")
+        return status, parse_json(raw.decode("utf-8"))
 
 
 def _request_path(request_id: str, suffix: str = "") -> str:
@@ -611,20 +620,35 @@ def _signed_in_export(exported: Mapping[str, Any], record: Mapping[str, Any], na
         raise ConformanceError(name + " is missing from the export")
 
 
-def _verify_anchor(anchor: Mapping[str, Any], receipt: Mapping[str, Any], trust: Mapping[str, Any], config: Mapping[str, Any]) -> None:
+def _verify_anchor(
+    config: Mapping[str, Any],
+    request: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    anchor: Mapping[str, Any],
+) -> None:
     if not isinstance(anchor, dict) or not isinstance(anchor.get("checkpoint"), dict) or not isinstance(anchor.get("acceptance"), dict) or not isinstance(anchor.get("proof"), list) or not anchor["proof"]:
         raise ConformanceError("Missing checkpoint proof")
     checkpoint = anchor["checkpoint"]
     checkpoint_payload = checkpoint.get("payload", {})
     if not isinstance(checkpoint_payload, dict) or type(checkpoint_payload.get("sequence")) is not int or not 0 <= checkpoint_payload["sequence"] <= MAX_SAFE_INTEGER:
         raise ConformanceError("Invalid checkpoint sequence")
+    ledger_id = checkpoint_payload.get("ledger_id")
+    if not isinstance(ledger_id, str) or not ledger_id:
+        raise ConformanceError("Invalid checkpoint ledger")
+    generation = checkpoint_payload.get("generation")
+    if (
+        not isinstance(generation, str)
+        or not generation
+        or ("authority_namespace" in request and request["authority_namespace"] != generation)
+    ):
+        raise ConformanceError("Checkpoint execution namespace mismatch")
     verify_record(
         checkpoint,
-        trust,
+        config["trust"],
         {
             "issuer": config["origin"],
             "audience": "haip.audit",
-            "tenant": checkpoint_payload.get("ledger_id"),
+            "tenant": ledger_id,
             "type": "AuditCheckpoint",
             "purpose": "service",
         },
@@ -653,7 +677,7 @@ def _verify_anchor(anchor: Mapping[str, Any], receipt: Mapping[str, Any], trust:
     record_path = config.get("anchor_record_path")
     if record_path is None and config.get("allow_test_filesystem_anchor") is True:
         host = urllib.parse.urlsplit(config["origin"]).hostname
-        if acceptance.get("backend") != "test_filesystem" or host not in ("localhost", "127.0.0.1", "::1"):
+        if acceptance.get("backend") != "test_filesystem" or host not in LOOPBACK_HOSTS:
             raise ConformanceError("Test filesystem anchoring is limited to a loopback service")
         record_path = acceptance.get("key")
         if acceptance.get("version_id") != acceptance.get("digest"):
@@ -724,7 +748,7 @@ def _verify_execution_chain(
         raise ConformanceError("Invalid execution bound")
     anchor = admission_payload.get("anchor")
     _same(anchor, exported.get("anchor"), "Admission anchor differs from the export")
-    _verify_anchor(anchor, receipt, config["trust"], config)
+    _verify_anchor(config, request, receipt, anchor)
     result = {"execution_seconds": float(admission_payload["execution_seconds"])}
     if timing is not None:
         elapsed_mono = timing["received_mono"] - timing["started_mono"]
@@ -784,7 +808,7 @@ def _verify_persisted_execution_chain(
         raise ConformanceError("Invalid persisted authority timeline")
     if dispatch > confirmed + timedelta(seconds=request["limits"]["grant_seconds"]) or not 0 < admission_payload["execution_seconds"] <= request["limits"]["execution_seconds"] or claim_payload.get("execution_seconds") != admission_payload["execution_seconds"]:
         raise ConformanceError("Invalid persisted execution bound")
-    _verify_anchor(admission_payload.get("anchor"), receipt, config["trust"], config)
+    _verify_anchor(config, request, receipt, admission_payload.get("anchor"))
     return claim
 
 
@@ -852,7 +876,7 @@ def execution_finish(config: Mapping[str, Any]) -> Dict[str, Any]:
     runtime_config = {**config, "execution_identity": execution_identity}
     request_path = _request_path(request_id)
     stop_after_effect = config.get("test_stop_after_effect_commit") is True
-    if stop_after_effect and client.host not in ("localhost", "127.0.0.1", "::1"):
+    if stop_after_effect and client.host not in LOOPBACK_HOSTS:
         raise ConformanceError("The post-effect test stop is limited to exact loopback hosts")
     connection = _open_counter(config["database"])
     try:

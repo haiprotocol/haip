@@ -107,14 +107,14 @@
     {
       "id": "duplicate_conflict",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No independently supervised conflict injector is configured."
+      "timeout_ms": 720000,
+      "unrun_reason": "No disposable tenants, signed checkpoints or independently supervised conflict controller are configured."
     },
     {
       "id": "outage_expiry",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No approved storage outage exercise is configured."
+      "timeout_ms": 360000,
+      "unrun_reason": "No signed test grants or approved checkpoint outage controller are configured."
     },
     {
       "id": "backup_recovery",
@@ -125,14 +125,14 @@
     {
       "id": "notifications",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No test recipient or persistent webhook receiver is configured."
+      "timeout_ms": 900000,
+      "unrun_reason": "No disposable review, mailbox or webhook observer is configured."
     },
     {
       "id": "operations",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No installed metrics scrape or incident route is configured."
+      "timeout_ms": 600000,
+      "unrun_reason": "No reviewed custody, disk and backup evidence, disposable monitoring targets or incident receiver is configured."
     },
     {
       "id": "restart_rollback",

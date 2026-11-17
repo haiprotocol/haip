@@ -1,6 +1,6 @@
 # Azure storage
 
-[`main.bicep`](main.bicep) defines the storage boundary for a future isolated HAIP deployment. It has not been deployed. It creates a StorageV2 account with versioning, a private checkpoint container with version-level WORM support and an unlocked default 90-day policy, a private safety container with an unlocked container-level 90-day policy, a user-assigned managed identity, a custom data role and one role assignment scoped to each container.
+[`main.bicep`](main.bicep) defines the storage boundary for a future isolated HAIP deployment. It has not been deployed. It creates a StorageV2 account with versioning, a private checkpoint container with an unlocked default version-level policy, a private safety container with an unlocked container-level policy, a user-assigned managed identity, a custom data role and one role assignment scoped to each container. Both policies have a 91-day duration so the reported expiry can meet the exact 90-day minimum from the signed timestamp. [Azure expiry headers](https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob-properties)
 
 The template excludes compute, PostgreSQL, DNS, certificates, identity applications, monitoring and backup storage. It does not assign an administrator or create locked evidence. Those choices remain part of the reviewed deployment and acceptance procedure.
 
@@ -22,7 +22,7 @@ Do not run a create deployment until the cost of retained resources, storage adm
 
 ## Compatibility
 
-`AzureAnchor` writes checkpoints to the checkpoint container without per-version policy headers. `AzureSafetyStore` writes recovery fences to the safety container without per-version policy or hold headers. Both read the exact returned version and require inherited Locked retention for at least 90 days. The safety read also requires the inherited legal hold.
+`AzureAnchor` writes checkpoints to the checkpoint container without per-version policy headers. `AzureSafetyStore` writes recovery fences to the safety container without per-version policy or hold headers. After a successful upload, the listed current version must match the version ID in the upload response. A conditional retry may recover the original record by inspecting the listing. Reads pin the version and ETag, require inherited Locked retention for at least 90 days from the signed record time and limit each record to 64 KiB. Safety records also require the inherited legal hold.
 
 Azure documents `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/immutableStorage/runAsSuperUser/action` as the permission for setting a blob immutability policy. The same capability can remove a policy, so the runtime role does not receive it. See the [Azure data-operation permissions](https://learn.microsoft.com/en-us/rest/api/storageservices/authorize-with-azure-active-directory#permissions-for-calling-data-operations) and [immutability policy authorisation](https://learn.microsoft.com/en-us/rest/api/storageservices/set-blob-immutability-policy#permissions).
 
@@ -52,4 +52,8 @@ HAIP_ANCHOR_INDEPENDENT_ADMIN=true
 
 ## Live proof
 
-Real acceptance must show conditional add-only creation, an exact version read, inherited Locked retention for at least 90 days in both containers, a legal hold on every safety record, safe duplicate recovery and refusal on conflicting, extra or deleted versions. It must also show the denied runtime operations listed above and prove that the checkpoint and safety container names differ. The local Azure adapter test uses an in-memory transport and cannot supply this proof.
+Real acceptance must show conditional add-only creation, an exact version read, inherited Locked retention for at least 90 days in both containers, a legal hold on every safety record, safe duplicate recovery and refusal on conflicting, extra or deleted versions. It must also show the denied runtime operations listed above and prove that the checkpoint and safety container names differ. The local suite uses the Azure SDK with a fixture transport to exercise the upload acknowledgement and listing. A disagreement records an incident and blocks both new claims and fresh admission for existing claims. Live provider and role evidence remain required.
+
+The [immutable storage adapter](../adapters/README.md#azure-storage) reads the deployed policies as a scoped Azure CLI Reader and reads the pinned checkpoint and safety versions as the runtime. It checks the required retention and legal hold and looks for enabled lifecycle deletion rules that can match the safety container.
+
+The [writer adapter](../adapters/README.md#azure-writer) resolves the configured identity, audits its effective roles and runs the data and management probes after validating the storage protections. It retains two disposable probe blobs on a successful run.

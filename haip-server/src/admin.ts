@@ -87,8 +87,17 @@ export async function registerPrincipal(
       ],
     );
     if (old && input.kind === 'human' && old.config.enabled && !input.config.enabled) {
-      const rows = (await tx.query('SELECT * FROM haip_requests WHERE tenant=$1', [p.tenant]))
-        .rows as RequestRow[];
+      await tx.query(
+        `DELETE FROM haip_sessions
+         WHERE data ? 'tenant' AND data ? 'id' AND data->>'tenant'=$1 AND data->>'id'=$2`,
+        [p.tenant, input.id],
+      );
+      const rows = (
+        await tx.query(
+          "SELECT * FROM haip_requests WHERE tenant=$1 AND data->'request'->>'audit_delete_at' > $2",
+          [p.tenant, now.toISOString()],
+        )
+      ).rows as RequestRow[];
       for (const row of rows) {
         if (
           row.data.request.requester.subject !== input.id &&
@@ -123,10 +132,10 @@ export async function registerPrincipal(
         digest(old.config.routes ?? []) !== digest(input.config.routes ?? []))
     ) {
       for (const row of (
-        await tx.query('SELECT * FROM haip_requests WHERE tenant=$1 AND producer=$2', [
-          p.tenant,
-          input.id,
-        ])
+        await tx.query(
+          "SELECT * FROM haip_requests WHERE tenant=$1 AND producer=$2 AND data->'request'->>'audit_delete_at' > $3",
+          [p.tenant, input.id, now.toISOString()],
+        )
       ).rows as RequestRow[]) {
         if (
           input.config.enabled &&
@@ -137,7 +146,7 @@ export async function registerPrincipal(
           continue;
         row.data.invalidated = 'producer_authorisation_changed';
         if (!row.data.receipt) delete row.data.candidate;
-        if (row.data.decision_state === 'pending') row.data.decision_state = 'cancelled';
+        service.closePendingReview(row, now, 'cancelled');
         if (['pending_anchor', 'available'].includes(row.data.grant_state))
           row.data.grant_state = 'revoked';
         await service.event(tx, p, row, now, 'producer_authorisation_changed');
@@ -205,7 +214,10 @@ export async function registerRoute(
     );
     if (old) {
       for (const row of (
-        await tx.query('SELECT * FROM haip_requests WHERE tenant=$1 AND route=$2', [p.tenant, id])
+        await tx.query(
+          "SELECT * FROM haip_requests WHERE tenant=$1 AND route=$2 AND data->'request'->>'audit_delete_at' > $3",
+          [p.tenant, id, now.toISOString()],
+        )
       ).rows as RequestRow[]) {
         const reviewer = row.data.receipt?.payload.reviewer;
         if (row.data.review_claim && !config.reviewers.includes(row.data.review_claim.reviewer))
@@ -217,7 +229,7 @@ export async function registerRoute(
             : producerRemoved
               ? 'producer_removed'
               : 'reviewer_removed';
-          if (row.data.decision_state === 'pending') row.data.decision_state = 'cancelled';
+          service.closePendingReview(row, now, 'cancelled');
           if (!row.data.receipt) delete row.data.candidate;
           if (['available', 'pending_anchor'].includes(row.data.grant_state))
             row.data.grant_state = 'revoked';

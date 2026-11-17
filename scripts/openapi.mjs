@@ -132,7 +132,7 @@ const operations = [
     'Export original signed records and retained material',
   ],
   ['get', '/v2/events', null, null, 'Poll producer-owned signed status events'],
-  ['get', '/v2/hitl/{id}', null, null, 'HITL v0.8 browser review handoff; pending uses HTTP 202'],
+  ['get', '/v2/hitl/{id}', null, null, 'HITL v0.8 browser review handoff'],
   ['get', '/v2/hitl/{id}/poll', null, null, 'HITL v0.8 authenticated polling'],
   [
     'put',
@@ -160,7 +160,7 @@ const contracts = {
   '/v2/requests/{id}/assignment': ['EmptyInput', 'Assignment'],
   '/v2/requests/{id}/remind': ['EmptyInput', 'ReminderResult'],
   '/v2/events': [null, 'EventPage'],
-  '/v2/hitl/{id}': [null, 'HitlStatus'],
+  '/v2/hitl/{id}': [null, 'HitlPoll'],
   '/v2/hitl/{id}/poll': [null, 'HitlPoll'],
   '/v2/admin/principals/{id}': ['PrincipalInput', 'PrincipalResult'],
   '/v2/admin/routes/{id}': ['RouteInput', 'RouteResult'],
@@ -246,7 +246,11 @@ for (const [method, path, sourceInput, sourceOutput, summary] of operations) {
       required: true,
       content: { 'application/json': { schema: ref(input) } },
     };
-  if (path === '/v2/hitl/{id}') op.responses['202'] = { description: 'Human review pending' };
+  if (path === '/v2/hitl/{id}')
+    op.responses['202'] = {
+      description: 'Human review pending',
+      content: { 'application/json': { schema: ref('HitlHandoff') } },
+    };
   (paths[path] ??= {})[method] = op;
 }
 paths['/v2/admin/metrics.prom'] = {

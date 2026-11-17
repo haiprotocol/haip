@@ -28,3 +28,9 @@ For a complete local flow, use the [HTTP review example](/examples/review). The 
 ## Agent UI
 
 A request may reference a registered bundle with compatibility `agent_ui: "2"` and select `haip.agent-ui: "2"`. The reviewer's host serves `StoredApp` with the exact bundle bytes, sandbox origin and scope, complete `input` and `result` snapshots, and an `AgentUiEnvelope`. The server verifies the persisted request and bound bundle before constructing the envelope. `binding_digest` checks the canonical request, bundle, source and snapshot identity for consistency, and the browser host recomputes it before creating a View. The View may only propose a `DecisionProposal`. The `AgentUi*` schema definitions specify every message shape, and the dependency-free [`@haip/view`](/sdk/view) client validates the exact `2.0.0-draft.3` envelope.
+
+## HITL adapter
+
+For the browser handoff, call `GET /v2/hitl/{id}` with the producer credential after creating a `review` request. A pending review returns HTTP 202 with the review and poll URLs. The browser uses OIDC and the same trusted confirmation as any HAIP review. Poll with the same producer credential. [HTTP schemas](/protocol/openapi)
+
+A completed poll returns `submit` for the HITL input case and carries the original signed receipt and any retained response the caller may read. Check the signed HAIP decision in the receipt before interpreting the result. Expiry returns `abort` and the effective deadline. Cancellation and supersession return the recorded cancellation time. [HITL v0.8 specification](https://github.com/rotorstar/hitl-protocol/blob/655eba84932669af057e3cd9cacb1c94ae51ae65/spec/v0.8/hitl-protocol.md)

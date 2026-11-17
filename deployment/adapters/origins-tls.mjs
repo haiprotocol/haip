@@ -1,16 +1,20 @@
 #!/usr/bin/env node
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, X509Certificate } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { constants } from 'node:fs';
-import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { request } from 'node:https';
 import { isIP } from 'node:net';
-import { isAbsolute, dirname, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { checkServerIdentity } from 'node:tls';
 import { fileURLToPath } from 'node:url';
 import { getDomain } from 'tldts';
+import {
+  sha256 as hash,
+  readAcceptancePlan,
+  privateDirectory,
+  privateEvidence,
+} from './evidence.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const maximumBytes = 1024 * 1024;
 const scopeA = 'a'.repeat(64);
 const scopeB = 'b'.repeat(64);
@@ -30,14 +34,22 @@ const securityHeaders = [
   'reporting-endpoints',
   'report-to',
 ];
-const hash = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
-const inside = (directory, path) => {
-  const local = relative(directory, path);
-  return local === '' || (local !== '..' && !local.startsWith(`..${sep}`) && !isAbsolute(local));
-};
 const errorCode = (error) =>
   /^[A-Z0-9_]{1,80}$/.test(error?.code ?? '') ? error.code : 'PROBE_ERROR';
 const assertion = (name, passed, detail) => ({ name, passed, detail });
+
+export function validHostCookie(value, name = '__Host-haip') {
+  const prefix = `${name}=`;
+  return (
+    value.startsWith(prefix) &&
+    /^[a-zA-Z0-9_-]{32,256}(?:;|$)/.test(value.slice(prefix.length)) &&
+    /;\s*Secure(?:;|$)/i.test(value) &&
+    /;\s*HttpOnly(?:;|$)/i.test(value) &&
+    /;\s*Path=\/(?:;|$)/i.test(value) &&
+    /;\s*SameSite=Lax(?:;|$)/i.test(value) &&
+    !/;\s*Domain\s*=/i.test(value)
+  );
+}
 
 function origins(deployment) {
   const trusted = new URL(deployment.trusted_origin);
@@ -326,14 +338,7 @@ async function probe(url, name, options) {
             ),
             session_cookie_attributes_valid: (incoming.headers['set-cookie'] ?? [])
               .filter((value) => value.startsWith('__Host-haip='))
-              .every(
-                (value) =>
-                  /;\s*Secure(?:;|$)/i.test(value) &&
-                  /;\s*HttpOnly(?:;|$)/i.test(value) &&
-                  /;\s*Path=\/(?:;|$)/i.test(value) &&
-                  /;\s*SameSite=Lax(?:;|$)/i.test(value) &&
-                  !/;\s*Domain=/i.test(value),
-              ),
+              .every((value) => validHostCookie(value)),
           });
         });
       },
@@ -359,6 +364,18 @@ async function probe(url, name, options) {
           certificate_valid_to: certificate.valid_to,
           certificate_subject_alt_name: certificate.subjectaltname,
           remote_address: socket.remoteAddress,
+          ...(options.fixture
+            ? {
+                fixture_spki: createHash('sha256')
+                  .update(
+                    new X509Certificate(certificate.raw).publicKey.export({
+                      type: 'spki',
+                      format: 'der',
+                    }),
+                  )
+                  .digest('base64'),
+              }
+            : {}),
         };
       }),
     );
@@ -525,59 +542,35 @@ export async function collectOriginsTls(plan, options = {}) {
   };
 }
 
-async function privateEvidence(directory, document) {
-  if (!isAbsolute(directory)) throw new Error('Evidence directory must be absolute');
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  const info = await lstat(directory);
-  if (!info.isDirectory() || info.isSymbolicLink() || info.mode & 0o077)
-    throw new Error('Evidence directory must be a private directory with mode 0700');
-  const canonical = await realpath(directory);
-  if (inside(await realpath(root), canonical))
-    throw new Error('Evidence must remain outside the repository');
-  const name = `origins-tls-${randomUUID()}.json`;
-  const bytes = Buffer.from(JSON.stringify(document, null, 2) + '\n');
-  const file = await open(
-    resolve(canonical, name),
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-    0o600,
-  );
-  try {
-    await file.writeFile(bytes);
-  } finally {
-    await file.close();
-  }
-  return {
-    name: 'origins-tls-probes',
-    digest: hash(bytes),
-    recorded_at: document.recorded_at,
-    reference: `private-evidence:${name}`,
-  };
-}
-
 async function main() {
-  const [planPath, evidenceDirectory, flag, caPath, ...rest] = process.argv.slice(2);
-  if (
-    !planPath ||
-    !evidenceDirectory ||
-    rest.length ||
-    (flag !== undefined && (flag !== '--fixture-ca' || !caPath))
-  )
-    throw new Error(
-      'Usage: node deployment/adapters/origins-tls.mjs PLAN PRIVATE_EVIDENCE_DIRECTORY [--fixture-ca CA_FILE]',
-    );
+  const [planPath, evidenceDirectory, ...flags] = process.argv.slice(2);
+  const usage =
+    'Usage: node deployment/adapters/origins-tls.mjs PLAN PRIVATE_EVIDENCE_DIRECTORY [--fixture-ca CA_FILE] [--review-id REVIEW_UUID]';
+  if (!planPath || !evidenceDirectory || flags.length % 2) throw new Error(usage);
+  const settings = new Map();
+  for (let index = 0; index < flags.length; index += 2) {
+    const [flag, value] = flags.slice(index, index + 2);
+    if (
+      !['--fixture-ca', '--review-id'].includes(flag) ||
+      !value ||
+      value.startsWith('--') ||
+      settings.has(flag)
+    )
+      throw new Error(usage);
+    settings.set(flag, value);
+  }
   if (
     process.env.HAIP_ACCEPTANCE_CHECK_ID &&
     process.env.HAIP_ACCEPTANCE_CHECK_ID !== 'origins_tls'
   )
     throw new Error('This adapter serves origins_tls only');
-  const bytes = await readFile(planPath);
-  if (bytes.length > maximumBytes) throw new Error('Plan exceeds 1 MiB');
-  const plan = JSON.parse(bytes.toString('utf8'));
-  if (plan.document_type !== 'plan' || plan.schema_version !== 'haip.deployment.acceptance.v1')
-    throw new Error('Expected an HAIP deployment acceptance plan');
+  const { plan, digest } = await readAcceptancePlan(planPath);
+  const directory = await privateDirectory(evidenceDirectory);
+  const reviewId = settings.get('--review-id');
+  const caPath = settings.get('--fixture-ca');
   const options = {
     cookie: process.env.HAIP_ACCEPTANCE_REVIEW_COOKIE,
-    fixture: flag === '--fixture-ca',
+    fixture: !!caPath,
   };
   if (options.fixture) {
     const values = origins(plan.deployment);
@@ -587,9 +580,45 @@ async function main() {
     options.resolve = async () => [{ address: '127.0.0.1', family: 4 }];
   }
   const { document, result } = await collectOriginsTls(plan, options);
-  document.plan_digest = hash(bytes);
+  if (reviewId && result.status === 'blocked') {
+    const { collectOriginsBrowser } = await import('./origins-browser.mjs');
+    if (!options.fixture)
+      console.error('Sign in to the browser as the reviewer for the isolated acceptance request.');
+    const browser = await collectOriginsBrowser(plan, reviewId, {
+      fixturePins: options.fixture
+        ? [...new Set(document.records.map((record) => record.tls?.fixture_spki).filter(Boolean))]
+        : undefined,
+    });
+    document.browser = { review_id_digest: hash(reviewId), ...browser };
+    if (!options.fixture) document.evidence_kind = 'live_browser';
+    for (const [name, probe] of Object.entries({
+      session_issuance: 'browser_host_session',
+      hostile_framing: 'browser_framing_refused',
+      unexpected_message_source: 'browser_wrong_source_refused',
+    }))
+      document.coverage[name] = browser.assertions.some(
+        (entry) => entry.name === probe && entry.passed,
+      );
+    document.coverage.browser_network_enforcement = [
+      'browser_renderer_network_refused',
+      'browser_rtc_refused',
+    ].every((name) => browser.assertions.some((entry) => entry.name === name && entry.passed));
+    result.assertions.push(...browser.assertions);
+    result.facts.authenticated_session_observed ||= document.coverage.session_issuance;
+    result.facts.browser_boundaries_exercised = browser.passed;
+    result.facts.session_issuance_exercised = document.coverage.session_issuance;
+    result.status = !browser.passed ? 'failed' : options.fixture ? 'blocked' : 'passed';
+    result.summary = !browser.passed
+      ? 'One or more browser probes failed.'
+      : options.fixture
+        ? 'The TLS and browser checks completed against a loopback fixture. Deployed origin and identity evidence remains required.'
+        : 'The TLS, routing, session and browser boundary checks passed against the isolated deployment.';
+  }
+  document.plan_digest = digest;
   document.source_commit = plan.source?.commit ?? null;
-  result.evidence.push(await privateEvidence(evidenceDirectory, document));
+  result.evidence.push(
+    await privateEvidence(directory, 'origins-tls', 'origins-tls-probes', document),
+  );
   process.stdout.write(JSON.stringify(result) + '\n');
 }
 

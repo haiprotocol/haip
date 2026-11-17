@@ -11,10 +11,14 @@ The callback must retain the authenticated-cookie state that initiated login. A 
 
 Human mutations require the authenticated browser session, a session CSRF token and the exact trusted Origin. Review links only locate resources. Possessing a link, digest or View registration does not grant payload access or confirmation rights.
 
+Opening an inbox or review link with an expired session starts sign-in and keeps the requested review path. The human requester recorded by the operator directory can read that request's status and signed receipt. The reviewer's private material and controls require the route's reviewer checks.
+
 A person proposes a schema-valid response and separately confirms that candidate's exact ID and digest. Replacing the proposal invalidates the previous confirmation target. A View can propose through `haip/ui.propose`, but the host retains the confirmation step.
 
 The trusted host and sandbox require HTTPS and separate registrable sites, except when both hosts are loopback in development. Different sibling subdomains alone do not provide that boundary. Each tenant/publisher/bundle receives its own sandbox origin, with a scripts-only opaque inner frame and no arbitrary host operations. Opener and embedder policies isolate the trusted page from cross-origin windows while allowing the explicitly permitted sandbox frame.
 
 Routes require verified requester/reviewer separation. Directory aliases of the same OIDC identity cannot satisfy self-review separation. Uncertain identity blocks authority. Disabling or removing a reviewer permanently invalidates affected grants, and re-adding the reviewer does not restore them.
 
-Rotate machine tokens on the same principal ID to preserve ownership and quotas. Never recycle a human ID for a different issuer and subject pair. Recovery disables old credentials and requires explicit reprovisioning. A real Clerk or Entra application still needs isolated deployment acceptance. The local OIDC fixture does not prove a provider configuration.
+Confirmation, claim and admission recheck the presented credential inside the tenant transaction. If confirming an execution requires a recovery store check, HAIP checks the reviewer's session again when storage returns. Signing out retires that browser's server session. Disabling a person retires all their sessions, so they must sign in again if re-enabled.
+
+Rotate machine tokens on the same principal ID to preserve ownership and quotas. Give a different issuer and subject pair a new human ID. Recovery disables old credentials and requires explicit reprovisioning. The local Dex test exercises Basic and POST client authentication over HTTPS. The selected deployment's identity application needs its own acceptance run.

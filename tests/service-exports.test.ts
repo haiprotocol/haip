@@ -166,6 +166,98 @@ test('delivery, proposals and confirmation recompute every stored material bindi
   }
 });
 
+test('native material, exports and confirmation replays reject changed decision evidence', async () => {
+  const env = await environment({ singleTenant: true });
+  try {
+    const { request } = await reviewWithBundle(env);
+    const human = await env.login();
+    const path = `/v2/requests/${request.id}`;
+    const persist = async (data: unknown) => {
+      await env.store.pool.query('UPDATE haip_requests SET data=$1 WHERE tenant=$2 AND id=$3', [
+        JSON.stringify(data),
+        'test-tenant',
+        request.id,
+      ]);
+    };
+    const stored = async () =>
+      (
+        await env.store.pool.query('SELECT data FROM haip_requests WHERE tenant=$1 AND id=$2', [
+          'test-tenant',
+          request.id,
+        ])
+      ).rows[0].data;
+    const refused = (result: { status: number; body: unknown }) => {
+      assert.equal(result.status, 409);
+      assert.deepEqual(result.body, { error: 'material_integrity_mismatch' });
+    };
+
+    const offered = await human.call(path + '/candidates', {
+      decision: 'answer',
+      response: { choice: 'accept', score: 0.1 },
+    });
+    assert.equal(offered.status, 201);
+    const pending = await stored();
+    assert.deepEqual((await env.api(path + '/material')).body.candidate, offered.body);
+    const changedCanonical = { ...pending.candidate, response_canonical: '{"choice":"decline"}' };
+    await persist({ ...pending, candidate: changedCanonical });
+    refused(await env.api(path + '/material'));
+    refused(
+      await human.call(path + '/confirm', {
+        candidate_id: changedCanonical.id,
+        candidate_digest: digest(changedCanonical),
+      }),
+    );
+    await persist(pending);
+
+    const selection = { candidate_id: offered.body.id, candidate_digest: digest(offered.body) };
+    const headers = { 'Idempotency-Key': 'retain-original-receipt' };
+    const confirmed = await human.call(path + '/confirm', selection, headers);
+    assert.equal(confirmed.status, 200);
+    const original = await stored();
+    const changedResponse = { ...original.candidate, response: { choice: 'decline' } };
+    await persist({ ...original, candidate: changedResponse });
+    for (const result of [
+      await env.api(path + '/material'),
+      await human.call(path + '/app'),
+      await env.api(path + '/export'),
+      await env.api(`/v2/hitl/${request.id}/poll`),
+      await human.call(path + '/confirm', selection, headers),
+    ])
+      refused(result);
+
+    await persist({
+      ...original,
+      request: { ...original.request, metadata: { changed: true } },
+    });
+    refused(await env.api(path));
+
+    const signature = original.receipt.signature;
+    const corruptedReceipt = {
+      ...original.receipt,
+      signature: (signature[0] === 'A' ? 'B' : 'A') + signature.slice(1),
+    };
+    await persist({ ...original, receipt: corruptedReceipt });
+    for (const result of [
+      await env.api(path),
+      await env.api(path + '/material'),
+      await env.api(path + '/export'),
+    ])
+      refused(result);
+    const discarded = await env.api(path + '/discard', {});
+    assert.equal(discarded.status, 200);
+    assert.equal(discarded.body.receipt, null);
+    const retained = await stored();
+    assert.equal(retained.material_deleted, true);
+    await persist({ ...retained, receipt: original.receipt });
+    const historical = await env.api(path + '/export');
+    assert.equal(historical.status, 200);
+    assert.equal(historical.body.material, null);
+    assert.deepEqual(historical.body.records, [confirmed.body]);
+  } finally {
+    await env.close();
+  }
+});
+
 test('exports refuse deleted required bundles but never revive private material after expiry', async () => {
   const env = await environment();
   try {

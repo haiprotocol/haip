@@ -1,5 +1,5 @@
 import { createHash, createPublicKey, sign, verify, type KeyObject } from 'node:crypto';
-import type { SignedRecord, TrustManifest } from './generated.js';
+import type { AnchorProof, SignedRecord, TrustManifest } from './generated.js';
 import { PROTOCOL_REVISION } from './index.js';
 
 export { canonicalise, parseJson } from './json.js';
@@ -64,4 +64,33 @@ export function verifyRecord(
     )
   )
     throw new Error('Invalid signature');
+}
+
+export function verifyCheckpointProof(
+  { checkpoint, proof }: Pick<AnchorProof, 'checkpoint' | 'proof'>,
+  receiptDigest: string,
+): void {
+  if (proof[0]?.record_digest !== receiptDigest)
+    throw new Error('Checkpoint does not include the receipt');
+  let previous: string | undefined;
+  let sequence: number | undefined;
+  for (const node of proof) {
+    if (
+      !Number.isSafeInteger(node.sequence) ||
+      node.head !==
+        digest({
+          previous: node.previous_head,
+          sequence: node.sequence,
+          record_digest: node.record_digest,
+        }) ||
+      (previous !== undefined && node.previous_head !== previous) ||
+      (sequence !== undefined && node.sequence !== sequence + 1)
+    )
+      throw new Error('Invalid checkpoint chain');
+    previous = node.head;
+    sequence = node.sequence;
+  }
+  const payload = checkpoint.payload as { head?: string; sequence?: number } | null;
+  if (previous !== payload?.head || sequence !== payload?.sequence)
+    throw new Error('Checkpoint prefix mismatch');
 }

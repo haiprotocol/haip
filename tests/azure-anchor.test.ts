@@ -1,9 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { canonicalise, signRecord } from '@haip/protocol/crypto';
-import { PROTOCOL_REVISION } from '@haip/protocol';
+import { canonicalise, parseJson, signRecord } from '@haip/protocol/crypto';
+import { PROTOCOL_REVISION, type SignedRecord, type TrustManifest } from '@haip/protocol';
+import { toHttpHeadersLike } from '@azure/core-http-compat';
+import { createHttpHeaders } from '@azure/core-rest-pipeline';
+import { BlobServiceClient, newPipeline } from '@azure/storage-blob';
 import { AzureAnchor, AzureSafetyStore } from '../haip-server/src/anchor.js';
+import { azureFixture } from './fixtures/azure-acceptance.js';
 
 test('Azure adapter checks exact versions, retention, conditional duplicate recovery and permanent safety holds', async () => {
   const keys = generateKeyPairSync('ed25519'),
@@ -55,9 +59,17 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   const checkpoints = new Map<string, any>(),
     safetyRecords = new Map<string, any>();
   let duplicate = false,
+    snapshot = '',
     marker = false,
     shortRetention = false,
-    safetyHold = true;
+    retentionMode = 'Locked',
+    safetyHold = true,
+    replaceAcknowledgement = false,
+    omitAcknowledgement = false,
+    extraBytes = false,
+    malformedBytes = false,
+    mismatchedReadVersion = false,
+    downloadCount = 0;
   const inheritedContainer = (objects: Map<string, any>, legalHold: () => boolean) => ({
     async *listBlobsFlat(options: any) {
       const rows = [...objects.values()].filter((o) => o.name.startsWith(options.prefix));
@@ -67,7 +79,7 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
           versionId: o.version,
           isCurrentVersion: !marker,
           deleted: marker,
-          snapshot: '',
+          snapshot,
         };
     },
     getBlockBlobClient(name: string) {
@@ -79,12 +91,20 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
           assert.equal('legalHold' in options, false);
           assert.equal(length, Buffer.byteLength(body));
           if (objects.has(name)) throw { statusCode: 412 };
+          const version = randomUUID();
           objects.set(name, {
             name,
             body,
-            version: randomUUID(),
+            version,
             retention: new Date(Date.now() + 90 * 86400000 + 1000),
           });
+          return {
+            versionId: omitAcknowledgement
+              ? undefined
+              : replaceAcknowledgement
+                ? randomUUID()
+                : version,
+          };
         },
       };
     },
@@ -96,14 +116,22 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
           return {
             async getProperties() {
               return {
-                versionId: version,
-                immutabilityPolicyMode: 'Locked',
+                versionId: mismatchedReadVersion ? randomUUID() : version,
+                immutabilityPolicyMode: retentionMode,
                 immutabilityPolicyExpiresOn: shortRetention ? new Date(0) : object.retention,
                 legalHold: legalHold(),
+                contentLength: extraBytes ? 64 * 1024 + 1 : Buffer.byteLength(object.body),
+                etag: '"fixture-etag"',
               };
             },
-            async downloadToBuffer() {
-              return Buffer.from(object.body);
+            async downloadToBuffer(offset: number, length: number, options: unknown) {
+              downloadCount++;
+              assert.equal(offset, 0);
+              assert.equal(length, Buffer.byteLength(object.body));
+              assert.deepEqual(options, { conditions: { ifMatch: '"fixture-etag"' } });
+              const bytes = Buffer.from(object.body);
+              if (malformedBytes) bytes[0] = 0xff;
+              return bytes;
             },
           };
         },
@@ -114,7 +142,11 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   (anchor as any).container = inheritedContainer(checkpoints, () => false);
   (safety as any).container = inheritedContainer(safetyRecords, () => safetyHold);
   const first = await anchor.accept(checkpoint);
+  retentionMode = 'locked';
   assert.deepEqual(await anchor.accept(checkpoint), first);
+  retentionMode = 'unlocked';
+  await assert.rejects(anchor.accept(checkpoint), /anchor_retention_invalid/);
+  retentionMode = 'Locked';
   assert.deepEqual(await anchor.history(ledger, generation), [
     { sequence: 1, head: (checkpoint.payload as any).head },
   ]);
@@ -125,16 +157,162 @@ test('Azure adapter checks exact versions, retention, conditional duplicate reco
   duplicate = true;
   await assert.rejects(anchor.accept(checkpoint), /anchor_version_conflict/);
   duplicate = false;
+  snapshot = '2026-09-04T00:00:00.0000000Z';
+  await assert.rejects(anchor.accept(checkpoint), /anchor_version_conflict/);
+  snapshot = '';
   marker = true;
   await assert.rejects(anchor.history(ledger, generation), /anchor_deleted_version/);
   marker = false;
   shortRetention = true;
   await assert.rejects(anchor.history(ledger, generation), /anchor_history_invalid/);
   shortRetention = false;
+  mismatchedReadVersion = true;
+  await assert.rejects(anchor.history(ledger, generation), /anchor_version_conflict/);
+  mismatchedReadVersion = false;
+  extraBytes = true;
+  const beforeLargeRecord = downloadCount;
+  await assert.rejects(anchor.history(ledger, generation), /anchor_history_invalid/);
+  assert.equal(downloadCount, beforeLargeRecord);
+  extraBytes = false;
+  malformedBytes = true;
+  await assert.rejects(anchor.history(ledger, generation), /anchor_history_invalid/);
+  malformedBytes = false;
+
+  const second = signed('AuditCheckpoint', ledger, 'haip.audit', {
+    ledger_id: ledger,
+    generation,
+    sequence: 2,
+    head: 'sha256:' + '3'.repeat(64),
+  });
+  const beforeWrongVersion = downloadCount;
+  replaceAcknowledgement = true;
+  await assert.rejects(anchor.accept(second), /anchor_version_conflict/);
+  assert.equal(downloadCount, beforeWrongVersion);
+  replaceAcknowledgement = false;
+  const recovered = await anchor.accept(second);
+  assert.equal(recovered.version_id, checkpoints.get(recovered.key).version);
+
   const key = 'a'.repeat(64),
     record = signed('RecoveryFence', key, 'haip.recovery', { key, value: { retired: true } });
+  omitAcknowledgement = true;
+  const beforeMissingVersion = downloadCount;
+  await assert.rejects(safety.create(key, record), /anchor_version_conflict/);
+  assert.equal(downloadCount, beforeMissingVersion);
+  omitAcknowledgement = false;
   assert.equal(canonicalise(await safety.create(key, record)), canonicalise(record));
-  assert.equal(canonicalise(await safety.create(key, record)), canonicalise(record));
+  const contender = signed('RecoveryFence', key, 'haip.recovery', { key, value: 'new value' });
+  assert.equal(canonicalise(await safety.create(key, contender)), canonicalise(record));
+  shortRetention = true;
+  await assert.rejects(safety.read(key), /anchor_retention_invalid/);
+  await assert.rejects(safety.create(key, record), /anchor_retention_invalid/);
+  shortRetention = false;
   safetyHold = false;
   await assert.rejects(safety.read(key), /recovery_hold_missing/);
+  const wrongKey = 'c'.repeat(64);
+  const invalidFence = signed('RecoveryFence', wrongKey, 'haip.recovery', { key, value: true });
+  await assert.rejects(safety.create(wrongKey, invalidFence), /recovery_record_invalid/);
+  assert.equal(await safety.read(wrongKey), undefined);
+  const oversizedFence = signed('RecoveryFence', wrongKey, 'haip.recovery', {
+    key: wrongKey,
+    value: 'x'.repeat(64 * 1024),
+  });
+  await assert.rejects(safety.create(wrongKey, oversizedFence), /anchor_history_invalid/);
+  assert.equal(await safety.read(wrongKey), undefined);
+});
+
+test('fresh checkpoint verification pins the retained Azure version and does not write', async () => {
+  const { settings, records, options, blobCalls, sample } = azureFixture();
+  const origin = `https://${settings.account}.blob.core.windows.net`;
+  const { container, key, version_id, digest } = settings.checkpoint;
+  const anchor = new AzureAnchor(
+    origin,
+    container,
+    settings.anchor_prefix,
+    settings.trust_manifest as TrustManifest,
+    options.runtimeCredential,
+  );
+  let missingListing = false;
+  let fault: { requestType: 'list' | 'HEAD' | 'GET'; status: number; code: string } | undefined;
+  const pipeline = newPipeline(options.runtimeCredential, {
+    retryOptions: { maxTries: 1 },
+    httpClient: {
+      async sendRequest(request) {
+        assert.ok(request.abortSignal);
+        const address = new URL(request.url);
+        const listing = address.searchParams.get('comp') === 'list';
+        if (missingListing && listing)
+          return {
+            request,
+            status: 200,
+            headers: toHttpHeadersLike(createHttpHeaders({ 'content-type': 'application/xml' })),
+            bodyAsText: '<EnumerationResults><Blobs/><NextMarker/></EnumerationResults>',
+          };
+        if (fault?.requestType === (listing ? 'list' : request.method))
+          return {
+            request,
+            status: fault.status,
+            headers: toHttpHeadersLike(createHttpHeaders({ 'x-ms-error-code': fault.code })),
+          };
+        return options.blobHttpClient.sendRequest(request);
+      },
+    },
+  });
+  Object.defineProperty(anchor, 'container', {
+    value: new BlobServiceClient(origin, pipeline).getContainerClient(container),
+  });
+  const checkpoint = records.checkpoint;
+  const record = parseJson(checkpoint.contents) as SignedRecord;
+  const acceptance = {
+    backend: 'azure_blob_locked_worm',
+    key,
+    version_id,
+    digest,
+    retained_until: new Date(checkpoint.expiry.toUTCString()).toISOString(),
+  };
+  await anchor.verifyAcceptance(record, acceptance);
+  assert.deepEqual(
+    blobCalls.map(({ method, version }) => [method, version]),
+    [
+      ['GET', null],
+      ['HEAD', version_id],
+      ['GET', version_id],
+    ],
+  );
+  await assert.rejects(
+    anchor.verifyAcceptance(record, { ...acceptance, key: key + '.foreign' }),
+    /anchor_conflict/,
+  );
+  assert.equal(blobCalls.length, 3);
+
+  missingListing = true;
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_version_conflict/);
+  missingListing = false;
+  for (const problem of [
+    { requestType: 'HEAD', status: 404, code: 'BlobNotFound' },
+    { requestType: 'GET', status: 412, code: 'ConditionNotMet' },
+  ] as const) {
+    fault = problem;
+    await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_version_conflict/);
+  }
+  fault = { requestType: 'list', status: 503, code: 'ServerBusy' };
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_unavailable/);
+  fault = undefined;
+
+  checkpoint.listedVersion = '2026-11-16T00:00:03.0000000Z';
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_version_conflict/);
+  checkpoint.listedVersion = undefined;
+  checkpoint.extraVersion = true;
+  await assert.rejects(
+    anchor.verifyAcceptance(record, acceptance),
+    /anchor_deleted_version|anchor_version_conflict/,
+  );
+  checkpoint.extraVersion = false;
+  checkpoint.lock = 'Unlocked';
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_retention_invalid/);
+  checkpoint.lock = 'Locked';
+  checkpoint.contents = sample(false, (payload) => {
+    payload.head = `sha256:${'1'.repeat(64)}`;
+  });
+  await assert.rejects(anchor.verifyAcceptance(record, acceptance), /anchor_conflict/);
+  assert.ok(blobCalls.every(({ method }) => method === 'GET' || method === 'HEAD'));
 });

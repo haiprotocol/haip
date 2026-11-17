@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createServer, request } from 'node:https';
 import { verifyWebhook, PostgresWebhookInbox } from '../haip-sdk/src/webhooks.js';
+import { HAIPClient } from '../haip-sdk/src/index.js';
+import type { RequestChangedEvent, Signed } from '@haip/protocol';
 import { parseJson } from '@haip/protocol/crypto';
 import { deliverWebhook, publicAddress } from '../haip-server/src/delivery.js';
 import { environment } from './environment.js';
@@ -180,5 +182,106 @@ test('TLS webhook delivery persists before acknowledgement, deduplicates after r
     if (server) await new Promise<void>((r) => server!.close(() => r()));
     await env.close();
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('durable webhook refresh uses authenticated status without losing a newer event during the read', async () => {
+  const env = await environment();
+  const releaseStatus = Promise.withResolvers<void>();
+  let inFlight: Promise<unknown> | undefined;
+  try {
+    const identity = { issuer: env.origin, tenant: 'test-tenant', producer: 'producer' };
+    const producer = {
+      tenant: identity.tenant,
+      id: identity.producer,
+      kind: 'producer' as const,
+      config: { enabled: true },
+    };
+    const client = new HAIPClient(env.origin, env.credentials.producer, true);
+    const other = new HAIPClient(env.origin, env.credentials.otherProducer, true);
+    const inbox = new PostgresWebhookInbox(env.store.pool);
+    await inbox.migrate();
+    const created = await env.api('/v2/requests', env.request());
+    const id = created.body.request.id as string;
+    assert.equal(created.status, 201);
+    const persist = (target: PostgresWebhookInbox, event: Signed<RequestChangedEvent>) => {
+      const now = new Date();
+      return target.persist(
+        verifyWebhook(
+          env.service.signed(
+            'WebhookDelivery',
+            {
+              delivery_id: randomUUID(),
+              event_id: event.payload.event_id,
+              timestamp: now.toISOString(),
+              event,
+            },
+            producer,
+            now,
+          ),
+          env.trust,
+          identity,
+        ),
+      );
+    };
+    const first = await client.events();
+    const original = first.items.at(-1)! as Signed<RequestChangedEvent>;
+    const revision = original.payload.revision;
+    assert.equal(await persist(inbox, original), 'stored');
+    assert.deepEqual(await inbox.pendingRefreshes(identity), [{ requestId: id, revision }]);
+    assert.deepEqual(await inbox.pendingRefreshes({ ...identity, producer: 'other-producer' }), []);
+    assert.deepEqual(await inbox.pendingRefreshes(identity, { after: id }), []);
+    await assert.rejects(inbox.refreshStatus(identity, id, other), { status: 404 });
+    await assert.rejects(
+      inbox.refreshStatus(identity, id, {
+        origin: 'https://different.test',
+        status: () => {
+          throw new Error('unexpected network read');
+        },
+      }),
+      /webhook_status_origin/,
+    );
+
+    const statusRead = Promise.withResolvers<void>();
+    const refresh = inbox.refreshStatus(identity, id, {
+      origin: client.origin,
+      async status(requestId) {
+        const status = await client.status(requestId);
+        statusRead.resolve();
+        await releaseStatus.promise;
+        return status;
+      },
+    });
+    inFlight = refresh;
+    await Promise.race([
+      statusRead.promise,
+      refresh.then(() => assert.fail('Status was not fetched')),
+    ]);
+    const cancelled = await client.cancel(id, 'cancel-fixture');
+    const latest = (await client.events(first.next)).items.at(-1)! as Signed<RequestChangedEvent>;
+    const restartedInbox = new PostgresWebhookInbox(env.store.pool);
+    assert.equal(await persist(restartedInbox, latest), 'stored');
+    releaseStatus.resolve();
+    assert.equal(await refresh, undefined, 'a read superseded during the fetch stays pending');
+    assert.deepEqual(await restartedInbox.pendingRefreshes(identity), [
+      { requestId: id, revision: cancelled.revision },
+    ]);
+    assert.equal(await persist(restartedInbox, original), 'duplicate');
+    await assert.rejects(
+      restartedInbox.refreshStatus(identity, id, {
+        origin: client.origin,
+        status: async () => ({ ...cancelled, revision }),
+      }),
+      /webhook_status_mismatch/,
+    );
+    const current = await restartedInbox.refreshStatus(identity, id, client);
+    assert.equal(current?.decision_state, 'cancelled');
+    assert.equal(current.revision, cancelled.revision);
+    assert.deepEqual(await restartedInbox.pendingRefreshes(identity), []);
+    assert.equal(await restartedInbox.refreshStatus(identity, id, client), undefined);
+  } finally {
+    releaseStatus.resolve();
+    await inFlight?.catch(() => {});
+    await env.close();
   }
 });

@@ -2,7 +2,7 @@ import { randomBytes, generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Store } from '../haip-server/src/store.js';
+import { Store, type DispatchOutbox } from '../haip-server/src/store.js';
 import { ReviewService } from '../haip-server/src/service.js';
 import { createApp, createSandboxApp } from '../haip-server/src/server.js';
 import { bootstrapTenant } from '../haip-server/src/admin.js';
@@ -13,15 +13,25 @@ import { postgres, freePort } from './fixtures/postgres.js';
 import { identityProvider } from './fixtures/oidc.js';
 import { TestAnchor } from './fixtures/anchor.js';
 import type { ServiceConfig } from '../haip-server/src/config.js';
-export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}) {
+export async function environment({
+  dispatchOutbox,
+  singleTenant = false,
+  ...options
+}: {
+  smtp?: ServiceConfig['smtp'];
+  dispatchOutbox?: DispatchOutbox;
+  singleTenant?: boolean;
+} = {}) {
   const pg = await postgres(),
     oidc = await identityProvider(),
-    store = new Store(pg.url);
+    store = new Store(pg.url, {}, dispatchOutbox);
   await store.migrate();
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const port = await freePort(),
     sandboxPort = await freePort();
   const origin = `http://localhost:${port}`;
+  const anchorDir = await mkdtemp(join(tmpdir(), 'haip-test-anchor-'));
+  const anchor = new TestAnchor(anchorDir);
   const trust: TrustManifest = {
     issuer: origin,
     protocol_revision: PROTOCOL_REVISION,
@@ -35,24 +45,28 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
       },
     ],
   };
-  const service = new ReviewService(store, {
-    origin,
-    issuer: origin,
-    keyId: 'test-signing',
-    signingKey: privateKey,
-    trust,
-    mode: 'development',
-    sandboxOrigin: (scope) =>
-      `http://${BigInt('0x' + scope).toString(36)}.localhost:${sandboxPort}`,
-    oidc: {
-      issuer: oidc.origin,
-      clientId: 'haip-test',
-      clientSecret: 'test-secret',
-      allowLocalHttp: true,
+  const service = new ReviewService(
+    store,
+    {
+      origin,
+      issuer: origin,
+      keyId: 'test-signing',
+      signingKey: privateKey,
+      trust,
+      mode: 'development',
+      sandboxOrigin: (scope) =>
+        `http://${BigInt('0x' + scope).toString(36)}.localhost:${sandboxPort}`,
+      oidc: {
+        issuer: oidc.origin,
+        clientId: 'haip-test',
+        clientSecret: 'test-secret',
+        allowLocalHttp: true,
+      },
+      webhookHosts: [],
+      ...options,
     },
-    webhookHosts: [],
-    ...options,
-  });
+    anchor,
+  );
   const server = createApp(service).listen(port, '127.0.0.1');
   const sandbox = createSandboxApp(service).listen(sandboxPort, '127.0.0.1');
   await Promise.all([
@@ -71,7 +85,6 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
     foreignPublisher: token(),
   };
   await bootstrapTenant(service, 'test-tenant', 'operator', credentials.operator);
-  await bootstrapTenant(service, 'foreign-tenant', 'operator', credentials.foreignOperator);
   const api = async (
     path: string,
     body?: unknown,
@@ -133,32 +146,6 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
     { enabled: true, publisher: 'other-publisher', owner: 'requester', routes: ['review'] },
     credentials.otherProducer,
   );
-  await principal(
-    'foreign-requester',
-    'human',
-    {
-      enabled: true,
-      identity_certain: true,
-      oidc_issuer: oidc.origin,
-      oidc_subject: 'foreign-requester',
-    },
-    undefined,
-    credentials.foreignOperator,
-  );
-  await principal(
-    'publisher',
-    'publisher',
-    { enabled: true },
-    credentials.foreignPublisher,
-    credentials.foreignOperator,
-  );
-  await principal(
-    'producer',
-    'producer',
-    { enabled: true, publisher: 'publisher', owner: 'foreign-requester', routes: ['review'] },
-    credentials.foreignProducer,
-    credentials.foreignOperator,
-  );
   const route = {
     reviewers: ['reviewer', 'reviewer2', 'requester'],
     separation_of_duties: true,
@@ -168,14 +155,41 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
     modes: ['fixed_mock'],
   };
   await put('/v2/admin/routes/review', route);
-  await put(
-    '/v2/admin/routes/review',
-    { ...route, reviewers: ['foreign-requester'], allowed_producers: ['producer'] },
-    credentials.foreignOperator,
-  );
-  const anchorDir = await mkdtemp(join(tmpdir(), 'haip-test-anchor-')),
-    anchor = new TestAnchor(anchorDir),
-    worker = new OutboxWorker(service, anchor);
+  if (!singleTenant) {
+    await bootstrapTenant(service, 'foreign-tenant', 'operator', credentials.foreignOperator);
+    await principal(
+      'foreign-requester',
+      'human',
+      {
+        enabled: true,
+        identity_certain: true,
+        oidc_issuer: oidc.origin,
+        oidc_subject: 'foreign-requester',
+      },
+      undefined,
+      credentials.foreignOperator,
+    );
+    await principal(
+      'publisher',
+      'publisher',
+      { enabled: true },
+      credentials.foreignPublisher,
+      credentials.foreignOperator,
+    );
+    await principal(
+      'producer',
+      'producer',
+      { enabled: true, publisher: 'publisher', owner: 'foreign-requester', routes: ['review'] },
+      credentials.foreignProducer,
+      credentials.foreignOperator,
+    );
+    await put(
+      '/v2/admin/routes/review',
+      { ...route, reviewers: ['foreign-requester'], allowed_producers: ['producer'] },
+      credentials.foreignOperator,
+    );
+  }
+  const worker = new OutboxWorker(service, anchor);
   await worker.reconcile();
   async function flush() {
     for (let i = 0; i < 30; i++) {
@@ -183,8 +197,11 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
     }
     throw new Error('Outbox did not settle');
   }
-  async function login(subject = 'reviewer') {
-    const first = await fetch(origin + '/auth/login', { redirect: 'manual' });
+  async function login(subject = 'reviewer', { path = '/auth/login', previousCookie = '' } = {}) {
+    const first = await fetch(origin + path, {
+      redirect: 'manual',
+      ...(previousCookie ? { headers: { Cookie: previousCookie } } : {}),
+    });
     const cookie = first.headers.getSetCookie()[0]!.split(';')[0]!;
     const url = new URL(first.headers.get('location')!);
     const signIn = await fetch(url.origin + '/authorize', {
@@ -195,7 +212,7 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
     });
     const callback = await fetch(signIn.headers.get('location')!, {
       redirect: 'manual',
-      headers: { Cookie: cookie },
+      headers: { Cookie: [cookie, previousCookie].filter(Boolean).join('; ') },
     });
     if (callback.status !== 302)
       throw new Error('OIDC callback ' + callback.status + ': ' + (await callback.text()));
@@ -209,6 +226,7 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
     return {
       cookie: sessionCookie,
       csrf: session.csrf,
+      returnTo: callback.headers.get('location'),
       async call(path: string, body?: unknown, headers: Record<string, string> = {}) {
         const response = await fetch(origin + path, {
           method: body === undefined ? 'GET' : 'POST',
@@ -272,6 +290,7 @@ export async function environment(options: { smtp?: ServiceConfig['smtp'] } = {}
   });
   return {
     origin,
+    server,
     trust,
     service,
     store,

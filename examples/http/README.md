@@ -1,40 +1,31 @@
 # Independent HTTP demonstrations
 
-These are bounded local fixtures against the running draft reference service. They
-need no Plasm fields, engine or agent framework. Use isolated credentials and effects.
+These examples exercise the draft reference service over HTTP. Use isolated credentials and effects.
 
-For a free walkthrough, build from the repository root, then run `npm run demo`.
-It prints a localhost origin and temporary producer/publisher credentials. Keep it
-running in that terminal; the database and keys are disposable test fixtures.
-In another terminal set `HAIP_URL`, `HAIP_TOKEN`, `HAIP_PUBLISHER_TOKEN` from that
-output and `HAIP_LOCAL_HTTP=true`. Run `npm run example:app`, then
-`node examples/http/register-app.mjs`; set `HAIP_BUNDLE_ID` to the returned ID.
-Set a new `HAIP_IDEMPOTENCY_KEY` and run the review command below. Sign in as
-`reviewer` in the local test provider and confirm through the trusted host.
-Never expose this fixture publicly or reuse its credentials for deployment.
+Build from the repository root, then run `npm run demo` and leave it running. The demo prints a localhost origin and disposable credentials.
 
-`review.json` is a generic review request. Set `HAIP_URL`, `HAIP_TOKEN` and
-`HAIP_IDEMPOTENCY_KEY`, then run `node examples/http/review.mjs` to submit it. Configure
-the producer, publisher, human owner and review route first. Follow the review link,
-sign in through OIDC, propose a structured choice and confirm it in the trusted host.
-Poll status and events. The browser test builds an independently authored Agent UI View,
-registers it with its own publisher credential and completes the same workflow.
+In a second terminal at the repository root, export `HAIP_URL` from the demo's `origin`, `HAIP_TOKEN` from `producer_token` and `HAIP_PUBLISHER_TOKEN` from `publisher_token`. Build and register the example View.
 
-`counter.ts` exports `runCounter`. It accepts only the fixed `counter.increment` action
-with amount one and a generic execution binding. After normal human confirmation it
-obtains a claim and fresh admission, verifies purpose, profiles, identities, commitments,
-signatures, timing and independent checkpoint acceptance, then durably writes an
-exclusive local fence before changing a counter. Reinvocation returns the saved result
-and retries outcome reporting without repeating the effect. The HTTP test runs this
-flow with the explicitly non-production filesystem anchor fixture.
+```sh
+export HAIP_LOCAL_HTTP=true
+npm run example:app
+export HAIP_IDEMPOTENCY_KEY="$(node -p 'crypto.randomUUID()')"
+node examples/http/register-app.mjs
+```
 
-Use one durable private directory per request. Do not share its counter with other
-occurrences or delete its fence. If a fence exists without a result, treat the launch
-as uncertain and reconcile manually; do not rerun it. A filesystem or external-effect
-failure after launch is not proof that nothing happened. This demonstration does not
-implement general execution, credential management, scheduling or production recovery.
-Never replace the supplied independent anchor-verification callback with a no-op.
+Export `HAIP_BUNDLE_ID` with the `id` returned by registration, then start the review with its own key. Reuse the original key if you retry either operation.
 
-The reusable review fixture in `conformance/review.mjs` targets only public HTTP
-operations and accepts a real-host confirmation callback. See `conformance/README.md`
-for running it against another isolated implementation.
+```sh
+export HAIP_IDEMPOTENCY_KEY="$(node -p 'crypto.randomUUID()')"
+node examples/http/review.mjs
+```
+
+Open `review_link` from the response and sign in as `reviewer`. Open the isolated View, propose a choice and confirm it in the trusted host. Keep the demo on loopback and use its credentials only for this run.
+
+`review.json` is a generic review request. To submit it against a separate test installation, configure the producer, publisher, human owner and review route first. Set `HAIP_URL`, `HAIP_TOKEN` and `HAIP_IDEMPOTENCY_KEY`, then run `node examples/http/review.mjs`. Follow the review link, sign in through OIDC, propose a structured choice and confirm it in the trusted host. Poll status and events. The browser test builds the example Agent UI View, registers it with a publisher credential and completes the same workflow.
+
+`counter.ts` exports `runCounter`. It accepts only the fixed `counter.increment` action with amount one and a generic execution binding. After normal human confirmation it obtains a claim and fresh admission, verifies purpose, profiles, identities, commitments, signatures, timing and independent checkpoint acceptance, then durably writes an exclusive local fence before changing a counter. Reinvocation returns the saved result and retries outcome reporting without repeating the effect. The HTTP test runs this flow with the filesystem anchor fixture.
+
+Use one durable private directory per request. Keep each occurrence's counter and fence intact. Leave a fence without a result in place for manual reconciliation. A filesystem or external-effect failure after launch leaves the effect uncertain. The fixture covers the fixed counter action. Keep the supplied independent anchor-verification callback enabled.
+
+The reusable review fixture in [`conformance/review.mjs`](conformance/review.mjs) targets public HTTP operations and accepts a host confirmation callback. See [`conformance/README.md`](conformance/README.md) for running it against another isolated implementation.

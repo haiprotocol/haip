@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { canonicalise, digest, digestBytes, signRecord } from '@haip/protocol/crypto';
+import {
+  canonicalise,
+  digest,
+  digestBytes,
+  signRecord,
+  verifyCheckpointProof,
+  verifyRecord,
+} from '@haip/protocol/crypto';
 import {
   DEFAULT_LIMITS,
   EXECUTION_PROFILE,
@@ -14,14 +21,22 @@ import {
   type Signed,
   type DecisionReceipt,
   type ExecutionClaim,
+  type AdmissionStatus,
   type Limits,
   type ClaimInput,
   type ExecutionOutcome,
   type BundleRegistration,
+  type AnchorProof,
 } from '@haip/protocol';
 import type { Store, Tx } from './store.js';
-import type { Principal, RouteConfig, ServiceConfig } from './config.js';
-import { missing, requireThat } from './errors.js';
+import {
+  authenticatedCredentialHash,
+  type Principal,
+  type RouteConfig,
+  type ServiceConfig,
+} from './config.js';
+import { isAnchorConflict, type AnchorStore } from './anchor.js';
+import { missing, ProtocolError, requireThat } from './errors.js';
 import { validate, validateResponseSchema } from './validation.js';
 import { requireBoundBundle } from './bundle.js';
 
@@ -49,6 +64,7 @@ export interface RequestData {
   anchor?: unknown;
   invalidated?: string;
   material_deleted?: boolean;
+  review_cancelled_at?: string;
   response_storage_bytes?: number;
   last_candidate_revision?: number;
   private_discard_at?: string;
@@ -76,13 +92,64 @@ interface PreparedRequest {
   response_schema_digest: string;
   document_digest: string;
 }
+function checkpointEvidence(data: RequestData) {
+  const anchor = data.anchor as AnchorProof | undefined;
+  if (anchor?.checkpoint && anchor.acceptance) return anchor;
+}
+function checkStored<T>(check: () => T): T {
+  try {
+    return check();
+  } catch {
+    throw new ProtocolError(409, 'material_integrity_mismatch');
+  }
+}
+function requireOriginalRecord(record: SignedRecord, original: SignedRecord | undefined) {
+  checkStored(() =>
+    requireThat(
+      original && digest(record) === digest(original),
+      409,
+      'material_integrity_mismatch',
+    ),
+  );
+}
+function checkpointBinding(
+  evidence: AnchorProof,
+  receipt: Signed<DecisionReceipt>,
+  decisionSequence?: number,
+) {
+  return checkStored(() => digest({ evidence, receipt, decisionSequence }));
+}
+async function resampleTime(tx: Tx, now: Date) {
+  const { rows } = await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now');
+  now.setTime(rows[0]!.now.getTime());
+}
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
+const statementTimeUtc = `to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+const privateExpiry = (data: RequestData) =>
+  Math.min(
+    Date.parse(data.request.private_delete_at),
+    Date.parse(data.private_discard_at ?? data.request.private_delete_at),
+  );
+function reviewExpiry(data: RequestData) {
+  const deadline = Date.parse(data.request.review_deadline);
+  const material = privateExpiry(data);
+  return Number.isFinite(material) ? Math.min(deadline, material) : deadline;
+}
+export function reviewStateSql(now: '$2' | '$3') {
+  const privateDue = `(r.data->>'material_deleted'='true' OR LEAST(r.data->'request'->>'private_delete_at',r.data->>'private_discard_at') <= ${now})`;
+  const decision = `CASE WHEN r.data->>'decision_state'='pending' AND
+    (r.data->'request'->>'review_deadline' <= ${now} OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
+  return { privateDue, decision };
+}
+const checkpointBatchSeconds = 300;
+const checkpointBatchSize = 100;
 export class ReviewService {
   recovery?: import('./recovery.js').RecoveryGuard;
   constructor(
     readonly store: Store,
     readonly config: ServiceConfig,
+    readonly anchor?: AnchorStore,
   ) {}
   discovery() {
     return {
@@ -115,12 +182,27 @@ export class ReviewService {
     ) as Signed<T>;
   }
   async principal(tx: Tx, p: Principal): Promise<Principal> {
-    const { rows } = await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
-      p.tenant,
-      p.id,
-    ]);
-    requireThat(rows[0]?.config.enabled, 401, 'unauthenticated');
-    return rows[0];
+    const {
+      rows: [stored],
+    } = await tx.query<Principal & { token_hash: string | null }>(
+      'SELECT tenant,id,kind,config,token_hash FROM haip_principals WHERE tenant=$1 AND id=$2',
+      [p.tenant, p.id],
+    );
+    requireThat(stored?.config.enabled && stored.kind === p.kind, 401, 'unauthenticated');
+    const { token_hash: bearer, ...current } = stored;
+    const hash = p[authenticatedCredentialHash];
+    if (hash === undefined) return current;
+    if (current.kind === 'human') {
+      const session = await tx.query(
+        `SELECT 1 FROM haip_sessions WHERE token_hash=$1 AND expires_at>clock_timestamp()
+         AND data->>'tenant'=$2 AND data->>'id'=$3`,
+        [hash, current.tenant, current.id],
+      );
+      requireThat(session.rowCount === 1, 401, 'unauthenticated');
+    } else {
+      requireThat(bearer === hash, 401, 'unauthenticated');
+    }
+    return { ...current, [authenticatedCredentialHash]: hash };
   }
   async route(
     tx: Tx,
@@ -134,10 +216,16 @@ export class ReviewService {
     if (!rows[0]) throw missing();
     return rows[0];
   }
-  async owned(tx: Tx, p: Principal, id: string, includeMaterial = true): Promise<RequestRow> {
+  async owned(
+    tx: Tx,
+    p: Principal,
+    id: string,
+    access: boolean | 'status' = true,
+  ): Promise<RequestRow> {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw missing();
     const { rows } = await tx.query(
-      `SELECT tenant,id,producer,route,data,retained_bytes,${includeMaterial ? 'material' : 'NULL::jsonb AS material'} FROM haip_requests WHERE tenant=$1 AND id=$2`,
+      `SELECT tenant,id,producer,route,data,retained_bytes,${access === true ? 'material' : 'NULL::jsonb AS material'}
+       FROM haip_requests WHERE tenant=$1 AND id=$2 AND data->'request'->>'audit_delete_at' > ${statementTimeUtc}`,
       [p.tenant, id],
     );
     const row: RequestRow | undefined = rows[0];
@@ -145,10 +233,21 @@ export class ReviewService {
     if (p.kind === 'producer' && row.producer === p.id) return row;
     if (p.kind === 'operator') return row;
     if (p.kind === 'human') {
+      const requester = row.data.request.requester;
+      if (
+        access === 'status' &&
+        requester?.subject === p.id &&
+        requester.source === 'operator_directory' &&
+        p.config.identity_certain !== false
+      )
+        return row;
       const route = await this.route(tx, p, row.route);
       if (route.config.reviewers.includes(p.id)) return row;
     }
     throw missing();
+  }
+  private requireRetainedAudit(request: DecisionRequest, now: Date) {
+    if (!(now.getTime() < Date.parse(request.audit_delete_at))) throw missing();
   }
   async save(tx: Tx, row: RequestRow): Promise<void> {
     await tx.query('UPDATE haip_requests SET data=$3 WHERE tenant=$1 AND id=$2', [
@@ -173,8 +272,10 @@ export class ReviewService {
     );
     const hash = preparedDigest ?? digest(input);
     const { rows } = await tx.query(
-      'SELECT digest,result FROM haip_idempotency WHERE tenant=$1 AND actor=$2 AND operation=$3 AND key=$4',
-      [p.tenant, p.id, operation, key],
+      `SELECT digest,CASE WHEN created_at > statement_timestamp()-($5::integer * interval '1 second')
+        AND COALESCE(result->'request'->>'audit_delete_at' > ${statementTimeUtc}, true)
+        THEN result END AS result FROM haip_idempotency WHERE tenant=$1 AND actor=$2 AND operation=$3 AND key=$4`,
+      [p.tenant, p.id, operation, key, DEFAULT_LIMITS.audit_seconds],
     );
     if (rows[0]) {
       requireThat(rows[0].digest === hash, 409, 'idempotency_conflict');
@@ -221,13 +322,66 @@ export class ReviewService {
       { ...p, id: 'haip.audit', tenant: t.ledger_id },
       now,
     );
-    // Every event gets a checkpoint; this is stricter than the five-minute/100-event bound.
-    await tx.query(
-      "INSERT INTO haip_outbox(id,tenant,request_id,kind,body) VALUES($1,$2,$3,'checkpoint',$4)",
-      [randomUUID(), p.tenant, request?.id ?? null, JSON.stringify(checkpoint)],
+    await this.queueCheckpoint(
+      tx,
+      p.tenant,
+      now,
+      checkpoint,
+      type === 'DecisionReceipt' ? request?.id : undefined,
     );
     return seq;
   }
+
+  private async queueCheckpoint(
+    tx: Tx,
+    tenant: string,
+    now: Date,
+    checkpoint: SignedRecord,
+    confirmation?: string,
+  ): Promise<void> {
+    const immediate = confirmation !== undefined;
+    const {
+      rows: [batch],
+    } = await tx.query<{
+      id: string;
+      checkpoint_batch_count: number;
+      collecting: boolean;
+    }>(
+      `SELECT id,checkpoint_batch_count,next_at>clock_timestamp() AS collecting
+       FROM haip_outbox WHERE tenant=$1 AND checkpoint_batch_count IS NOT NULL FOR UPDATE`,
+      [tenant],
+    );
+    const body = JSON.stringify(checkpoint);
+    if (batch?.collecting) {
+      const count = batch.checkpoint_batch_count + 1;
+      const due = immediate || count === checkpointBatchSize;
+      await tx.query(
+        `UPDATE haip_outbox SET body=$2,request_id=$3,checkpoint_batch_count=$4,
+         next_at=CASE WHEN $4::smallint IS NULL THEN $5 ELSE next_at END WHERE id=$1`,
+        [batch.id, body, confirmation ?? null, due ? null : count, now],
+      );
+      if (due) this.store.noteOutboxJob(tx, batch.id);
+      return;
+    }
+    if (batch)
+      await tx.query('UPDATE haip_outbox SET checkpoint_batch_count=NULL WHERE id=$1', [batch.id]);
+    const id = randomUUID();
+    await tx.query(
+      `INSERT INTO haip_outbox(id,tenant,request_id,kind,body,created_at,next_at,checkpoint_batch_count)
+       VALUES($1,$2,$3,'checkpoint',$4,$5,$6,$7)`,
+      [
+        id,
+        tenant,
+        confirmation ?? null,
+        body,
+        now,
+        immediate ? now : iso(now, checkpointBatchSeconds),
+        immediate ? null : 1,
+      ],
+    );
+    this.store.noteOutboxJob(tx, id);
+  }
+
   async event(tx: Tx, p: Principal, row: RequestRow, now: Date, reason: string): Promise<void> {
     const d = row.data;
     d.revision++;
@@ -262,57 +416,61 @@ export class ReviewService {
       'INSERT INTO haip_events(tenant,producer,id,request_id,record,created_at) VALUES($1,$2,$3,$4,$5,$6)',
       [p.tenant, row.producer, record.payload.event_id, row.id, JSON.stringify(record), now],
     );
-    if (producer.config.webhook)
+    if (producer.config.webhook) {
+      const job = randomUUID();
       await tx.query(
         "INSERT INTO haip_outbox(id,tenant,producer,request_id,kind,destination,body) VALUES($1,$2,$3,$4,'webhook',$5,$6)",
-        [
-          randomUUID(),
-          p.tenant,
-          row.producer,
-          row.id,
-          producer.config.webhook,
-          JSON.stringify(record),
-        ],
+        [job, p.tenant, row.producer, row.id, producer.config.webhook, JSON.stringify(record)],
       );
+      this.store.noteOutboxJob(tx, job);
+    }
     await this.audit(tx, producer, now, 'RequestChangedEvent', record.payload, d.request);
   }
   async notifications(
     tx: Tx,
-    p: Principal,
     row: RequestRow,
     now: Date,
-    recipients: string[],
+    recipients: readonly string[],
+    recipientRole: 'reviewer' | 'requester',
   ): Promise<void> {
     if (!this.config.smtp) return;
+    const link = `${this.config.origin}/review/${row.id}`;
+    const text = row.data.material_deleted
+      ? `Review ${row.id}\nReview material was deleted.\n${link}\nSign in to view the current status.`
+      : `Review ${row.id}\n${row.data.request.summary}\nDeadline: ${row.data.request.review_deadline}\n${link}\nSign in to review. This email cannot approve a request.`;
     for (const id of [...new Set(recipients)]) {
       const { rows } = await tx.query(
         "SELECT config FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
-        [p.tenant, id],
+        [row.tenant, id],
       );
       const c = rows[0]?.config;
       if (!c?.enabled || !c.email_verified || !c.email) continue;
+      const job = randomUUID();
       await tx.query(
         "INSERT INTO haip_outbox(id,tenant,producer,request_id,kind,destination,body,created_at) VALUES($1,$2,$3,$4,'smtp',$5,$6,$7)",
         [
-          randomUUID(),
-          p.tenant,
+          job,
+          row.tenant,
           row.producer,
           row.id,
           c.email,
           JSON.stringify({
+            recipient_id: id,
+            recipient_role: recipientRole,
             subject: 'HAIP review update',
-            text: `Review ${row.id}\n${row.data.request.summary}\nDeadline: ${row.data.request.review_deadline}\n${this.config.origin}/review/${row.id}\nSign in to review. This email cannot approve a request.`,
+            text,
           }),
           now,
         ],
       );
+      this.store.noteOutboxJob(tx, job);
     }
   }
   /** Effective expiry is visible immediately, without making a GET request an audit actor. */
   private project(row: RequestRow, now: Date): { reason?: string; materialDiscarded: boolean } {
     const d = row.data;
     let reason: string | undefined;
-    if (d.decision_state === 'pending' && now.getTime() >= Date.parse(d.request.review_deadline)) {
+    if (d.decision_state === 'pending' && now.getTime() >= reviewExpiry(d)) {
       d.decision_state = 'expired';
       delete d.candidate;
       reason = 'expiry';
@@ -326,13 +484,7 @@ export class ReviewService {
       d.grant_state = 'expired';
       reason = 'expiry';
     }
-    const materialDiscarded =
-      !d.material_deleted &&
-      now.getTime() >=
-        Math.min(
-          Date.parse(d.request.private_delete_at),
-          Date.parse(d.private_discard_at ?? d.request.private_delete_at),
-        );
+    const materialDiscarded = !d.material_deleted && now.getTime() >= privateExpiry(d);
     if (materialDiscarded) {
       row.material = null;
       d.material_deleted = true;
@@ -364,7 +516,9 @@ export class ReviewService {
         'decision.propose:' + row.id,
       ]);
       await tx.query(
-        "UPDATE haip_outbox SET body='{}',destination=NULL,state=CASE WHEN state='pending' THEN 'expired' ELSE state END WHERE tenant=$1 AND request_id=$2 AND kind='smtp'",
+        `UPDATE haip_outbox SET body='{}',destination=NULL,accepted=NULL,claim_until=NULL,claim_revision=NULL,
+           state=CASE WHEN state='pending' THEN 'expired' ELSE state END
+         WHERE tenant=$1 AND request_id=$2 AND kind='smtp'`,
         [row.tenant, row.id],
       );
       await this.audit(
@@ -403,7 +557,7 @@ export class ReviewService {
         );
         row.data.reminder_at = iso(now);
         const route = await this.route(tx, p, row.route);
-        await this.notifications(tx, p, row, now, route.config.reviewers);
+        await this.notifications(tx, row, now, route.config.reviewers, 'reviewer');
         await this.event(tx, p, row, now, 'reminder');
         await this.save(tx, row);
         return { request_id: id, notification: this.config.smtp ? 'queued' : 'polling-only' };
@@ -416,9 +570,11 @@ export class ReviewService {
       requireThat(['producer', 'operator'].includes(p.kind), 403, 'producer_required');
       const row = await this.owned(tx, p, id);
       return this.idempotent(tx, p, 'discard:' + id, key, {}, async () => {
-        row.data.private_discard_at = iso(now);
-        await this.refresh(tx, p, row, now, p);
-        await this.notifications(tx, p, row, now, [row.data.request.requester.subject]);
+        if (!row.data.material_deleted) {
+          row.data.private_discard_at = iso(now);
+          await this.refresh(tx, p, row, now, p);
+          await this.notifications(tx, row, now, [row.data.request.requester.subject], 'requester');
+        }
         return this.statusIn(tx, p, row, now);
       });
     });
@@ -427,6 +583,7 @@ export class ReviewService {
     if (readOnly) this.project(row, now);
     else await this.refresh(tx, p, row, now);
     const d = row.data;
+    const { receipt, claim, outcome } = this.statusEvidence(row, readOnly);
     const deliveries = (
       await tx.query(
         'SELECT id,kind,state,attempts,error FROM haip_outbox WHERE tenant=$1 AND request_id=$2 ORDER BY created_at DESC LIMIT 30',
@@ -441,10 +598,10 @@ export class ReviewService {
       grant_state: d.grant_state,
       execution_state: d.execution_state,
       revision: d.revision,
-      receipt: d.receipt ?? null,
-      claim: d.claim ?? null,
-      outcome: d.outcome ?? null,
-      anchor: d.anchor ?? null,
+      receipt: receipt ?? null,
+      claim: claim ?? null,
+      outcome: outcome ?? null,
+      anchor: receipt ? (d.anchor ?? null) : null,
       delivery: deliveries,
       review_link: `${this.config.origin}/review/${row.id}`,
       polling_link: `${this.config.origin}/v2/requests/${row.id}`,
@@ -453,7 +610,41 @@ export class ReviewService {
   async status(p: Principal, id: string) {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
-      return this.statusIn(tx, p, await this.owned(tx, p, id, false), now, true);
+      return this.statusIn(tx, p, await this.owned(tx, p, id, 'status'), now, true);
+    });
+  }
+  async hitlReview(p: Principal, id: string) {
+    return this.store.read(async (tx, now) => {
+      p = await this.principal(tx, p);
+      const row = await this.owned(tx, p, id, 'status');
+      const d = row.data;
+      requireThat(d.request.purpose === 'review', 409, 'hitl_review_only');
+      this.requireStoredIntegrity(row);
+      this.project(row, now);
+      const receipt = this.requireBoundReceipt(row);
+      let candidate: DecisionCandidate | undefined;
+      if (
+        d.decision_state === 'confirmed' &&
+        !d.material_deleted &&
+        (p.kind !== 'human' ||
+          p.id !== d.request.requester.subject ||
+          (await this.route(tx, p, row.route)).config.reviewers.includes(p.id))
+      ) {
+        const material = await tx.query(
+          'SELECT 1 FROM haip_requests WHERE tenant=$1 AND id=$2 AND material IS NOT NULL',
+          [p.tenant, row.id],
+        );
+        if (material.rowCount) candidate = this.requireBoundCandidate(row, receipt);
+      }
+      return {
+        request: d.request,
+        decisionState: d.decision_state,
+        auditState: d.audit_state,
+        receipt,
+        candidate,
+        expiredAt: d.decision_state === 'expired' ? iso(new Date(reviewExpiry(d))) : undefined,
+        cancelledAt: d.review_cancelled_at,
+      };
     });
   }
   async list(p: Principal, filter: string | undefined, offset = 0) {
@@ -476,11 +667,9 @@ export class ReviewService {
           : p.kind === 'human'
             ? "EXISTS (SELECT 1 FROM haip_routes route WHERE route.tenant=r.tenant AND route.id=r.route AND route.config->'reviewers' ? $2)"
             : '$2::text IS NOT NULL';
-      const privateDue =
-        "(r.data->>'material_deleted'='true' OR LEAST(r.data->'request'->>'private_delete_at',r.data->>'private_discard_at') <= $3)";
-      const decision = `CASE WHEN r.data->>'decision_state'='pending' AND
-        (r.data->'request'->>'review_deadline' <= $3 OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
-      const visible = `r.tenant=$1 AND ${access} AND ($4::text IS NULL OR (${decision})=$4)`;
+      const { privateDue, decision } = reviewStateSql('$3');
+      const visible = `r.tenant=$1 AND ${access} AND r.data->'request'->>'audit_delete_at' > $3
+        AND ($4::text IS NULL OR (${decision})=$4)`;
       const parameters = [p.tenant, p.id, iso(now), filter ?? null];
       const { rows } = await tx.query(
         `SELECT r.id,r.data->'request'->>'summary' AS summary,r.data->'request'->>'review_deadline' AS deadline,
@@ -612,7 +801,7 @@ export class ReviewService {
       await tx.query(
         `SELECT count(*) AS tenant_count,count(*) FILTER(WHERE producer=$2) AS producer_count
        FROM haip_requests WHERE tenant=$1 AND data->>'decision_state'='pending'
-       AND data->'request'->>'review_deadline' > $3`,
+       AND data->'request'->>'review_deadline' > $3 AND data->'request'->>'audit_delete_at' > $3`,
         [p.tenant, p.id, iso(now)],
       )
     ).rows[0];
@@ -871,6 +1060,7 @@ export class ReviewService {
     const reviewSeconds = Math.min(
       input.review_seconds ?? limits.review_seconds,
       limits.review_seconds,
+      limits.audit_seconds,
     );
     const deadline = iso(now, reviewSeconds);
     if (input.execution) {
@@ -963,10 +1153,13 @@ export class ReviewService {
         : deadline,
       private_delete_at: iso(
         now,
-        limits.review_seconds +
-          (input.execution
-            ? limits.grant_seconds + limits.execution_seconds + limits.reconciliation_seconds
-            : 0),
+        Math.min(
+          limits.audit_seconds,
+          limits.review_seconds +
+            (input.execution
+              ? limits.grant_seconds + limits.execution_seconds + limits.reconciliation_seconds
+              : 0),
+        ),
       ),
       audit_delete_at: iso(now, limits.audit_seconds),
       metadata: input.metadata ?? {},
@@ -980,6 +1173,10 @@ export class ReviewService {
     if (input.execution && this.recovery) {
       await this.recovery.assertUnconsumed(p.tenant, p.id, input.execution.action_occurrence_id);
       await this.recovery.reserve(p.tenant, p.id, input.execution.action_occurrence_id, namespace);
+      const checkedAt = (await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!
+        .now;
+      this.requireRetainedAudit(request, checkedAt);
+      if (supersedes) this.requireRetainedAudit(supersedes.data.request, checkedAt);
     }
     const data: RequestData = {
       request,
@@ -1020,7 +1217,7 @@ export class ReviewService {
       retained_bytes: size,
     };
     await this.event(tx, p, row, now, 'created');
-    await this.notifications(tx, p, row, now, route.config.reviewers);
+    await this.notifications(tx, row, now, route.config.reviewers, 'reviewer');
     await this.save(tx, row);
     return this.statusIn(tx, p, row, now);
   }
@@ -1085,19 +1282,240 @@ export class ReviewService {
     }
     requireThat(valid, 409, 'material_integrity_mismatch');
   }
-  async material(p: Principal, id: string) {
-    return this.store.read(async (tx, now) => {
-      p = await this.principal(tx, p);
-      const row = await this.owned(tx, p, id);
-      this.requireStoredIntegrity(row);
-      this.project(row, now);
-      requireThat(row.material, 410, 'material_deleted');
+  private recordInScope(row: RequestRow, record: SignedRecord | undefined, ...types: string[]) {
+    const header = record?.protected;
+    const payload = record?.payload as { request_id?: string } | undefined;
+    return (
+      !!header &&
+      types.includes(header.type) &&
+      header.tenant === row.tenant &&
+      header.audience === row.producer &&
+      payload?.request_id === row.id
+    );
+  }
+  private requireStoredRecord(row: RequestRow, record: SignedRecord, ...types: string[]) {
+    checkStored(() => {
+      validate('SignedRecord', record);
+      const request = row.data.request;
+      requireThat(
+        this.recordInScope(row, record, ...types) &&
+          digest(record.protected.profiles) === digest(request.profiles),
+        409,
+        'material_integrity_mismatch',
+      );
+      verifyRecord(record, this.config.trust, {
+        issuer: this.config.issuer,
+        tenant: row.tenant,
+        audience: row.producer,
+        type: record.protected.type,
+        purpose: request.purpose,
+      });
+    });
+  }
+  private requireBoundReceipt(row: RequestRow) {
+    const d = row.data;
+    const receipt = d.receipt;
+    if (!receipt && d.decision_state !== 'confirmed') return;
+    requireThat(receipt, 409, 'material_integrity_mismatch');
+    return checkStored(() => {
+      this.requireStoredRecord(row, receipt, 'DecisionReceipt');
+      const payload = receipt.payload;
+      validate('DecisionReceipt', payload);
+      requireThat(
+        payload.request_digest === d.request_digest &&
+          payload.requester === d.request.requester.subject &&
+          payload.purpose === d.request.purpose &&
+          payload.confirmed_at === receipt.protected.issued_at &&
+          Date.parse(payload.confirmed_at) >= Date.parse(d.request.accepted_at) &&
+          Date.parse(payload.confirmed_at) < Date.parse(d.request.review_deadline),
+        409,
+        'material_integrity_mismatch',
+      );
+      return receipt;
+    });
+  }
+  private requireBoundCandidate(
+    row: RequestRow,
+    receipt?: Signed<DecisionReceipt>,
+    candidate = row.data.candidate,
+  ) {
+    if (!candidate && !receipt) return;
+    requireThat(candidate, 409, 'material_integrity_mismatch');
+    return checkStored(() => {
+      validate('DecisionCandidate', candidate);
+      const response = canonicalise(candidate.response);
+      const execution = row.data.request.purpose === 'authorise_execution';
+      requireThat(
+        candidate.request_id === row.id &&
+          candidate.request_digest === row.data.request_digest &&
+          candidate.response_canonical === response &&
+          candidate.response_digest === digestBytes(response) &&
+          (execution ? ['authorise', 'refuse'] : ['answer', 'approve', 'reject']).includes(
+            candidate.decision,
+          ),
+        409,
+        'material_integrity_mismatch',
+      );
+      if (receipt)
+        requireThat(
+          receipt.payload.candidate_id === candidate.id &&
+            receipt.payload.candidate_digest === digest(candidate) &&
+            receipt.payload.response_digest === candidate.response_digest &&
+            receipt.payload.reviewer === candidate.reviewer &&
+            receipt.payload.decision === candidate.decision &&
+            Date.parse(candidate.created_at) <= Date.parse(receipt.payload.confirmed_at),
+          409,
+          'material_integrity_mismatch',
+        );
+      return candidate;
+    });
+  }
+  private requireBoundClaim(row: RequestRow, receipt: Signed<DecisionReceipt> | undefined) {
+    const d = row.data;
+    const claim = d.claim;
+    if (!claim) return;
+    return checkStored(() => {
+      this.requireStoredRecord(row, claim, 'ExecutionClaim');
+      const payload = claim.payload;
+      const execution = d.request.execution;
+      validate('ExecutionClaim', payload);
+      requireThat(
+        receipt?.payload.decision === 'authorise' &&
+          execution &&
+          payload.request_digest === d.request_digest &&
+          payload.receipt_digest === digest(receipt) &&
+          payload.execution_binding_digest === digest(execution) &&
+          payload.action_occurrence_id === execution.action_occurrence_id &&
+          payload.execution_seconds === execution.execution_seconds &&
+          payload.dispatch_before === receipt.payload.grant_deadline &&
+          payload.claimed_at === claim.protected.issued_at &&
+          Date.parse(payload.claimed_at) >= Date.parse(receipt.payload.confirmed_at) &&
+          Date.parse(payload.claimed_at) < Date.parse(payload.dispatch_before),
+        409,
+        'material_integrity_mismatch',
+      );
+      return claim;
+    });
+  }
+  private requireBoundOutcome(
+    row: RequestRow,
+    claim: Signed<ExecutionClaim> | undefined,
+    outcome = row.data.outcome,
+  ) {
+    if (!outcome) return;
+    return checkStored(() => {
+      this.requireStoredRecord(row, outcome, 'ExecutionOutcome', 'ExecutionReconciliation');
+      validate('ExecutionOutcome', outcome.payload.outcome);
+      requireThat(
+        claim &&
+          outcome.payload.claim_digest === digest(claim) &&
+          outcome.payload.outcome.execution_identity === claim.payload.execution_identity &&
+          outcome.payload.recorded_at === outcome.protected.issued_at,
+        409,
+        'material_integrity_mismatch',
+      );
+      return outcome;
+    });
+  }
+  private requireExportRecords(row: RequestRow, receipt: Signed<DecisionReceipt> | undefined) {
+    checkStored(() => {
+      const claim = this.requireBoundClaim(row, receipt);
+      const outcome = this.requireBoundOutcome(row, claim);
+      const pending = new Set(
+        [receipt, claim, outcome].filter((record) => record !== undefined).map(digest),
+      );
+      requireThat(Array.isArray(row.data.records), 409, 'material_integrity_mismatch');
+      for (const record of row.data.records) {
+        switch (record.protected?.type) {
+          case 'DecisionReceipt':
+            requireOriginalRecord(record, receipt);
+            break;
+          case 'ExecutionClaim':
+            requireOriginalRecord(record, claim);
+            break;
+          case 'AdmissionStatus': {
+            this.requireStoredRecord(row, record, 'AdmissionStatus');
+            const payload = record.payload as AdmissionStatus;
+            validate('AdmissionStatus', payload);
+            requireThat(
+              claim &&
+                payload.claim_digest === digest(claim) &&
+                payload.claim_id === claim.payload.id &&
+                payload.execution_identity === claim.payload.execution_identity &&
+                payload.execution_binding_digest === claim.payload.execution_binding_digest &&
+                payload.dispatch_before === claim.payload.dispatch_before &&
+                payload.execution_seconds === claim.payload.execution_seconds &&
+                payload.checked_at === record.protected.issued_at,
+              409,
+              'material_integrity_mismatch',
+            );
+            continue;
+          }
+          case 'ExecutionOutcome':
+          case 'ExecutionReconciliation':
+            this.requireBoundOutcome(row, claim, record as RequestData['outcome']);
+            break;
+          default:
+            throw new ProtocolError(409, 'material_integrity_mismatch');
+        }
+        pending.delete(digest(record));
+      }
+      requireThat(pending.size === 0, 409, 'material_integrity_mismatch');
+    });
+  }
+  private statusEvidence(row: RequestRow, readOnly: boolean) {
+    const d = row.data;
+    if (d.request.protocol_revision !== PROTOCOL_REVISION)
       return {
-        request: row.data.request,
-        request_digest: row.data.request_digest,
-        ...row.material,
-        candidate: row.data.candidate ?? null,
+        receipt: this.recordInScope(row, d.receipt, 'DecisionReceipt') ? d.receipt : undefined,
+        claim: this.recordInScope(row, d.claim, 'ExecutionClaim') ? d.claim : undefined,
+        outcome: this.recordInScope(row, d.outcome, 'ExecutionOutcome', 'ExecutionReconciliation')
+          ? d.outcome
+          : undefined,
       };
+    try {
+      const receipt = this.requireBoundReceipt(row);
+      if (receipt)
+        checkStored(() =>
+          requireThat(digest(d.request) === d.request_digest, 409, 'material_integrity_mismatch'),
+        );
+      const claim = this.requireBoundClaim(row, receipt);
+      return { receipt, claim, outcome: this.requireBoundOutcome(row, claim) };
+    } catch (error) {
+      if (readOnly) throw error;
+      // Allow revocation and deletion to commit even when the signed evidence is damaged.
+      return {};
+    }
+  }
+  private async readMaterial(tx: Tx, p: Principal, id: string, now: Date) {
+    const row = await this.owned(tx, await this.principal(tx, p), id);
+    this.requireStoredIntegrity(row);
+    this.project(row, now);
+    requireThat(row.material, 410, 'material_deleted');
+    const candidate = this.requireBoundCandidate(row, this.requireBoundReceipt(row));
+    return {
+      request: row.data.request,
+      request_digest: row.data.request_digest,
+      ...row.material,
+      candidate: candidate ?? null,
+    };
+  }
+  async material(p: Principal, id: string) {
+    return this.store.read((tx, now) => this.readMaterial(tx, p, id, now));
+  }
+  async appMaterial(p: Principal, id: string) {
+    requireThat(p.kind === 'human', 403, 'human_required');
+    return this.store.read(async (tx, now) => {
+      const material = await this.readMaterial(tx, p, id, now);
+      const binding = material.request.review.bundle;
+      requireThat(binding, 404, 'not_found');
+      const { rows } = await tx.query<{ html: unknown; manifest: unknown }>(
+        'SELECT html,manifest FROM haip_bundles WHERE tenant=$1 AND id=$2 AND publisher=$3',
+        [p.tenant, binding.id, binding.publisher],
+      );
+      const bundle = rows[0];
+      requireBoundBundle(bundle, p.tenant, binding);
+      return { material, bundle };
     });
   }
   async eligible(tx: Tx, p: Principal, row: RequestRow): Promise<void> {
@@ -1135,9 +1553,10 @@ export class ReviewService {
   }
   pending(row: RequestRow, now: Date) {
     this.requireCurrentRequest(row);
+    this.requireRetainedAudit(row.data.request, now);
     requireThat(
       row.data.decision_state === 'pending' &&
-        now.getTime() < Date.parse(row.data.request.review_deadline) &&
+        now.getTime() < reviewExpiry(row.data) &&
         !row.data.invalidated &&
         !!row.material,
       409,
@@ -1203,7 +1622,7 @@ export class ReviewService {
       const row = await this.owned(tx, p, id);
       await this.eligible(tx, p, row);
       this.pending(row, now);
-      return this.idempotent(
+      const candidate = await this.idempotent(
         tx,
         p,
         'decision.propose:' + id,
@@ -1277,6 +1696,8 @@ export class ReviewService {
         },
         proposalDigest,
       );
+      if (candidate !== row.data.candidate) this.requireBoundCandidate(row, undefined, candidate);
+      return candidate;
     });
   }
   async confirm(
@@ -1290,7 +1711,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
       await this.eligible(tx, p, row);
-      return this.idempotent(
+      const receipt = await this.idempotent(
         tx,
         p,
         'decision.confirm:' + id,
@@ -1299,7 +1720,7 @@ export class ReviewService {
         async () => {
           this.pending(row, now);
           const d = row.data;
-          const c = d.candidate;
+          const c = this.requireBoundCandidate(row);
           requireThat(
             c && c.id === candidateId && c.reviewer === p.id && digest(c) === candidateDigest,
             409,
@@ -1312,16 +1733,17 @@ export class ReviewService {
             ])
           ).rows[0] as Principal;
           const execution = d.request.execution;
-          if (execution && this.recovery) {
+          if (execution && this.recovery)
             await this.recovery.check(tx, p.tenant, d.request.authority_namespace);
-            now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
-            this.pending(row, now);
-          }
+          p = await this.principal(tx, p);
+          await resampleTime(tx, now);
+          this.pending(row, now);
           if (execution)
             d.grant_deadline = new Date(
               Math.min(
                 now.getTime() + d.request.limits.grant_seconds * 1000,
                 Date.parse(execution.valid_until),
+                Date.parse(d.request.audit_delete_at),
               ),
             ).toISOString();
           const receipt = this.signed<DecisionReceipt>(
@@ -1361,12 +1783,29 @@ export class ReviewService {
             d.request,
           );
           await this.event(tx, p, row, now, 'decision');
-          await this.notifications(tx, p, row, now, [d.request.requester.subject]);
+          await this.notifications(tx, row, now, [d.request.requester.subject], 'requester');
           await this.save(tx, row);
           return receipt;
         },
       );
+      if (receipt !== row.data.receipt) {
+        const original = this.requireBoundReceipt(row);
+        if (row.material && !row.data.material_deleted && now.getTime() < privateExpiry(row.data))
+          this.requireBoundCandidate(row, original);
+        requireOriginalRecord(receipt, original);
+      }
+      return receipt;
     });
+  }
+  closePendingReview(row: RequestRow, now: Date, state: 'cancelled' | 'superseded') {
+    const d = row.data;
+    if (d.decision_state !== 'pending') return;
+    if (now.getTime() >= reviewExpiry(d)) {
+      d.decision_state = 'expired';
+      return;
+    }
+    d.decision_state = state;
+    d.review_cancelled_at = iso(now);
   }
   async invalidate(p: Principal, id: string, reason: 'cancelled' | 'revoked', key?: string) {
     return this.store.transaction(p.tenant, async (tx, now) => {
@@ -1376,7 +1815,7 @@ export class ReviewService {
       return this.idempotent(tx, p, reason + ':' + id, key, {}, async () => {
         row.data.invalidated = reason;
         if (!row.data.receipt) delete row.data.candidate;
-        if (row.data.decision_state === 'pending') row.data.decision_state = 'cancelled';
+        this.closePendingReview(row, now, 'cancelled');
         if (['available', 'pending_anchor'].includes(row.data.grant_state))
           row.data.grant_state = 'revoked';
         await this.event(tx, p, row, now, reason);
@@ -1405,7 +1844,7 @@ export class ReviewService {
           requireThat(creation.prepared, 409, 'idempotency_changed');
           const created = await this.createIn(tx, p, now, input, creation.prepared, old);
           old.data.invalidated = 'superseded';
-          if (old.data.decision_state === 'pending') old.data.decision_state = 'superseded';
+          this.closePendingReview(old, now, 'superseded');
           if (!old.data.receipt) delete old.data.candidate;
           if (['available', 'pending_anchor'].includes(old.data.grant_state))
             old.data.grant_state = 'revoked';
@@ -1417,7 +1856,116 @@ export class ReviewService {
       );
     });
   }
-  async authority(tx: Tx, p: Principal, row: RequestRow, now: Date, existingClaim = false) {
+  async fenceAnchor(tx: Tx, tenant: string, code: string) {
+    await tx.query('INSERT INTO haip_incidents(tenant,code) VALUES($1,$2)', [tenant, code]);
+    await tx.query('UPDATE haip_tenants SET fenced=true WHERE id=$1', [tenant]);
+    await tx.query(
+      "UPDATE haip_requests SET data=jsonb_set(data,'{audit_state}','\"conflict\"') WHERE tenant=$1",
+      [tenant],
+    );
+  }
+  private async verifyCheckpoint(p: Principal, id: string, grantState: 'available' | 'consumed') {
+    if (!this.anchor) return;
+    const snapshot = await this.store.read(async (tx, now) => {
+      const producer = await this.principal(tx, p);
+      requireThat(producer.kind === 'producer', 403, 'producer_required');
+      const row = await this.owned(tx, producer, id, false);
+      const { data } = row;
+      if (
+        data.request.purpose !== 'authorise_execution' ||
+        data.invalidated ||
+        data.audit_state !== 'anchored' ||
+        data.grant_state !== grantState ||
+        !data.grant_deadline ||
+        !(now.getTime() < Date.parse(data.grant_deadline))
+      )
+        return;
+      const tenant = (
+        await tx.query<{ ledger_id: string; generation: string; fenced: boolean }>(
+          'SELECT ledger_id,generation,fenced FROM haip_tenants WHERE id=$1',
+          [producer.tenant],
+        )
+      ).rows[0];
+      if (!tenant || tenant.fenced || data.request.authority_namespace !== tenant.generation)
+        return;
+      this.requireCurrentRequest(row);
+      const receipt = this.requireBoundReceipt(row);
+      requireThat(receipt, 409, 'material_integrity_mismatch');
+      return {
+        tenant,
+        evidence: checkpointEvidence(data),
+        decisionSequence: data.decision_sequence,
+        receipt,
+      };
+    });
+    if (!snapshot) return;
+    // Provider I/O runs outside the tenant lock. The write transaction must still match the evidence just read.
+    const { tenant, evidence } = snapshot;
+    try {
+      requireThat(evidence, 503, 'anchor_history_invalid');
+      const payload = evidence.checkpoint.payload as
+        { ledger_id?: string; generation?: string; sequence?: number } | undefined;
+      requireThat(
+        payload?.ledger_id === tenant.ledger_id &&
+          payload.generation === tenant.generation &&
+          typeof payload.sequence === 'number' &&
+          typeof snapshot.decisionSequence === 'number' &&
+          payload.sequence >= snapshot.decisionSequence,
+        503,
+        'anchor_history_invalid',
+      );
+      checkStored(() => {
+        validate('AnchorProof', evidence);
+        verifyRecord(evidence.checkpoint, this.config.trust, {
+          issuer: this.config.issuer,
+          tenant: tenant.ledger_id,
+          audience: 'haip.audit',
+          type: 'AuditCheckpoint',
+          purpose: 'service',
+        });
+        requireThat(
+          evidence.proof[0]?.sequence === snapshot.decisionSequence,
+          409,
+          'material_integrity_mismatch',
+        );
+        verifyCheckpointProof(evidence, digest(snapshot.receipt));
+      });
+      await this.anchor.verifyAcceptance(evidence.checkpoint, evidence.acceptance);
+      return checkpointBinding(evidence, snapshot.receipt, snapshot.decisionSequence);
+    } catch (error) {
+      if (error instanceof ProtocolError && isAnchorConflict(error.code)) {
+        await this.store.transaction(p.tenant, async (tx) => {
+          const current = await tx.query(
+            'SELECT 1 FROM haip_tenants WHERE id=$1 AND generation=$2 AND NOT fenced',
+            [p.tenant, tenant.generation],
+          );
+          if (current.rowCount) await this.fenceAnchor(tx, p.tenant, error.code);
+        });
+      }
+      throw error;
+    }
+  }
+  private requireGrantDeadline(data: RequestData, now: Date) {
+    requireThat(
+      data.grant_deadline && now.getTime() < Date.parse(data.grant_deadline),
+      409,
+      'grant_expired',
+    );
+  }
+  private async recheckGrantWindow(tx: Tx, data: RequestData, now: Date) {
+    await resampleTime(tx, now);
+    this.requireRetainedAudit(data.request, now);
+    this.requireGrantDeadline(data, now);
+    requireThat(now.getTime() < privateExpiry(data), 409, 'authority_revoked');
+  }
+  async authority(
+    tx: Tx,
+    p: Principal,
+    row: RequestRow,
+    now: Date,
+    existingClaim = false,
+    checkpointDigest?: string,
+  ) {
     this.requireStoredIntegrity(row);
     const d = row.data;
     const r = d.request;
@@ -1433,50 +1981,74 @@ export class ReviewService {
       503,
       'independent_recovery_required',
     );
+    requireThat(
+      this.config.mode !== 'production' || this.anchor?.production,
+      503,
+      'independent_anchor_required',
+    );
     if (this.recovery) {
       requireThat(r.authority_namespace, 409, 'namespace_missing');
       await this.recovery.check(tx, p.tenant, r.authority_namespace);
-      now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
+      await resampleTime(tx, now);
     }
+    this.requireRetainedAudit(r, now);
     const tenant = (await tx.query('SELECT fenced FROM haip_tenants WHERE id=$1', [p.tenant]))
       .rows[0];
     requireThat(!tenant.fenced, 503, 'admission_fenced');
-    requireThat(
-      !d.invalidated && d.receipt?.payload.decision === 'authorise',
-      409,
-      'authority_revoked',
-    );
+    requireThat(!d.invalidated, 409, 'authority_revoked');
+    const receipt = this.requireBoundReceipt(row);
+    requireThat(receipt?.payload.decision === 'authorise', 409, 'authority_revoked');
     requireThat(d.audit_state === 'anchored', 409, 'pending_anchor');
-    requireThat(
-      d.grant_deadline && now.getTime() < Date.parse(d.grant_deadline),
-      409,
-      'grant_expired',
-    );
+    this.requireGrantDeadline(d, now);
     requireThat(
       existingClaim ? d.grant_state === 'consumed' : d.grant_state === 'available',
       409,
       'grant_unavailable',
     );
+    requireThat(
+      row.material && !d.material_deleted && now.getTime() < privateExpiry(d),
+      409,
+      'authority_revoked',
+    );
+    requireThat(
+      d.grant_deadline === receipt.payload.grant_deadline,
+      409,
+      'material_integrity_mismatch',
+    );
+    this.requireBoundCandidate(row, receipt);
+    if (this.anchor) {
+      const evidence = checkpointEvidence(d);
+      requireThat(
+        evidence && checkpointDigest === checkpointBinding(evidence, receipt, d.decision_sequence),
+        409,
+        'anchor_recheck_required',
+      );
+    }
     const reviewer = (
       await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
         p.tenant,
-        d.receipt.payload.reviewer,
+        receipt.payload.reviewer,
       ])
     ).rows[0] as Principal | undefined;
     requireThat(reviewer?.config.enabled, 409, 'reviewer_ineligible');
     await this.eligible(tx, reviewer, row);
+    return receipt;
   }
   async claim(p: Principal, id: string, input: ClaimInput, key?: string) {
     validate('ClaimInput', input);
+    const checkpointDigest = await this.verifyCheckpoint(p, id, 'available');
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
       this.requireStoredIntegrity(row);
-      if (this.recovery)
+      if (this.recovery) {
         await this.recovery.check(tx, p.tenant, row.data.request.authority_namespace);
-      return this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
-        await this.authority(tx, p, row, now);
+        await resampleTime(tx, now);
+        this.requireRetainedAudit(row.data.request, now);
+      }
+      const claim = await this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
+        await this.authority(tx, p, row, now, false, checkpointDigest);
         const d = row.data;
         const execution = d.request.execution!;
         requireThat(
@@ -1489,6 +2061,7 @@ export class ReviewService {
           [p.tenant, p.id, execution.action_occurrence_id, input.execution_identity],
         );
         requireThat(claimed.rowCount === 1, 409, 'occurrence_consumed');
+        await this.recheckGrantWindow(tx, d, now);
         if (this.recovery) {
           await this.recovery.consume(
             p.tenant,
@@ -1498,7 +2071,8 @@ export class ReviewService {
             d.request.authority_namespace!,
             d.request_digest,
           );
-          await this.authority(tx, p, row, now);
+          await this.authority(tx, p, row, now, false, checkpointDigest);
+          await this.recheckGrantWindow(tx, d, now);
         }
         const claim = this.signed<ExecutionClaim>(
           'ExecutionClaim',
@@ -1527,6 +2101,13 @@ export class ReviewService {
         await this.save(tx, row);
         return claim;
       });
+      if (claim !== row.data.claim) {
+        const receipt = this.requireBoundReceipt(row);
+        if (row.material && !row.data.material_deleted && now.getTime() < privateExpiry(row.data))
+          this.requireBoundCandidate(row, receipt);
+        requireOriginalRecord(claim, this.requireBoundClaim(row, receipt));
+      }
+      return claim;
     });
   }
   async admission(
@@ -1540,13 +2121,14 @@ export class ReviewService {
       400,
       'invalid_nonce',
     );
+    const checkpointDigest = await this.verifyCheckpoint(p, id, 'consumed');
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
-      await this.authority(tx, p, row, now, true);
+      const receipt = await this.authority(tx, p, row, now, true, checkpointDigest);
       const d = row.data,
-        claim = d.claim;
+        claim = this.requireBoundClaim(row, receipt);
       requireThat(
         claim &&
           claim.payload.id === input.claim_id &&
@@ -1569,6 +2151,7 @@ export class ReviewService {
         409,
         'nonce_reused',
       );
+      await this.recheckGrantWindow(tx, d, now);
       const admission = this.signed(
         'AdmissionStatus',
         {
@@ -1607,7 +2190,9 @@ export class ReviewService {
       requireThat(p.kind === (reconcile ? 'operator' : 'producer'), 403, 'forbidden');
       const row = await this.owned(tx, p, id);
       this.requireStoredIntegrity(row);
-      return this.idempotent(
+      const claim = this.requireBoundClaim(row, this.requireBoundReceipt(row));
+      const prior = this.requireBoundOutcome(row, claim);
+      const report = await this.idempotent(
         tx,
         p,
         (reconcile ? 'reconcile:' : 'outcome:') + id,
@@ -1616,7 +2201,7 @@ export class ReviewService {
         async () => {
           const d = row.data;
           requireThat(
-            d.claim && d.claim.payload.execution_identity === input.execution_identity,
+            claim && claim.payload.execution_identity === input.execution_identity,
             409,
             'claim_unavailable',
           );
@@ -1626,13 +2211,9 @@ export class ReviewService {
               400,
               'reconciliation_evidence_required',
             );
-          if (d.outcome && !reconcile) {
-            requireThat(
-              digest(d.outcome.payload.outcome) === digest(input),
-              409,
-              'outcome_conflict',
-            );
-            return d.outcome;
+          if (prior && !reconcile) {
+            requireThat(digest(prior.payload.outcome) === digest(input), 409, 'outcome_conflict');
+            return prior;
           }
           requireThat(
             reconcile || input.status !== 'abandoned',
@@ -1643,7 +2224,7 @@ export class ReviewService {
             reconcile ? 'ExecutionReconciliation' : 'ExecutionOutcome',
             {
               request_id: id,
-              claim_digest: digest(d.claim),
+              claim_digest: digest(claim),
               outcome: input,
               recorded_at: iso(now),
               recorded_by: { kind: p.kind, subject: p.id },
@@ -1675,16 +2256,21 @@ export class ReviewService {
           return record;
         },
       );
+      if (report !== row.data.outcome) this.requireBoundOutcome(row, claim, report);
+      return report;
     });
   }
   async events(p: Principal, after = 0) {
     requireThat(p.kind === 'producer', 403, 'producer_required');
-    return this.store.read(async (tx) => {
+    return this.store.read(async (tx, now) => {
       await this.principal(tx, p);
       const rows = (
         await tx.query(
-          'SELECT sequence,record FROM haip_events WHERE tenant=$1 AND producer=$2 AND sequence>$3 ORDER BY sequence LIMIT 100',
-          [p.tenant, p.id, after],
+          `SELECT e.sequence,e.record FROM haip_events e
+           JOIN haip_requests r ON r.tenant=e.tenant AND r.id=e.request_id AND r.producer=e.producer
+           WHERE e.tenant=$1 AND e.producer=$2 AND e.sequence>$3 AND r.data->'request'->>'audit_delete_at' > $4
+           ORDER BY e.sequence LIMIT 100`,
+          [p.tenant, p.id, after, iso(now)],
         )
       ).rows;
       return {
@@ -1693,18 +2279,45 @@ export class ReviewService {
       };
     });
   }
+  async ledger(p: Principal, after: number) {
+    requireThat(p.kind === 'operator', 403, 'operator_required');
+    return this.store.read(async (tx, now) => {
+      await this.principal(tx, p);
+      const { rows } = await tx.query(
+        `SELECT a.tenant,a.sequence,a.request_id,a.previous_head,a.head,a.record_digest,
+          CASE WHEN a.created_at>$3 AND (a.request_id IS NULL OR r.data->'request'->>'audit_delete_at' > $4)
+          THEN a.record END AS record,a.created_at
+         FROM haip_audit a LEFT JOIN haip_requests r ON r.tenant=a.tenant AND r.id=a.request_id
+         WHERE a.tenant=$1 AND a.sequence>$2 ORDER BY a.sequence LIMIT 100`,
+        [p.tenant, after, iso(now, -DEFAULT_LIMITS.audit_seconds), iso(now)],
+      );
+      return rows;
+    });
+  }
   async export(p: Principal, id: string) {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
       this.requireStoredIntegrity(row);
       this.project(row, now);
+      const receipt = this.requireBoundReceipt(row);
+      const candidate = row.material ? this.requireBoundCandidate(row, receipt) : undefined;
+      this.requireExportRecords(row, receipt);
       const audit = (
         await tx.query(
           'SELECT sequence,previous_head,head,record_digest,record FROM haip_audit WHERE tenant=$1 AND request_id=$2 ORDER BY sequence',
           [p.tenant, id],
         )
       ).rows;
+      requireThat(
+        audit.every(
+          ({ record, record_digest }) =>
+            record === null ||
+            (typeof record === 'string' && digestBytes(record) === record_digest),
+        ),
+        409,
+        'material_integrity_mismatch',
+      );
       const binding = row.data.request.review.bundle;
       const bundle =
         row.material && binding
@@ -1725,7 +2338,7 @@ export class ReviewService {
         material: row.material
           ? {
               ...row.material,
-              candidate: row.data.candidate ?? null,
+              candidate: candidate ?? null,
               ...(bundle ? { bundle } : {}),
             }
           : null,

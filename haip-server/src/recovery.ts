@@ -173,11 +173,11 @@ export async function recoverTenant(
     for (const row of (await tx.query('SELECT * FROM haip_requests WHERE tenant=$1', [tenant]))
       .rows as RequestRow[]) {
       const d = row.data;
+      service.closePendingReview(row, now, 'cancelled');
       d.invalidated = 'namespace_retired';
       d.material_deleted = true;
       delete d.candidate;
       delete d.review_claim;
-      if (d.decision_state === 'pending') d.decision_state = 'cancelled';
       if (d.request.execution) {
         if (d.grant_state !== 'consumed') d.grant_state = 'revoked';
         // A restored outcome may omit later reconciliation. Do not assert completion from it.
@@ -193,7 +193,10 @@ export async function recoverTenant(
     await tx.query('UPDATE haip_bundles SET html=NULL,retained_bytes=0 WHERE tenant=$1', [tenant]);
     await tx.query('UPDATE haip_idempotency SET result=NULL WHERE tenant=$1', [tenant]);
     await tx.query(
-      "UPDATE haip_outbox SET state='expired',body='{}',destination=NULL WHERE tenant=$1 AND state='pending'",
+      `UPDATE haip_outbox SET body='{}',destination=NULL,claim_until=NULL,claim_revision=NULL,
+         state=CASE WHEN state='pending' THEN 'expired' ELSE state END,
+         accepted=CASE WHEN kind='smtp' THEN NULL ELSE accepted END,checkpoint_batch_count=NULL
+       WHERE tenant=$1 AND (state='pending' OR kind='smtp')`,
       [tenant],
     );
     await tx.query(

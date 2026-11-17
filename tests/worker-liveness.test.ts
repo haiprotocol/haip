@@ -2,6 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { environment } from './environment.js';
 import { OutboxWorker } from '../haip-server/src/worker.js';
+import type { Tx } from '../haip-server/src/store.js';
+
+function observeStatements(tx: Tx, observe: (statement: string) => void): Tx {
+  const query = tx.query.bind(tx);
+  return new Proxy(tx, {
+    get(target, name) {
+      if (name !== 'query') return Reflect.get(target, name);
+      return (statement: string, values?: unknown[]) => {
+        observe(statement);
+        return query(statement, values);
+      };
+    },
+  });
+}
 
 async function copyRequests(
   env: Awaited<ReturnType<typeof environment>>,
@@ -141,22 +155,22 @@ test('cleanup caps request work, collects once per tenant, and expires sessions 
         ).rows[0].count,
       );
     const transaction = env.store.transaction.bind(env.store),
-      query = env.store.pool.query.bind(env.store.pool);
+      write = env.store.write.bind(env.store);
     const collections = new Map<string, number>();
     let held = 0,
       sessionPasses = 0,
       largestCollection = 0;
-    env.store.pool.query = (async (...args: any[]) => {
-      if (String(args[0]).includes('FROM haip_sessions retained')) {
-        sessionPasses++;
-        assert.equal(
-          held,
-          0,
-          'session expiry is not repeated inside another tenant’s advisory lock',
-        );
-      }
-      return (query as any)(...args);
-    }) as any;
+    env.store.write = (run) =>
+      write((tx) =>
+        run(
+          observeStatements(tx, (statement) => {
+            if (statement.includes('FROM haip_sessions retained')) {
+              sessionPasses++;
+              assert.equal(held, 0, 'session expiry runs outside tenant advisory locks');
+            }
+          }),
+        ),
+      );
     env.store.transaction = (tenant, run) =>
       transaction(tenant, async (tx, now) => {
         held++;
@@ -271,14 +285,14 @@ test('cleanup caps request work, collects once per tenant, and expires sessions 
       ),
       1,
     );
-    env.store.pool.query = query as any;
+    env.store.write = write;
     env.store.transaction = transaction;
   } finally {
     await env.close();
   }
 });
 
-test('anchored and unanchored drains use tenant and readiness index bounds despite another tenant’s backlog', async () => {
+test('anchored and unanchored drains use tenant and readiness indexes despite a separate tenant backlog', async () => {
   const env = await environment();
   try {
     await env.flush();
@@ -288,21 +302,26 @@ test('anchored and unanchored drains use tenant and readiness index bounds despi
        FROM generate_series(1,10000),LATERAL(SELECT body FROM haip_outbox WHERE tenant='foreign-tenant' AND kind='checkpoint' LIMIT 1) template`,
     );
     await env.store.pool.query('ANALYZE haip_outbox');
-    const query = env.store.pool.query.bind(env.store.pool),
+    const read = env.store.read.bind(env.store),
       statements = new Set<string>();
-    env.store.pool.query = (async (...args: any[]) => {
-      if (String(args[0]).trimStart().startsWith('SELECT id,tenant FROM haip_outbox'))
-        statements.add(String(args[0]));
-      return (query as any)(...args);
-    }) as any;
+    env.store.read = (run) =>
+      read((tx, now) =>
+        run(
+          observeStatements(tx, (statement) => {
+            if (statement.trimStart().startsWith('SELECT id FROM haip_outbox WHERE tenant='))
+              statements.add(statement);
+          }),
+          now,
+        ),
+      );
     await env.worker.tick();
     await new OutboxWorker(env.service).tick();
-    env.store.pool.query = query as any;
+    env.store.read = read;
     assert.equal(statements.size, 2);
     for (const statement of statements) {
       const explained = await env.store.pool.query(
         'EXPLAIN(ANALYZE,BUFFERS,FORMAT JSON) ' + statement,
-        ['test-tenant'],
+        ['test-tenant', 50],
       );
       const plan = explained.rows[0]['QUERY PLAN'][0].Plan;
       const nodes: any[] = [];
@@ -326,7 +345,7 @@ test('anchored and unanchored drains use tenant and readiness index bounds despi
       );
       assert(
         Number(plan['Shared Hit Blocks'] ?? 0) + Number(plan['Shared Read Blocks'] ?? 0) < 100,
-        'an empty tenant does not scan another tenant’s 10000 pending jobs',
+        'an empty tenant does not scan 10000 pending jobs in another tenant',
       );
     }
   } finally {

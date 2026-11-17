@@ -17,6 +17,7 @@
     "generate": "node scripts/generate.mjs && node scripts/openapi.mjs",
     "build": "npm run generate && npm run build --workspaces && tsc -p haip-server/tsconfig.browser.json && node scripts/build-browser.mjs",
     "check": "npm run build && node scripts/check-integrity.mjs && npm test",
+    "check:local": "sh scripts/check-local.sh",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
     "test:primitives": "node --import tsx --test tests/primitives.test.ts",
     "test:browser": "node --import tsx --test tests/browser.test.ts",
@@ -28,7 +29,7 @@
     "example:app": "node scripts/build-choice-app.mjs"
   },
   "overrides": {
-    "nodemailer": "10.0.16"
+    "nodemailer": "10.1.4"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

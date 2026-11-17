@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, stat, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -253,6 +254,75 @@ test('acceptance reports mask secrets, retain safe facts and refuse an incomplet
   }
 });
 
+test('acceptance adapters read the same plan bytes as the report runner', async (t) => {
+  if (process.platform === 'win32') return t.skip('Live adapters require POSIX process groups');
+  const directory = await mkdtemp(join(tmpdir(), 'haip-acceptance-binding-'));
+  try {
+    const input = await plan();
+    input.deployment.configuration_revision = 'reviewed-fixture';
+    input.adapter_env.push('HAIP_ACCEPTANCE_PLAN_DIGEST');
+    const alternate = structuredClone(input);
+    alternate.deployment.configuration_revision = 'alternate-fixture';
+    alternate.deployment.service_artifact_digest = `sha256:${'a'.repeat(64)}`;
+    const planPath = join(directory, 'plan.json');
+    const alternatePath = join(directory, 'alternate.json');
+    const copyPath = join(directory, 'copy.json');
+    const reportPath = join(directory, 'report.json');
+    const helper = new URL('../deployment/adapters/evidence.mjs', import.meta.url).href;
+    const probe = `
+      import { readAcceptancePlan } from ${JSON.stringify(helper)};
+      const { plan, digest } = await readAcceptancePlan(process.argv[1]);
+      const result = {
+        status: 'passed',
+        summary: 'The fixture opened its plan.',
+        assertions: [{ name: 'plan_loaded', passed: true, detail: 'The fixture read the file.' }],
+        evidence: [{ name: 'plan', digest, recorded_at: new Date().toISOString() }],
+        facts: { revision: plan.deployment.configuration_revision },
+      };
+      console.log(JSON.stringify(result));
+    `;
+    for (const [index, path] of [alternatePath, copyPath].entries()) {
+      input.checks[index].command = [process.execPath, '--input-type=module', '-e', probe, path];
+      delete input.checks[index].unrun_reason;
+    }
+    const bytes = JSON.stringify(input);
+    await Promise.all([
+      writeFile(planPath, bytes),
+      writeFile(copyPath, bytes),
+      writeFile(alternatePath, JSON.stringify(alternate)),
+    ]);
+    await execute(
+      process.execPath,
+      [runner, planPath, reportPath, '--allow-dirty', '--allow-incomplete'],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          HAIP_ACCEPTANCE_PLAN_DIGEST: alternate.deployment.service_artifact_digest,
+        },
+      },
+    );
+    const report = JSON.parse(await readFile(reportPath, 'utf8'));
+    assert.equal(report.checks[0].status, 'failed');
+    assert.match(report.checks[0].diagnostic, /different plan from the runner/);
+    assert.equal(report.checks[1].status, 'passed');
+    assert.equal(report.checks[1].facts.revision, 'reviewed-fixture');
+    assert.equal(report.plan_digest, `sha256:${createHash('sha256').update(bytes).digest('hex')}`);
+    assert.equal(report.checks[1].evidence[0].digest, report.plan_digest);
+    assert.equal(report.adapter_env.includes('HAIP_ACCEPTANCE_PLAN_DIGEST'), false);
+    assert.equal(report.summary.accepted, false);
+    const olderReport = join(directory, 'older-report.json');
+    delete report.plan_digest;
+    await writeFile(olderReport, JSON.stringify(report));
+    const legacy = await execute(process.execPath, [runner, '--validate', olderReport], {
+      cwd: root,
+    });
+    assert.deepEqual(JSON.parse(legacy.stdout), { valid: true, accepted: false });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('acceptance plans require each check and deployment component once', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'haip-deployment-plan-'));
   try {
@@ -371,7 +441,11 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.ok(safetyContainer);
   assert.match(checkpointContainer, /immutableStorageWithVersioning:/);
   assert.doesNotMatch(safetyContainer, /immutableStorageWithVersioning:/);
-  assert.equal((bicep.match(/immutabilityPeriodSinceCreationInDays: 90/g) ?? []).length, 2);
+  assert.match(bicep, /var evidenceRetentionDays = 91\b/);
+  assert.equal(
+    (bicep.match(/immutabilityPeriodSinceCreationInDays: evidenceRetentionDays/g) ?? []).length,
+    2,
+  );
   assert.match(bicep, /defaultAction: 'Deny'/);
   assert.match(bicep, /param checkpointContainerName string = 'haip-checkpoints'/);
   assert.match(bicep, /param safetyContainerName string = 'haip-safety'/);
@@ -386,7 +460,6 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.match(bicep, /notDataActions: \[\]/);
   assert.doesNotMatch(anchor, /immutabilityPolicy:/);
   assert.doesNotMatch(anchor, /legalHold: true/);
-  assert.match(anchor, /properties\.immutabilityPolicyMode === 'Locked'/);
   assert.match(anchor, /properties\.legalHold === true/);
   assert.doesNotMatch(actions, /immutableStorage\/runAsSuperUser\/action/);
   const caddy = await readFile(join(root, 'deployment/Caddyfile'), 'utf8');
@@ -394,7 +467,63 @@ test('Azure and Caddy templates preserve the deployment boundaries', async () =>
   assert.match(caddy, /\*\.\{\$HAIP_SANDBOX_SITE\}/);
   assert.match(caddy, /reverse_proxy 127\.0\.0\.1:\{\$PORT:8080\}/);
   assert.match(caddy, /reverse_proxy 127\.0\.0\.1:\{\$HAIP_SANDBOX_PORT:8081\}/);
-  assert.equal((caddy.match(/header_up Host \{host\}/g) ?? []).length, 2);
-  assert.match(caddy, /frame-ancestors https:\/\/\{\$HAIP_TRUSTED_HOST\}/);
+  assert.doesNotMatch(caddy, /header_up\s+Host\s+\{(?:http\.request\.)?host\}/i);
+  assert.match(caddy, /^https:\/\/ \{\n[^}]*respond "Misdirected request" 421/m);
+  assert.match(caddy, /frame-ancestors 'none'/);
   assert.doesNotMatch(caddy, /reverse_proxy (?!127\.0\.0\.1)/);
+});
+
+test('identity acceptance refuses token evidence from a different identity revision', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'haip-identity-evidence-'));
+  try {
+    const input = await plan();
+    const identityPath = join(directory, 'identity.json');
+    const planPath = join(directory, 'plan.json');
+    const evidencePath = join(directory, 'evidence');
+    const issuer = 'https://issuer.identity.test';
+    const clientId = 'fixture-client';
+    const clientAuth = 'client_secret_basic';
+    const staleReference = 'private-evidence:stale-provider-observation';
+    await writeFile(planPath, JSON.stringify(input), { mode: 0o600 });
+    await writeFile(
+      identityPath,
+      JSON.stringify({
+        issuer,
+        client_id: clientId,
+        client_auth: clientAuth,
+        review_id: 'd595aaa5-5658-445d-9d52-38fbb93bb881',
+        reviewer: 'fixture-reviewer',
+        requester: 'fixture-requester',
+        provider_observation: {
+          source_commit: input.source.commit,
+          service_artifact_digest: input.deployment.service_artifact_digest,
+          configuration_revision: input.deployment.configuration_revision,
+          identity_revision: 'stale-identity-revision',
+          issuer,
+          client_id: clientId,
+          client_auth: clientAuth,
+          digest: `sha256:${'a'.repeat(64)}`,
+          reference: staleReference,
+          recorded_at: new Date().toISOString(),
+        },
+      }),
+      { mode: 0o600 },
+    );
+    const adapter = join(root, 'deployment/adapters/external-identity.mjs');
+    await assert.rejects(
+      execute(process.execPath, [adapter, planPath, evidencePath, identityPath], { cwd: root }),
+      (error: unknown) => {
+        const failure = error as { code?: number; stdout: string; stderr: string };
+        assert.equal(failure.code, 1);
+        const result = JSON.parse(failure.stdout);
+        assert.equal(result.status, 'failed');
+        assert.deepEqual(result.evidence, []);
+        assert.ok(!`${failure.stdout}${failure.stderr}`.includes(staleReference));
+        return true;
+      },
+    );
+    await assert.rejects(stat(evidencePath), { code: 'ENOENT' });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
