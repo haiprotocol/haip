@@ -1,0 +1,45 @@
+haip-server/src/worker.ts
+  s_08f73032aa8e41::t_a2f256ef12b348 2,296-310,320,430,453,455,494-495,600-608,647,667-668,674-675,680-681
+haip-server/src/admin.ts
+  s_08f73032aa8e41::t_a2f256ef12b348 95,100,135-138,217-220
+  s_08f73032aa8e41::t_e7fd2c63ba9aee 96-99
+ACCEPTANCE.md
+  s_08f73032aa8e41::t_4c13cad66e4feb 43
+OPERATIONS.md
+  s_08f73032aa8e41::t_4c13cad66e4feb 107,111-112
+  s_08f73032aa8e41::t_026294f5680f77 113
+tests/retention.test.ts
+  s_08f73032aa8e41::t_e870e3940074c6 138-141,147-150,152-155,181,186,191-208,213-214,239-243,247-251,254-256,258-262
+  s_08f73032aa8e41::t_7792305bb46014 6,74-77,96-103,111-112,116,119-137,142-146,151,156-159,164-180,182-185,187-190,209-212,215-238,244-246,252-253,257
+  s_08f73032aa8e41::t_42a78f10822e3b 69
+docs/server/monitoring.mdx
+  s_08f73032aa8e41::t_4c13cad66e4feb 8
+  s_08f73032aa8e41::t_026294f5680f77 10,14
+haip-server/src/server.ts
+  s_08f73032aa8e41::t_e2bec6ee5a2f70 342-344
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_e7fd2c63ba9aee 1158-1159
+  s_08f73032aa8e41::t_026294f5680f77 2005,2007
+  s_08f73032aa8e41::t_dc641969a381d3 94,188,235-236,238
+  s_08f73032aa8e41::t_42a78f10822e3b 187
+  s_08f73032aa8e41::t_e2bec6ee5a2f70 209-210,237,653-654,786,1045,1138-1144,1160-1161,1332,1335,1521,1728,1773,1775-1777,1983,1987-1991,2000-2004,2006,2008-2012
+  s_08f73032aa8e41::t_a20799e3015fe8 211,2013-2014
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_4c13cad66e4feb 54-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea5b529e5e481af8570ff8da52fa687e554a5d3a",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
