@@ -113,8 +113,8 @@
     {
       "id": "outage_expiry",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No approved storage outage exercise is configured."
+      "timeout_ms": 360000,
+      "unrun_reason": "No signed test grants or approved checkpoint outage controller are configured."
     },
     {
       "id": "backup_recovery",

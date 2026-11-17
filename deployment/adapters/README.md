@@ -115,6 +115,26 @@ Provide the two administrative URLs as `HAIP_ACCEPTANCE_RESTART_DATABASE_URL` an
 
 The check restores the same signed canary to both targets and recovers one copy. It starts the packaged runtime on temporary loopback ports using the runtime database role. It verifies both listeners and the new operator, then attempts a claim using the original producer credential and again after reprovisioning that producer. The second attempt must return `namespace_retired`. The check stops the recovered process and verifies that a second start of its generation and a start against the old database copy both refuse before opening listeners. A passing drill leaves both disposable copies fenced.
 
+## Outage expiry
+
+Use a disposable installation with an isolated checkpoint store and a test producer that has no executor. Create three `fixed_mock` requests for distinct occurrences in the same tenant and generation. Set `metadata.haip_acceptance_fixture` to `outage_expiry`, `metadata.haip_acceptance_probe` to one fresh UUID and `metadata.haip_acceptance_role` to `fresh`, `preclaim` or `control` respectively. Set the shorter deadlines with `execution.valid_until` and keep the route revision fixed. Have the reviewer confirm each request normally and wait for the checkpoint. The two short grants must still be available and expire within the next 180 seconds. The control grant must remain valid for more than 60 seconds after the later short deadline.
+
+In the private settings document, provide `plan_digest` for the final plan bytes, the UUID as `probe_id`, the `tenant` and `producer` IDs, a separately obtained `trust_manifest`, and a `requests` object mapping `fresh`, `preclaim` and `control` to the three request UUIDs. Put the producer token in `HAIP_ACCEPTANCE_OUTAGE_PRODUCER_TOKEN` and declare it in both `adapter_env` and `secret_env`.
+
+Set `control_command` to the argument array for the independent operator's reviewed outage controller, starting with an absolute executable path. The adapter appends an action (`begin` or `restore`), the probe UUID, the plan digest and a lease length in seconds. Have the controller validate the reviewed target, interrupt checkpoint access for the isolated runtime while preserving safety record access, and return success after applying the requested action. The controller must restore access when its lease expires, even if the acceptance runner exits. The `restore` action should be safe to repeat. List the controller's environment variables in `control_env` and the plan's `adapter_env`, and list any credentials in `secret_env`. The producer token is only available to the API probe.
+
+Configure `outage_expiry.command` and allow 360 seconds. Put the check first if other checks could run past the short deadlines. The adapter consumes the preclaim as a synthetic test claim. The short grants remain ineligible after the outage, and the longer control grant gets a fresh claim and admission after storage is restored. The adapter performs no external effect and leaves the three request records for review. Reserve a fresh set of requests for another run.
+
+```json
+[
+  "node",
+  "deployment/adapters/outage-expiry.mjs",
+  "/private/haip-acceptance/plan.json",
+  "/private/haip-acceptance/evidence",
+  "/private/haip-acceptance/outage.json"
+]
+```
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.
@@ -133,4 +153,10 @@ After `npm run build`, run the backup adapter test to pack the server, restore a
 
 ```sh
 node --import tsx --test tests/backup-recovery-adapter.test.ts
+```
+
+The outage adapter test uses signed grants over loopback HTTPS. It exercises recovery, an outstanding outage after the controller reports success, and restoration after the outage starts without an acknowledgement.
+
+```sh
+node --import tsx --test tests/outage-expiry-adapter.test.ts
 ```

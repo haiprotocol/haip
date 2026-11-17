@@ -63,13 +63,15 @@ The schema limits report size and field lengths. Evidence references should be o
 | Writer permissions | Read, list, version properties and conditional creation work. The writer cannot delete retained or safety data, clear holds, or administer retention and account policy.                                            | Local role and canary fixtures. Live run pending.         |
 | Immutable storage  | The exact returned version has locked retention for at least 90 days. A safety record also has a legal hold. No lifecycle expiry covers the safety container.                                                       | Local policy and SDK fixtures. Live run pending.          |
 | Duplicate conflict | An identical checkpoint retry recovers the original version. Changed content at one sequence refuses. Missing, changed, extra or deleted versions fence admission.                                                  | Local SDK and HTTP checks. Live run pending.              |
-| Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local outage through grant expiry. Live run pending.     |
+| Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local outage adapter tested. Live run pending.           |
 | Backup recovery    | An encrypted dump of the isolated tenant restores to an empty database. Independent records remain outside the backup. Recovery retires the generation and reapplies deletion and revocation before listeners open. | Local packaged adapter and CLI. Live run pending.         |
 | Notifications      | A test recipient receives an ordinary link after its prior session ends. The receiver persists and deduplicates events, fetches authoritative status, and refuses expired delivery and redirects.                   | Local SMTP, TLS and status refresh. Live run pending.     |
 | Operations         | Independent keys and trust, encrypted disk, private backup storage, deletion within 30 days, worker and retention alerts, and incident routing.                                                                     | Local alert routing tested. Live run pending.             |
 | Restart rollback   | A previously activated generation cannot open production listeners. Recovery needs fresh provisioning and review. Rollback cannot enable automatic execution.                                                       | Local packaged runtime checks. Live run pending.          |
 
 The local suite runs both [backup recovery](adapters/README.md#backup-recovery) and [restart and rollback](adapters/README.md#restart-rollback) against the same locally packed server. The runner validates the resulting report with its fixture checks marked `blocked` for production acceptance.
+
+The [outage adapter](adapters/README.md#outage-expiry) checks both short grants during a checkpoint outage, holds the outage through their expiry, then checks their refusal after recovery. A separate grant still in its dispatch window verifies that checkpoint access recovered.
 
 ## Notification evidence
 
