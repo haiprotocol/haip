@@ -1,0 +1,44 @@
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_1a910691510be0 50-51
+haip-server/migrations/012_scoped_sessions.sql
+  s_08f73032aa8e41::t_9a234f84d7f87b 1-2
+  s_08f73032aa8e41::t_4b62665d417634 3-7
+OPERATIONS.md
+  s_08f73032aa8e41::t_1a910691510be0 56
+  s_08f73032aa8e41::t_4b62665d417634 55
+tests/identity-changes.test.ts
+  s_08f73032aa8e41::t_113f2080a386ab 3-7,9,74-128
+  s_08f73032aa8e41::t_86410634587f73 25-73,129-131,133-145,151-157
+  s_08f73032aa8e41::t_9a234f84d7f87b 24,132,146-150
+docs/server/authentication.mdx
+  s_08f73032aa8e41::t_1a910691510be0 22-23
+haip-server/src/admin.ts
+  s_08f73032aa8e41::t_9a234f84d7f87b 90-94
+haip-server/src/auth.ts
+  s_08f73032aa8e41::t_9a234f84d7f87b 6,231,234-235,238,242-243,247,252,267,269,299-303
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_2438bfff127de3 23-28,133-135
+  s_08f73032aa8e41::t_1a910691510be0 1438
+  s_08f73032aa8e41::t_9a234f84d7f87b 136-153
+haip-server/src/config.ts
+  s_08f73032aa8e41::t_9a234f84d7f87b 3-5,10
+tests/authority.test.ts
+  s_08f73032aa8e41::t_86410634587f73 6,366-369,371-434
+  s_08f73032aa8e41::t_eb3bf581861f3e 370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a359d2406ae80375c64ad5906a5dadd310fea6cc",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
