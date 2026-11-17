@@ -55,7 +55,7 @@ export function operatorControl(settings, environment, privateNames) {
     });
 }
 
-export function callApi(origin, token, fixtureCa) {
+export function callApi(origin, token, fixtureCa, { skipJsonStatuses = [] } = {}) {
   return (path, body, key) =>
     new Promise((complete, reject) => {
       const outgoing = request(
@@ -93,9 +93,13 @@ export function callApi(origin, token, fixtureCa) {
           incoming.on('error', reject);
           incoming.on('end', () => {
             try {
+              const status = incoming.statusCode;
               complete({
-                status: incoming.statusCode,
-                body: bytes > 0 ? parseJson(Buffer.concat(chunks).toString('utf8')) : null,
+                status,
+                body:
+                  bytes > 0 && !skipJsonStatuses.includes(status)
+                    ? parseJson(Buffer.concat(chunks).toString('utf8'))
+                    : null,
               });
             } catch (error) {
               reject(error);

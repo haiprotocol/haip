@@ -89,6 +89,35 @@ test(
         return { job: 'haip', instance, scrape_url: 'https://' + instance + metricsPath };
       }
       const targets = { runtime: target(haipPort), canary: target(canaryPort) };
+      const targetsPath = '/api/v1/targets?state=active';
+      const monitorPaths = [targetsPath, '/api/v1/rules?type=alert', '/api/v1/alerts'];
+      let startupResponses = 0;
+      const monitorPort = await listen(
+        httpsServer(tls, async (request, response) => {
+          const path = monitorPaths.find((candidate) => candidate === request.url);
+          if (!path) return response.writeHead(404).end();
+          if (path === targetsPath && startupResponses === 0) {
+            startupResponses++;
+            return response
+              .writeHead(503, { 'Content-Type': 'text/plain' })
+              .end('Service unavailable');
+          }
+          try {
+            const upstream = await fetch('http://127.0.0.1:' + prometheusPort + path, {
+              redirect: 'error',
+              signal: AbortSignal.timeout(2000),
+            });
+            const body = Buffer.from(await upstream.arrayBuffer());
+            response
+              .writeHead(upstream.status, {
+                'Content-Type': upstream.headers.get('content-type') ?? 'text/plain',
+              })
+              .end(body);
+          } catch {
+            response.writeHead(503).end();
+          }
+        }),
+      );
 
       const notifications: ReturnType<typeof observation>[] = [];
       function observation(
@@ -207,7 +236,7 @@ test(
       const settings = {
         plan_digest: planDigest,
         probe_id: probe,
-        prometheus_origin: 'https://' + monitorHost + ':' + prometheusPort,
+        prometheus_origin: 'https://' + monitorHost + ':' + monitorPort,
         receiver: 'fixture',
         targets,
         control_command: [process.execPath, command],
@@ -241,7 +270,6 @@ test(
       };
       const authPath = join(directory, 'operator-token');
       const promPath = join(directory, 'prometheus.json');
-      const webPath = join(directory, 'prometheus-web.json');
       const alertPath = join(directory, 'alertmanager.json');
       await Promise.all([
         writeFile(planPath, planBytes, { mode: 0o600 }),
@@ -297,13 +325,6 @@ console.log(await response.text());
           { mode: 0o600 },
         ),
         writeFile(
-          webPath,
-          JSON.stringify({
-            tls_server_config: { cert_file: certificate.certPath, key_file: certificate.keyPath },
-          }),
-          { mode: 0o600 },
-        ),
-        writeFile(
           alertPath,
           JSON.stringify({
             route: {
@@ -351,7 +372,6 @@ console.log(await response.text());
         '--config.file=' + promPath,
         '--storage.tsdb.path=' + join(directory, 'prometheus'),
         '--web.listen-address=127.0.0.1:' + prometheusPort,
-        '--web.config.file=' + webPath,
       ]);
       await execute(
         process.execPath,
@@ -372,6 +392,7 @@ console.log(await response.text());
       assert.equal(result.facts.scope, 'local_fixture');
       assert.equal(result.facts.alerts_routed, 3);
       assert.equal(result.facts.alerts_resolved, 3);
+      assert.equal(startupResponses, 1);
       assert.equal(result.assertions.length, 5);
       assert.ok(result.assertions.every(({ passed }: { passed: boolean }) => passed));
       assert.deepEqual(mutations, ['stall', 'recover']);

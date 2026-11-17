@@ -158,14 +158,18 @@ async function waitFor(probe, window = 120_000) {
 const sameTarget = (record, expected) =>
   record?.labels?.job === expected.job && record.labels.instance === expected.instance;
 
-async function prometheus(call, path) {
-  const { status, body } = await call(path);
+const sameAlert = (record, expected) =>
+  record?.labels?.alertname === expected.name && sameTarget(record, expected.target);
+
+function prometheusData({ status, body }) {
   expect(status === 200 && body?.status === 'success' && body.data);
   return body.data;
 }
 
-async function targets(call, runtime, canary) {
-  const data = await prometheus(call, '/api/v1/targets?state=active');
+async function targets(call, runtime, canary, { allowStarting = false } = {}) {
+  const result = await call('/api/v1/targets?state=active');
+  if (allowStarting && result.status === 503) return [null, null];
+  const data = prometheusData(result);
   expect(Array.isArray(data.activeTargets));
   return [runtime, canary].map((expected) => {
     const matches = data.activeTargets.filter((item) => sameTarget(item, expected));
@@ -197,25 +201,23 @@ function timesMatch(times, fresh) {
 }
 
 function currentReceipts(items, alerts, receiver, state, since, firing) {
-  expect(Array.isArray(items) && items.length <= 100);
   return alerts.map((alert, index) =>
     items.find(
       (item) =>
         item?.receiver === receiver &&
         item.status === state &&
-        item.labels?.alertname === alert.name &&
-        sameTarget(item, alert.target) &&
+        sameAlert(item, alert) &&
         typeof item.fingerprint === 'string' &&
         /^[a-f0-9]{16}$/.test(item.fingerprint) &&
         Date.parse(item.received_at) >= since &&
         Date.parse(item.received_at) <= Date.now() + 30_000 &&
-        Date.parse(item.starts_at) >= alert.started &&
         Date.parse(item.starts_at) <= Date.parse(item.received_at) &&
-        (state === 'firing' ||
-          (item.fingerprint === firing[index].fingerprint &&
+        (state === 'firing'
+          ? Date.parse(item.starts_at) >= since - 30_000
+          : item.fingerprint === firing[index].fingerprint &&
             item.starts_at === firing[index].starts_at &&
             Date.parse(item.ends_at) >= since - 30_000 &&
-            Date.parse(item.ends_at) <= Date.parse(item.received_at))),
+            Date.parse(item.ends_at) <= Date.parse(item.received_at)),
     ),
   );
 }
@@ -259,9 +261,22 @@ export async function collectOperations(
     );
     const managed = operatorControl(settings, environment, [operatorName, monitorName]);
     const operate = (action) => managed(action, settings.probe_id, planDigest);
-    const receipts = async () => parseJson((await operate('receipts')).stdout);
+    const receipts = async () => {
+      const items = parseJson((await operate('receipts')).stdout);
+      expect(Array.isArray(items) && items.length <= 100);
+      return items;
+    };
     const api = callApi(origin, operator, fixture?.ca);
-    const prom = callApi(monitor, readToken, fixture?.ca);
+    const prom = callApi(monitor, readToken, fixture?.ca, { skipJsonStatuses: [503] });
+    const alerts = Object.keys(rules).map((name) => ({
+      name,
+      target: name === 'HAIPScrapeUnavailable' ? canary : runtime,
+    }));
+    const readAlerts = async () => {
+      const data = prometheusData(await prom('/api/v1/alerts'));
+      expect(Array.isArray(data.alerts));
+      return data.alerts;
+    };
 
     stage = 'operational_controls';
     const controls = await readControls(directory, settings.control_observations, planDigest);
@@ -283,14 +298,14 @@ export async function collectOperations(
     stage = 'monitoring_baseline';
     await waitFor(async () => {
       try {
-        const [healthy, spare] = await targets(prom, runtime, canary);
+        const [healthy, spare] = await targets(prom, runtime, canary, { allowStarting: true });
         return healthy === 'up' && spare === 'up';
       } catch (error) {
         if (error?.code === 'ECONNREFUSED') return false;
         throw error;
       }
     }, 30_000);
-    const configured = await prometheus(prom, '/api/v1/rules?type=alert');
+    const configured = prometheusData(await prom('/api/v1/rules?type=alert'));
     const loaded = configured.groups.flatMap((group) => group.rules);
     for (const [name, query] of Object.entries(rules)) {
       const candidates = loaded.filter((rule) => rule.name === name);
@@ -299,25 +314,25 @@ export async function collectOperations(
           candidates[0].type === 'alerting' &&
           candidates[0].duration === 60 &&
           candidates[0].labels?.severity === 'critical' &&
-          candidates[0].query.replace(/\s/g, '') === query.replace(/\s/g, ''),
+          candidates[0].query === query,
       );
     }
     const baseline = await workerTimes(api);
-    expect(timesMatch(baseline, true) && (await receipts()).length === 0);
+    const initialAlerts = await readAlerts();
+    expect(
+      timesMatch(baseline, true) &&
+        initialAlerts.every((item) => !alerts.some((expected) => sameAlert(item, expected))) &&
+        (await receipts()).length === 0,
+    );
     pass(
       stage,
-      'Both exact scrape targets were healthy with current worker timestamps and the expected alert rules installed.',
+      'Both scrape targets were healthy, the worker timestamps were current and the expected rules had no active alerts for the probe.',
     );
 
     let fired;
     let recoverAt;
     let stalled;
     const faultAt = Date.now();
-    const alerts = Object.keys(rules).map((name) => ({
-      name,
-      target: name === 'HAIPScrapeUnavailable' ? canary : runtime,
-      started: faultAt - 30_000,
-    }));
     try {
       stage = 'stall_observed';
       await operate('stall');
@@ -343,15 +358,10 @@ export async function collectOperations(
         );
         return items.every(Boolean) ? items : null;
       }, 180_000);
-      const active = await prometheus(prom, '/api/v1/alerts');
+      const active = await readAlerts();
       expect(
         alerts.every((alert) =>
-          active.alerts.some(
-            (item) =>
-              item.state === 'firing' &&
-              item.labels?.alertname === alert.name &&
-              sameTarget(item, alert.target),
-          ),
+          active.some((item) => item.state === 'firing' && sameAlert(item, alert)),
         ),
       );
       pass(
@@ -390,14 +400,8 @@ export async function collectOperations(
           (name) => now[name] > stalled[name] && now[name] >= recoverAt - 30_000,
         ),
     );
-    const active = await prometheus(prom, '/api/v1/alerts');
-    expect(
-      alerts.every((alert) =>
-        active.alerts.every(
-          (item) => item.labels?.alertname !== alert.name || !sameTarget(item, alert.target),
-        ),
-      ),
-    );
+    const active = await readAlerts();
+    expect(active.every((item) => !alerts.some((expected) => sameAlert(item, expected))));
     facts.alerts_routed = fired.length;
     facts.alerts_resolved = resolved.length;
     observed.alerts = alerts.map(({ name }, index) => ({
