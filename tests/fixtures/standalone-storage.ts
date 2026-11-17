@@ -1,11 +1,15 @@
 import { Server } from 'node:net';
 import { join } from 'node:path';
-import { AzureAnchor, AzureSafetyStore } from '../../haip-server/dist/anchor.js';
+import { pathToFileURL } from 'node:url';
 import { TestAnchor } from './anchor.js';
 import { TestSafetyStore } from './safety.js';
 
 const directory = process.env.HAIP_TEST_STORAGE_ROOT;
 if (!directory) throw new Error('HAIP_TEST_STORAGE_ROOT is required');
+const dist = process.env.HAIP_TEST_SERVER_DIST;
+const { AzureAnchor, AzureSafetyStore } = await import(
+  dist ? pathToFileURL(join(dist, 'anchor.js')).href : '../../haip-server/dist/anchor.js'
+);
 
 // Replace only storage I/O in the child process. The signed files outlive each process and stay outside the database backup.
 const anchor = new TestAnchor(join(directory, 'checkpoints'));

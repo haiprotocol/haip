@@ -83,6 +83,30 @@ The preflight resolves the exact runtime principal, checks the effective role as
 
 Each run creates two small blobs under `haip-acceptance/writer-probes/`, one per container. They are retained by the tested policies. Record their expected retention and cost before authorising the probe. The adapter repeats the conditional create, tries to replace and delete the exact synthetic versions, and rereads them after the denials. Blob hold and retention probes target the checkpoint canary. The management probes use the already configured private access values, a hold tag confirmed absent and an unused policy ETag. An unexpected success stops the exercise, and an account key response body is discarded. A passing result includes the same assignment digests before and after the probes. [Clear Legal Hold](https://learn.microsoft.com/en-us/rest/api/storagerp/blob-containers/clear-legal-hold?view=rest-storagerp-2025-08-01) [Extend Immutability Policy](https://learn.microsoft.com/en-us/rest/api/storagerp/blob-containers/extend-immutability-policy?view=rest-storagerp-2025-08-01)
 
+## Backup recovery
+
+Run this check with an isolated standalone deployment, an empty PostgreSQL restore target and the storage settings reviewed for the Azure writer and immutable storage checks. Stop the source listeners, callers and covered executors before the drill. Keep the target disconnected from traffic. The recovery command permanently retires the backed-up generation in the independent safety store.
+
+In the single disposable tenant, create an execution-purpose request with `metadata.haip_acceptance_fixture` set to `backup_recovery`. Review and authorise it using the ordinary human flow, wait for its checkpoint and take an encrypted `.haipbak` while the grant is available and private material is present. Keep the checkpoint and safety records outside the backup. Record the original tenant, ledger UUID, generation UUID and request UUID. Use a server tarball from the exact release candidate and install its pinned dependencies before running the check.
+
+Prepare a private settings file. The `plan_digest` covers the final plan file bytes. Set `server_archive` to the absolute path of the `@haip/server` npm tarball whose SHA-256 is in `deployment.service_artifact_digest`. Set `node_modules` to the absolute path of the installed dependency directory. Provide the encrypted file's absolute `backup` path and its `backup_digest`. Set `target_database`, `tenant`, `ledger_id`, `generation` and `request_id` to the reviewed identifiers. Set `storage_settings` to the absolute path of the Azure writer settings and `storage_settings_digest` to the SHA-256 of that file. Prefix each SHA-256 value with `sha256:`.
+
+Supply the direct restore URL as `HAIP_ACCEPTANCE_RESTORE_DATABASE_URL`. Use the normal `HAIP_DATABASE_CA_FILE`, `HAIP_BACKUP_KEY_FILE` and `HAIP_PG_BIN` settings. Provide the signing key, key ID, trust manifest and OIDC variables from the isolated deployment. The adapter sets the origins from the plan and uses the storage account and writer identity from the reviewed storage settings. A client-secret writer uses `HAIP_ACCEPTANCE_AZURE_RUNTIME_CLIENT_SECRET`. A managed identity uses its configured identity endpoints. Include these variables in `adapter_env` as needed and list credentials in `secret_env`.
+
+Configure `backup_recovery.command` with those paths and allow 300 seconds. Use a private evidence directory on encrypted storage, where the adapter stages its temporary copies and the authenticated restore uses scratch space.
+
+```json
+[
+  "node",
+  "deployment/adapters/backup-recovery.mjs",
+  "/private/haip-acceptance/plan.json",
+  "/private/haip-acceptance/evidence",
+  "/private/haip-acceptance/recovery.json"
+]
+```
+
+The adapter checks both input digests, restores with verified PostgreSQL TLS, applies pending migrations and verifies the signed canary before retirement. It runs the packaged offline recovery command, then checks the new fence, revoked grant, preserved receipt, cleared email copies and replacement operator. The evidence contains assertions and digests. A failing drill can leave the disposable target populated or the old generation retired. Review the recorded phase before using a fresh target for another attempt. Listener startup and rollback refusal have a separate acceptance check.
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.
@@ -95,4 +119,10 @@ With PostgreSQL 17, Dex, Caddy, OpenSSL and `htpasswd` available locally, the id
 
 ```sh
 HAIP_TEST_DEX=dex HAIP_TEST_CADDY=caddy node --import tsx --test tests/dex-oidc.integration.ts
+```
+
+After `npm run build`, run the backup adapter test to pack the server, restore a signed review over loopback PostgreSQL TLS and recover against separate fixture storage. A successful local drill reports `blocked` for deployment acceptance.
+
+```sh
+node --import tsx --test tests/backup-recovery-adapter.test.ts
 ```

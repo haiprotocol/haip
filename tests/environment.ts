@@ -15,10 +15,12 @@ import { TestAnchor } from './fixtures/anchor.js';
 import type { ServiceConfig } from '../haip-server/src/config.js';
 export async function environment({
   dispatchOutbox,
+  singleTenant = false,
   ...options
 }: {
   smtp?: ServiceConfig['smtp'];
   dispatchOutbox?: DispatchOutbox;
+  singleTenant?: boolean;
 } = {}) {
   const pg = await postgres(),
     oidc = await identityProvider(),
@@ -83,7 +85,6 @@ export async function environment({
     foreignPublisher: token(),
   };
   await bootstrapTenant(service, 'test-tenant', 'operator', credentials.operator);
-  await bootstrapTenant(service, 'foreign-tenant', 'operator', credentials.foreignOperator);
   const api = async (
     path: string,
     body?: unknown,
@@ -145,32 +146,6 @@ export async function environment({
     { enabled: true, publisher: 'other-publisher', owner: 'requester', routes: ['review'] },
     credentials.otherProducer,
   );
-  await principal(
-    'foreign-requester',
-    'human',
-    {
-      enabled: true,
-      identity_certain: true,
-      oidc_issuer: oidc.origin,
-      oidc_subject: 'foreign-requester',
-    },
-    undefined,
-    credentials.foreignOperator,
-  );
-  await principal(
-    'publisher',
-    'publisher',
-    { enabled: true },
-    credentials.foreignPublisher,
-    credentials.foreignOperator,
-  );
-  await principal(
-    'producer',
-    'producer',
-    { enabled: true, publisher: 'publisher', owner: 'foreign-requester', routes: ['review'] },
-    credentials.foreignProducer,
-    credentials.foreignOperator,
-  );
   const route = {
     reviewers: ['reviewer', 'reviewer2', 'requester'],
     separation_of_duties: true,
@@ -180,11 +155,40 @@ export async function environment({
     modes: ['fixed_mock'],
   };
   await put('/v2/admin/routes/review', route);
-  await put(
-    '/v2/admin/routes/review',
-    { ...route, reviewers: ['foreign-requester'], allowed_producers: ['producer'] },
-    credentials.foreignOperator,
-  );
+  if (!singleTenant) {
+    await bootstrapTenant(service, 'foreign-tenant', 'operator', credentials.foreignOperator);
+    await principal(
+      'foreign-requester',
+      'human',
+      {
+        enabled: true,
+        identity_certain: true,
+        oidc_issuer: oidc.origin,
+        oidc_subject: 'foreign-requester',
+      },
+      undefined,
+      credentials.foreignOperator,
+    );
+    await principal(
+      'publisher',
+      'publisher',
+      { enabled: true },
+      credentials.foreignPublisher,
+      credentials.foreignOperator,
+    );
+    await principal(
+      'producer',
+      'producer',
+      { enabled: true, publisher: 'publisher', owner: 'foreign-requester', routes: ['review'] },
+      credentials.foreignProducer,
+      credentials.foreignOperator,
+    );
+    await put(
+      '/v2/admin/routes/review',
+      { ...route, reviewers: ['foreign-requester'], allowed_producers: ['producer'] },
+      credentials.foreignOperator,
+    );
+  }
   const worker = new OutboxWorker(service, anchor);
   await worker.reconcile();
   async function flush() {

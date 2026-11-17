@@ -64,10 +64,12 @@ The schema limits report size and field lengths. Evidence references should be o
 | Immutable storage  | The exact returned version has locked retention for at least 90 days. A safety record also has a legal hold. No lifecycle expiry covers the safety container.                                                       | Local policy and SDK fixtures. Live run pending.          |
 | Duplicate conflict | An identical checkpoint retry recovers the original version. Changed content at one sequence refuses. Missing, changed, extra or deleted versions fence admission.                                                  | Local SDK and HTTP checks. Live run pending.              |
 | Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local checkpoint-only outage test. Live run pending.     |
-| Backup recovery    | An encrypted dump of the isolated tenant restores to an empty database. Independent records remain outside the backup. Recovery retires the generation and reapplies deletion and revocation before listeners open. | Local CLI restore over TLS. Live run pending.             |
+| Backup recovery    | An encrypted dump of the isolated tenant restores to an empty database. Independent records remain outside the backup. Recovery retires the generation and reapplies deletion and revocation before listeners open. | Local packaged adapter and CLI. Live run pending.         |
 | Notifications      | A test recipient receives an ordinary link after its prior session ends. The receiver persists and deduplicates events, fetches authoritative status, and refuses expired delivery and redirects.                   | Local SMTP, TLS and status refresh. Live run pending.     |
 | Operations         | Independent keys and trust, encrypted disk, private backup storage, deletion within 30 days, worker and retention alerts, and incident routing.                                                                     | Local alert routing tested. Live run pending.             |
 | Restart rollback   | A previously activated generation cannot open production listeners. Recovery needs fresh provisioning and review. Rollback cannot enable automatic execution.                                                       | Local restart and rollback refused. Live run pending.     |
+
+Use the [backup recovery adapter](adapters/README.md#backup-recovery) to rehearse encrypted restoration against the reviewed server archive. The rollback check also needs evidence from starting the recovered runtime and attempting to reopen the retired generation.
 
 ## Notification evidence
 
