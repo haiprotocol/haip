@@ -1,0 +1,30 @@
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_cfed4fda0e451c 1945,1954-1956,1999
+  s_08f73032aa8e41::t_a510959e0872c3 122-125,1733,1735-1737,1946-1953,1957,1989,2044,2061,2072,2151
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_cfed4fda0e451c 52-53
+OPERATIONS.md
+  s_08f73032aa8e41::t_cfed4fda0e451c 65
+tests/lock-timing.test.ts
+  s_08f73032aa8e41::t_48e3c0b03a23a4 3,82,84-90,92-93,98-105,110-116,123-124,132-137,147-153,155,157-160,169-172,174-178,192
+  s_08f73032aa8e41::t_cfed4fda0e451c 83
+  s_08f73032aa8e41::t_8fd174d99b0ce4 91,117,125,138,144-146,154,156,173,179-180,185-191
+  s_08f73032aa8e41::t_943f82e1ff621d 94-97,106-109,118-122,126-131,139-143,161-168,181-184
+  s_08f73032aa8e41::t_6db4cbb07ff899 193-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "526d74ae4aa7d7f0a89a33c228cca884754af45b",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
