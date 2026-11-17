@@ -1,0 +1,58 @@
+@types/src/generated.ts
+  s_08f73032aa8e41::t_56f6076ccc8c0d 11,15-29,33,36,45,132,696-709
+  s_08f73032aa8e41::t_0bd1617c495e13 710
+protocol/draft-2.0.0-3/schema.json
+  s_08f73032aa8e41::t_56f6076ccc8c0d 2172-2179
+  s_08f73032aa8e41::t_41198087fcd13c 2132,2145-2171,2180-2206,2218-2221,2231,2254,2258-2263,2265,2269-2270,2272-2304,2307-2329
+tests/hitl.test.ts
+  s_08f73032aa8e41::t_aa069aa18307a6 22-26,61-62,103-106,164-168
+  s_08f73032aa8e41::t_3e20f66ae6bbf3 157,182-184
+  s_08f73032aa8e41::t_035b187e5b60db 1-21,27-60,63-102,107-156,158-163,169-181,185-193,207-220
+  s_08f73032aa8e41::t_ad797bd12eb8e5 194-195,201-206
+  s_08f73032aa8e41::t_6f63a5de26e01d 196-200
+haip-server/src/recovery.ts
+  s_08f73032aa8e41::t_33e3486d04e08d 176
+haip-server/migrations/013_review_cancellations.sql
+  s_08f73032aa8e41::t_33e3486d04e08d 1-20
+tests/contracts.test.ts
+  s_08f73032aa8e41::t_b8b5dc7cdd34af 63-70
+  s_08f73032aa8e41::t_aa069aa18307a6 28-30,62
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_aa069aa18307a6 52-53
+docs/protocol/review.mdx
+  s_08f73032aa8e41::t_aa069aa18307a6 31-36
+scripts/openapi.mjs
+  s_08f73032aa8e41::t_41198087fcd13c 135,163,249-253
+haip-server/src/hitl.ts
+  s_08f73032aa8e41::t_56f6076ccc8c0d 18-23
+  s_08f73032aa8e41::t_fdbb33ea0ab76b 1,4-5,7-17,24-41,43-46,48-52,57-67,72-76
+  s_08f73032aa8e41::t_ad797bd12eb8e5 53-56
+protocol/draft-2.0.0-3/review.md
+  s_08f73032aa8e41::t_aa069aa18307a6 28-35
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_4040f1329e4af0 579,582
+  s_08f73032aa8e41::t_33e3486d04e08d 58,94-103,426,440,568-575,587-602,606-614,616-621,1550-1559,1568,1597
+  s_08f73032aa8e41::t_ad797bd12eb8e5 576-578,580-581,583-586,603-605,615
+haip-server/src/admin.ts
+  s_08f73032aa8e41::t_33e3486d04e08d 145,225
+docs/protocol/openapi.json
+  s_08f73032aa8e41::t_56f6076ccc8c0d 836,845-851,2442,2448-2479,2486,2492,2508,2512-2517,2521-2530,2532-2543,2545-2551
+protocol/draft-2.0.0-3/openapi.json
+  s_08f73032aa8e41::t_56f6076ccc8c0d 836,845-851,2442,2448-2479,2486,2492,2508,2512-2517,2521-2530,2532-2543,2545-2551
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26b1d2610324c42bb9649599b234a4450d948604",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
