@@ -119,6 +119,10 @@ function checkpointBinding(
 ) {
   return checkStored(() => digest({ evidence, receipt, decisionSequence }));
 }
+async function resampleTime(tx: Tx, now: Date) {
+  const { rows } = await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now');
+  now.setTime(rows[0]!.now.getTime());
+}
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
 const statementTimeUtc = `to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
@@ -1726,12 +1730,11 @@ export class ReviewService {
             ])
           ).rows[0] as Principal;
           const execution = d.request.execution;
-          if (execution && this.recovery) {
+          if (execution && this.recovery)
             await this.recovery.check(tx, p.tenant, d.request.authority_namespace);
-            now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
-            this.pending(row, now);
-            p = await this.principal(tx, p);
-          }
+          p = await this.principal(tx, p);
+          await resampleTime(tx, now);
+          this.pending(row, now);
           if (execution)
             d.grant_deadline = new Date(
               Math.min(
@@ -1939,6 +1942,19 @@ export class ReviewService {
       throw error;
     }
   }
+  private requireGrantDeadline(data: RequestData, now: Date) {
+    requireThat(
+      data.grant_deadline && now.getTime() < Date.parse(data.grant_deadline),
+      409,
+      'grant_expired',
+    );
+  }
+  private async recheckGrantWindow(tx: Tx, data: RequestData, now: Date) {
+    await resampleTime(tx, now);
+    this.requireRetainedAudit(data.request, now);
+    this.requireGrantDeadline(data, now);
+    requireThat(now.getTime() < privateExpiry(data), 409, 'authority_revoked');
+  }
   async authority(
     tx: Tx,
     p: Principal,
@@ -1970,7 +1986,7 @@ export class ReviewService {
     if (this.recovery) {
       requireThat(r.authority_namespace, 409, 'namespace_missing');
       await this.recovery.check(tx, p.tenant, r.authority_namespace);
-      now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
+      await resampleTime(tx, now);
     }
     this.requireRetainedAudit(r, now);
     const tenant = (await tx.query('SELECT fenced FROM haip_tenants WHERE id=$1', [p.tenant]))
@@ -1980,11 +1996,7 @@ export class ReviewService {
     const receipt = this.requireBoundReceipt(row);
     requireThat(receipt?.payload.decision === 'authorise', 409, 'authority_revoked');
     requireThat(d.audit_state === 'anchored', 409, 'pending_anchor');
-    requireThat(
-      d.grant_deadline && now.getTime() < Date.parse(d.grant_deadline),
-      409,
-      'grant_expired',
-    );
+    this.requireGrantDeadline(d, now);
     requireThat(
       existingClaim ? d.grant_state === 'consumed' : d.grant_state === 'available',
       409,
@@ -2029,7 +2041,7 @@ export class ReviewService {
       this.requireStoredIntegrity(row);
       if (this.recovery) {
         await this.recovery.check(tx, p.tenant, row.data.request.authority_namespace);
-        now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
+        await resampleTime(tx, now);
         this.requireRetainedAudit(row.data.request, now);
       }
       const claim = await this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
@@ -2046,6 +2058,7 @@ export class ReviewService {
           [p.tenant, p.id, execution.action_occurrence_id, input.execution_identity],
         );
         requireThat(claimed.rowCount === 1, 409, 'occurrence_consumed');
+        await this.recheckGrantWindow(tx, d, now);
         if (this.recovery) {
           await this.recovery.consume(
             p.tenant,
@@ -2056,6 +2069,7 @@ export class ReviewService {
             d.request_digest,
           );
           await this.authority(tx, p, row, now, false, checkpointDigest);
+          await this.recheckGrantWindow(tx, d, now);
         }
         const claim = this.signed<ExecutionClaim>(
           'ExecutionClaim',
@@ -2134,6 +2148,7 @@ export class ReviewService {
         409,
         'nonce_reused',
       );
+      await this.recheckGrantWindow(tx, d, now);
       const admission = this.signed(
         'AdmissionStatus',
         {

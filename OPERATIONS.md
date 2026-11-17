@@ -62,7 +62,7 @@ A trusted bootstrap runs before producer HTML and answers fresh private challeng
 
 ## Decisions
 
-Monitor decision, audit, grant and execution states independently. `pending_anchor` does not permit a claim. Grant time starts at confirmation and continues during outages. The service's PostgreSQL clock is sampled after the tenant lock. Equality is expired. A receipt saying “approve” on a review-only request grants no execution authority.
+Monitor decision, audit, grant and execution states independently. `pending_anchor` does not permit a claim. Grant time starts at confirmation and continues during outages. The service samples PostgreSQL time after taking the tenant lock and again immediately before signing a new decision, claim or permit. It also checks the grant after the local occurrence update and before permanent consumption. A deadline equal to the sampled time has expired. A receipt saying “approve” on a review-only request grants no execution authority.
 
 Creation is limited by stable producer/tenant identity, route, daily totals, outstanding work and retained bytes. A maximum response slot is reserved at creation so material quota exhaustion cannot prevent the first response and confirmation. Further frozen responses count towards retained bytes, including their idempotent copies. This draft also bounds Agent UI proposals to 32 per View instance and admission checks to 64 per claim. These operational ceilings do not renew authority. Existing confirmation, cancellation and outcome reporting do not consume creation quotas.
 

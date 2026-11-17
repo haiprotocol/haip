@@ -49,6 +49,8 @@ Additional regression checks cover state/nonce/PKCE and concurrent callbacks, sa
 
 Credential tests hold claims and admission during checkpoint verification and hold confirmations before the tenant transaction or during recovery verification. They exercise rotation, logout and session expiry during those waits. A separate test checks that directory re-enablement requires a new session and that disabling one reviewer leaves other reviewers' sessions usable.
 
+Database timing tests block eligibility queries and occurrence updates after the tenant lock has been acquired. Confirmation, claim and admission refuse once their captured deadlines pass. The blocked claim leaves the occurrence unconsumed and the export contains only the records signed before the wait.
+
 HITL tests cover the v0.8 input handoff, completed review, expiry, cancellation and supersession through public HTTP. Polling checks the retained response against the signed receipt and exercises both requester status access and producer material access. Migration 013 recovers cancellation times from retained events or the matching namespace recovery record.
 
 Retention tests let the audit clock expire while the rows are still stored. They check browser and HTTP visibility, cached creation, event pagination, ledger redaction and queued delivery. Cleanup removes the expired request and the worker can publish its detached checkpoint for the surviving ledger prefix.
