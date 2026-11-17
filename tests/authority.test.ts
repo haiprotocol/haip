@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { toHttpHeadersLike } from '@azure/core-http-compat';
 import { createHttpHeaders } from '@azure/core-rest-pipeline';
 import { BlobServiceClient, newPipeline } from '@azure/storage-blob';
@@ -362,6 +363,75 @@ test('checkpoint verification leaves the tenant unlocked and refuses a changed r
   assert.equal(refused.body.error, 'anchor_recheck_required');
   assert.equal((await env.api(`/v2/requests/${review.id}`)).body.grant_state, 'available');
 });
+
+test('rotating a bearer stops claims and admissions already waiting for storage', async () => {
+  const fixture = await environment({ singleTenant: true });
+  const verify = fixture.anchor.verifyAcceptance.bind(fixture.anchor);
+  async function rotateDuring(path: string, input: object, previous: string, replacement: string) {
+    const inspected = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    fixture.anchor.verifyAcceptance = async (...args) => {
+      await verify(...args);
+      inspected.resolve();
+      await resume.promise;
+    };
+    const pending = fixture.api(path, input, previous);
+    try {
+      await Promise.race([
+        inspected.promise,
+        pending.then(({ status }) => {
+          throw new Error(`Request returned ${status} before inspecting its checkpoint`);
+        }),
+      ]);
+      await fixture.principal(
+        'producer',
+        'producer',
+        { enabled: true, publisher: 'publisher', owner: 'requester', routes: ['review'] },
+        replacement,
+      );
+    } finally {
+      resume.resolve();
+      try {
+        await pending;
+      } finally {
+        fixture.anchor.verifyAcceptance = verify;
+      }
+    }
+    const refused = await pending;
+    assert.equal(refused.status, 401);
+    assert.equal(refused.body.error, 'unauthenticated');
+  }
+
+  try {
+    const review = await authorise({}, fixture);
+    await fixture.flush();
+    const path = '/v2/requests/' + review.id;
+    const claimInput = {
+      execution_identity: 'rotating-producer',
+      execution_binding_digest: digest(review.body.execution),
+    };
+    const first = randomBytes(32).toString('base64url');
+    await rotateDuring(path + '/claims', claimInput, fixture.credentials.producer, first);
+    const afterRotation = await fixture.api(path, undefined, first);
+    assert.equal(afterRotation.body.grant_state, 'available');
+    assert.equal(afterRotation.body.claim, null);
+    const claim = await fixture.api(path + '/claims', claimInput, first);
+    assert.equal(claim.status, 201);
+    const permitInput = {
+      claim_id: claim.body.payload.id,
+      execution_identity: claimInput.execution_identity,
+      nonce: 'rotation-before-admission',
+    };
+    const second = randomBytes(32).toString('base64url');
+    await rotateDuring(path + '/admission', permitInput, first, second);
+    const permit = await fixture.api(path + '/admission', permitInput, second);
+    assert.equal(permit.status, 200);
+    assert.equal(permit.body.payload.dispatch_before, review.receipt.payload.grant_deadline);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('a different version in Azure listing after a checkpoint upload fences existing grants', async () => {
   const r = await authorise();
   const claimed = await authorise();

@@ -87,6 +87,11 @@ export async function registerPrincipal(
       ],
     );
     if (old && input.kind === 'human' && old.config.enabled && !input.config.enabled) {
+      await tx.query(
+        `DELETE FROM haip_sessions
+         WHERE data ? 'tenant' AND data ? 'id' AND data->>'tenant'=$1 AND data->>'id'=$2`,
+        [p.tenant, input.id],
+      );
       const rows = (await tx.query('SELECT * FROM haip_requests WHERE tenant=$1', [p.tenant]))
         .rows as RequestRow[];
       for (const row of rows) {

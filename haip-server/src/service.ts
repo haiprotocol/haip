@@ -20,7 +20,12 @@ import {
   type BundleRegistration,
 } from '@haip/protocol';
 import type { Store, Tx } from './store.js';
-import type { Principal, RouteConfig, ServiceConfig } from './config.js';
+import {
+  authenticatedCredentialHash,
+  type Principal,
+  type RouteConfig,
+  type ServiceConfig,
+} from './config.js';
 import { isAnchorConflict, type AnchorAcceptance, type AnchorStore } from './anchor.js';
 import { missing, ProtocolError, requireThat } from './errors.js';
 import { validate, validateResponseSchema } from './validation.js';
@@ -125,12 +130,27 @@ export class ReviewService {
     ) as Signed<T>;
   }
   async principal(tx: Tx, p: Principal): Promise<Principal> {
-    const { rows } = await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
-      p.tenant,
-      p.id,
-    ]);
-    requireThat(rows[0]?.config.enabled, 401, 'unauthenticated');
-    return rows[0];
+    const {
+      rows: [stored],
+    } = await tx.query<Principal & { token_hash: string | null }>(
+      'SELECT tenant,id,kind,config,token_hash FROM haip_principals WHERE tenant=$1 AND id=$2',
+      [p.tenant, p.id],
+    );
+    requireThat(stored?.config.enabled && stored.kind === p.kind, 401, 'unauthenticated');
+    const { token_hash: bearer, ...current } = stored;
+    const hash = p[authenticatedCredentialHash];
+    if (hash === undefined) return current;
+    if (current.kind === 'human') {
+      const session = await tx.query(
+        `SELECT 1 FROM haip_sessions WHERE token_hash=$1 AND expires_at>clock_timestamp()
+         AND data->>'tenant'=$2 AND data->>'id'=$3`,
+        [hash, current.tenant, current.id],
+      );
+      requireThat(session.rowCount === 1, 401, 'unauthenticated');
+    } else {
+      requireThat(bearer === hash, 401, 'unauthenticated');
+    }
+    return { ...current, [authenticatedCredentialHash]: hash };
   }
   async route(
     tx: Tx,
@@ -1415,6 +1435,7 @@ export class ReviewService {
             await this.recovery.check(tx, p.tenant, d.request.authority_namespace);
             now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
             this.pending(row, now);
+            p = await this.principal(tx, p);
           }
           if (execution)
             d.grant_deadline = new Date(

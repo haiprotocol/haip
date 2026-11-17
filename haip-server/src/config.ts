@@ -1,9 +1,13 @@
 import type { KeyObject } from 'node:crypto';
 import type { Limits, Profiles, TrustManifest } from '@haip/protocol';
+
+export const authenticatedCredentialHash = Symbol('authenticatedCredentialHash');
+
 export interface Principal {
   tenant: string;
   id: string;
   kind: 'producer' | 'publisher' | 'operator' | 'human';
+  [authenticatedCredentialHash]?: string;
   config: {
     enabled: boolean;
     identity_certain?: boolean;

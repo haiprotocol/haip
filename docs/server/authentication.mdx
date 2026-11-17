@@ -19,4 +19,6 @@ The trusted host and sandbox require HTTPS and separate registrable sites, excep
 
 Routes require verified requester/reviewer separation. Directory aliases of the same OIDC identity cannot satisfy self-review separation. Uncertain identity blocks authority. Disabling or removing a reviewer permanently invalidates affected grants, and re-adding the reviewer does not restore them.
 
+Confirmation, claim and admission recheck the presented credential inside the tenant transaction. If confirming an execution requires a recovery store check, HAIP checks the reviewer's session again when storage returns. Signing out retires that browser's server session. Disabling a person retires all their sessions, so they must sign in again if re-enabled.
+
 Rotate machine tokens on the same principal ID to preserve ownership and quotas. Give a different issuer and subject pair a new human ID. Recovery disables old credentials and requires explicit reprovisioning. The local Dex test exercises Basic and POST client authentication over HTTPS. The selected deployment's identity application needs its own acceptance run.

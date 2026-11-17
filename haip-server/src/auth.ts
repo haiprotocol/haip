@@ -3,7 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Request, Response, NextFunction, Express } from 'express';
 import { digestBytes } from '@haip/protocol/crypto';
 import type { ReviewService } from './service.js';
-import type { Principal } from './config.js';
+import { authenticatedCredentialHash, type Principal } from './config.js';
 import { requireThat } from './errors.js';
 import { principalRateKey, requestRateLimit, type RequestLimiter } from './rate-limit.js';
 export interface HumanSession {
@@ -228,26 +228,28 @@ export function installAuth(
     if (req.headers.authorization) {
       const token = req.headers.authorization.match(/^Bearer ([A-Za-z0-9_-]{32,200})$/)?.[1];
       requireThat(token, 401, 'unauthenticated');
+      const hash = digestBytes(token);
       req.principal = await store.read(async (tx) => {
         const { rows } = await tx.query<Principal>(
-          "SELECT * FROM haip_principals WHERE token_hash=$1 AND kind!='human'",
-          [digestBytes(token)],
+          "SELECT tenant,id,kind,config FROM haip_principals WHERE token_hash=$1 AND kind!='human'",
+          [hash],
         );
         requireThat(rows[0]?.config.enabled, 401, 'unauthenticated');
-        return rows[0];
+        return { ...rows[0], [authenticatedCredentialHash]: hash };
       });
     } else {
       const token = cookie(req, '__Host-haip');
-      const session = token
+      const hash = token ? digestBytes(token) : undefined;
+      const session = hash
         ? await store.read(async (tx) => {
             const { rows } = await tx.query<{ data: HumanSession }>(
               'SELECT data FROM haip_sessions WHERE token_hash=$1 AND expires_at>clock_timestamp()',
-              [digestBytes(token)],
+              [hash],
             );
             const data = rows[0]?.data;
             if (!data?.id || !data.tenant) return;
             const { rows: users } = await tx.query<Principal>(
-              "SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
+              "SELECT tenant,id,kind,config FROM haip_principals WHERE tenant=$1 AND id=$2 AND kind='human'",
               [data.tenant, data.id],
             );
             const user = users[0];
@@ -262,9 +264,9 @@ export function installAuth(
           return;
         }
       }
-      requireThat(session, 401, 'unauthenticated');
+      requireThat(session && hash, 401, 'unauthenticated');
       const { user, data } = session;
-      req.principal = user;
+      req.principal = { ...user, [authenticatedCredentialHash]: hash };
       req.humanSession = data;
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
         const csrf = req.headers['x-csrf-token'],
@@ -294,11 +296,11 @@ export function installAuth(
     res.json({ subject: req.principal.id, csrf: req.humanSession.csrf });
   });
   app.post('/auth/logout', humanAdmission, async (req, res) => {
-    const token = cookie(req, '__Host-haip');
-    if (token)
-      await store.write((tx) =>
-        tx.query('DELETE FROM haip_sessions WHERE token_hash=$1', [digestBytes(token)]),
-      );
+    const hash = req.principal[authenticatedCredentialHash];
+    requireThat(req.humanSession && hash, 403, 'human_required');
+    await store.transaction(req.principal.tenant, (tx) =>
+      tx.query('DELETE FROM haip_sessions WHERE token_hash=$1', [hash]),
+    );
     res.clearCookie('__Host-haip', { secure: true, httpOnly: true, sameSite: 'lax', path: '/' });
     res.status(204).end();
   });
