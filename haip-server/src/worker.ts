@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { DEFAULT_LIMITS } from '@haip/protocol';
 import { digest } from '@haip/protocol/crypto';
 import type { ReviewService, RequestRow } from './service.js';
 import type { Principal } from './config.js';
@@ -292,6 +293,21 @@ export class OutboxWorker {
       }),
     };
   }
+  private async expireDelivery(tx: Tx, item: OutboxItem, now: Date): Promise<boolean> {
+    if (item.kind === 'checkpoint') return false;
+    const retained = await tx.query(
+      `SELECT 1 FROM haip_requests WHERE tenant=$1 AND id=$2
+       AND data->'request'->>'audit_delete_at' > $3`,
+      [item.tenant, item.request_id, now.toISOString()],
+    );
+    if (retained.rowCount) return false;
+    await tx.query(
+      `UPDATE haip_outbox SET state='expired',error='audit_retention_expired',body='{}',
+       destination=NULL,accepted=NULL,claim_until=NULL,claim_revision=NULL WHERE id=$1`,
+      [item.id],
+    );
+    return true;
+  }
   private async claim(tenant: string, id: string): Promise<ClaimedJob | undefined> {
     return this.service.store.transaction(tenant, async (tx, now) => {
       const item = (
@@ -301,6 +317,7 @@ export class OutboxWorker {
         )
       ).rows[0] as OutboxItem | undefined;
       if (!item) return;
+      if (await this.expireDelivery(tx, item, now)) return;
       if (item.kind !== 'checkpoint' && now.getTime() - item.created_at.getTime() >= 86400000) {
         await tx.query(
           "UPDATE haip_outbox SET state='failed',error='delivery_window_expired',claim_until=NULL,claim_revision=NULL WHERE id=$1",
@@ -410,6 +427,7 @@ export class OutboxWorker {
         )
       ).rows[0] as OutboxItem | undefined;
       if (!item) return 0;
+      if (!result.ok && (await this.expireDelivery(tx, item, now))) return 0;
       const current = await this.destinationState(tx, item);
       if (current.revision !== item.claim_revision) {
         // A successful send was authorised at claim time. A failed send cannot retry after that authority changes.
@@ -432,9 +450,9 @@ export class OutboxWorker {
           await tx.query(
             `SELECT tenant,id,producer,route,data,retained_bytes,NULL::jsonb AS material FROM haip_requests
              WHERE tenant=$1 AND data->>'audit_state'='pending'
-             AND (data->>'decision_sequence')::bigint <= $2
+             AND (data->>'decision_sequence')::bigint <= $2 AND data->'request'->>'audit_delete_at' > $3
              ORDER BY (data->>'decision_sequence')::bigint,id LIMIT 50`,
-            [item.tenant, seq],
+            [item.tenant, seq, now.toISOString()],
           )
         ).rows as RequestRow[];
         for (const row of rows) {
@@ -473,8 +491,8 @@ export class OutboxWorker {
         }
         const remaining = await tx.query(
           `SELECT 1 FROM haip_requests WHERE tenant=$1 AND data->>'audit_state'='pending'
-           AND (data->>'decision_sequence')::bigint <= $2 LIMIT 1`,
-          [item.tenant, seq],
+           AND (data->>'decision_sequence')::bigint <= $2 AND data->'request'->>'audit_delete_at' > $3 LIMIT 1`,
+          [item.tenant, seq, now.toISOString()],
         );
         if (remaining.rowCount) {
           // A newer checkpoint may cover a backlog, so finish it in bounded transactions. The receipt is diagnostic only because the next page checks independent storage again.
@@ -579,10 +597,15 @@ export class OutboxWorker {
             t.id,
             row.id,
           ]);
-          await tx.query('DELETE FROM haip_outbox WHERE tenant=$1 AND request_id=$2', [
-            t.id,
-            row.id,
-          ]);
+          await tx.query(
+            "DELETE FROM haip_outbox WHERE tenant=$1 AND request_id=$2 AND kind<>'checkpoint'",
+            [t.id, row.id],
+          );
+          // A checkpoint commits the entire ledger prefix, so keep the job after its receipt is erased.
+          await tx.query(
+            "UPDATE haip_outbox SET request_id=NULL WHERE tenant=$1 AND request_id=$2 AND kind='checkpoint'",
+            [t.id, row.id],
+          );
           await tx.query(
             "UPDATE haip_idempotency SET result=NULL WHERE tenant=$1 AND (operation LIKE '%'||$2 OR result->'request'->>'id'=$2)",
             [t.id, row.id],
@@ -621,6 +644,7 @@ export class OutboxWorker {
     return this.service.store.transaction(tenant, async (tx, now) => {
       let more = false;
       const older = (milliseconds: number) => new Date(now.getTime() - milliseconds);
+      const auditCutoff = older(DEFAULT_LIMITS.audit_seconds * 1000);
       const run = async (
         table: CollectionTable,
         where: string,
@@ -640,21 +664,21 @@ export class OutboxWorker {
       );
       await run(
         'haip_audit',
-        'tenant=$1 AND record IS NOT NULL AND created_at<$2',
-        [tenant, older(90 * 86400000)],
+        'tenant=$1 AND record IS NOT NULL AND created_at<=$2',
+        [tenant, auditCutoff],
         'created_at,sequence',
         'record=NULL',
       );
       await run(
         'haip_outbox',
-        'tenant=$1 AND created_at<$2',
-        [tenant, older(90 * 86400000)],
+        "tenant=$1 AND created_at<=$2 AND (kind<>'checkpoint' OR state<>'pending')",
+        [tenant, auditCutoff],
         'created_at,id',
       );
       await run(
         'haip_idempotency',
-        'tenant=$1 AND result IS NOT NULL AND created_at<$2',
-        [tenant, older(90 * 86400000)],
+        'tenant=$1 AND result IS NOT NULL AND created_at<=$2',
+        [tenant, auditCutoff],
         'created_at',
         'result=NULL',
       );

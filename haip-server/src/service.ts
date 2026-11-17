@@ -91,6 +91,7 @@ function checkpointEvidence(data: RequestData) {
 }
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
+const statementTimeUtc = `to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 const privateExpiry = (data: RequestData) =>
   Math.min(
     Date.parse(data.request.private_delete_at),
@@ -183,7 +184,8 @@ export class ReviewService {
   ): Promise<RequestRow> {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw missing();
     const { rows } = await tx.query(
-      `SELECT tenant,id,producer,route,data,retained_bytes,${access === true ? 'material' : 'NULL::jsonb AS material'} FROM haip_requests WHERE tenant=$1 AND id=$2`,
+      `SELECT tenant,id,producer,route,data,retained_bytes,${access === true ? 'material' : 'NULL::jsonb AS material'}
+       FROM haip_requests WHERE tenant=$1 AND id=$2 AND data->'request'->>'audit_delete_at' > ${statementTimeUtc}`,
       [p.tenant, id],
     );
     const row: RequestRow | undefined = rows[0];
@@ -203,6 +205,9 @@ export class ReviewService {
       if (route.config.reviewers.includes(p.id)) return row;
     }
     throw missing();
+  }
+  private requireRetainedAudit(request: DecisionRequest, now: Date) {
+    if (!(now.getTime() < Date.parse(request.audit_delete_at))) throw missing();
   }
   async save(tx: Tx, row: RequestRow): Promise<void> {
     await tx.query('UPDATE haip_requests SET data=$3 WHERE tenant=$1 AND id=$2', [
@@ -227,8 +232,10 @@ export class ReviewService {
     );
     const hash = preparedDigest ?? digest(input);
     const { rows } = await tx.query(
-      'SELECT digest,result FROM haip_idempotency WHERE tenant=$1 AND actor=$2 AND operation=$3 AND key=$4',
-      [p.tenant, p.id, operation, key],
+      `SELECT digest,CASE WHEN created_at > statement_timestamp()-($5::integer * interval '1 second')
+        AND COALESCE(result->'request'->>'audit_delete_at' > ${statementTimeUtc}, true)
+        THEN result END AS result FROM haip_idempotency WHERE tenant=$1 AND actor=$2 AND operation=$3 AND key=$4`,
+      [p.tenant, p.id, operation, key, DEFAULT_LIMITS.audit_seconds],
     );
     if (rows[0]) {
       requireThat(rows[0].digest === hash, 409, 'idempotency_conflict');
@@ -643,7 +650,8 @@ export class ReviewService {
         "(r.data->>'material_deleted'='true' OR LEAST(r.data->'request'->>'private_delete_at',r.data->>'private_discard_at') <= $3)";
       const decision = `CASE WHEN r.data->>'decision_state'='pending' AND
         (r.data->'request'->>'review_deadline' <= $3 OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
-      const visible = `r.tenant=$1 AND ${access} AND ($4::text IS NULL OR (${decision})=$4)`;
+      const visible = `r.tenant=$1 AND ${access} AND r.data->'request'->>'audit_delete_at' > $3
+        AND ($4::text IS NULL OR (${decision})=$4)`;
       const parameters = [p.tenant, p.id, iso(now), filter ?? null];
       const { rows } = await tx.query(
         `SELECT r.id,r.data->'request'->>'summary' AS summary,r.data->'request'->>'review_deadline' AS deadline,
@@ -775,7 +783,7 @@ export class ReviewService {
       await tx.query(
         `SELECT count(*) AS tenant_count,count(*) FILTER(WHERE producer=$2) AS producer_count
        FROM haip_requests WHERE tenant=$1 AND data->>'decision_state'='pending'
-       AND data->'request'->>'review_deadline' > $3`,
+       AND data->'request'->>'review_deadline' > $3 AND data->'request'->>'audit_delete_at' > $3`,
         [p.tenant, p.id, iso(now)],
       )
     ).rows[0];
@@ -1034,6 +1042,7 @@ export class ReviewService {
     const reviewSeconds = Math.min(
       input.review_seconds ?? limits.review_seconds,
       limits.review_seconds,
+      limits.audit_seconds,
     );
     const deadline = iso(now, reviewSeconds);
     if (input.execution) {
@@ -1126,10 +1135,13 @@ export class ReviewService {
         : deadline,
       private_delete_at: iso(
         now,
-        limits.review_seconds +
-          (input.execution
-            ? limits.grant_seconds + limits.execution_seconds + limits.reconciliation_seconds
-            : 0),
+        Math.min(
+          limits.audit_seconds,
+          limits.review_seconds +
+            (input.execution
+              ? limits.grant_seconds + limits.execution_seconds + limits.reconciliation_seconds
+              : 0),
+        ),
       ),
       audit_delete_at: iso(now, limits.audit_seconds),
       metadata: input.metadata ?? {},
@@ -1143,6 +1155,10 @@ export class ReviewService {
     if (input.execution && this.recovery) {
       await this.recovery.assertUnconsumed(p.tenant, p.id, input.execution.action_occurrence_id);
       await this.recovery.reserve(p.tenant, p.id, input.execution.action_occurrence_id, namespace);
+      const checkedAt = (await tx.query<{ now: Date }>('SELECT clock_timestamp() AS now')).rows[0]!
+        .now;
+      this.requireRetainedAudit(request, checkedAt);
+      if (supersedes) this.requireRetainedAudit(supersedes.data.request, checkedAt);
     }
     const data: RequestData = {
       request,
@@ -1313,9 +1329,10 @@ export class ReviewService {
   }
   pending(row: RequestRow, now: Date) {
     this.requireCurrentRequest(row);
+    this.requireRetainedAudit(row.data.request, now);
     requireThat(
       row.data.decision_state === 'pending' &&
-        now.getTime() < Date.parse(row.data.request.review_deadline) &&
+        now.getTime() < reviewExpiry(row.data) &&
         !row.data.invalidated &&
         !!row.material,
       409,
@@ -1501,6 +1518,7 @@ export class ReviewService {
               Math.min(
                 now.getTime() + d.request.limits.grant_seconds * 1000,
                 Date.parse(execution.valid_until),
+                Date.parse(d.request.audit_delete_at),
               ),
             ).toISOString();
           const receipt = this.signed<DecisionReceipt>(
@@ -1707,6 +1725,7 @@ export class ReviewService {
       await this.recovery.check(tx, p.tenant, r.authority_namespace);
       now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
     }
+    this.requireRetainedAudit(r, now);
     const tenant = (await tx.query('SELECT fenced FROM haip_tenants WHERE id=$1', [p.tenant]))
       .rows[0];
     requireThat(!tenant.fenced, 503, 'admission_fenced');
@@ -1751,8 +1770,11 @@ export class ReviewService {
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
       this.requireStoredIntegrity(row);
-      if (this.recovery)
+      if (this.recovery) {
         await this.recovery.check(tx, p.tenant, row.data.request.authority_namespace);
+        now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
+        this.requireRetainedAudit(row.data.request, now);
+      }
       return this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
         await this.authority(tx, p, row, now, false, checkpointDigest);
         const d = row.data;
@@ -1958,18 +1980,36 @@ export class ReviewService {
   }
   async events(p: Principal, after = 0) {
     requireThat(p.kind === 'producer', 403, 'producer_required');
-    return this.store.read(async (tx) => {
+    return this.store.read(async (tx, now) => {
       await this.principal(tx, p);
       const rows = (
         await tx.query(
-          'SELECT sequence,record FROM haip_events WHERE tenant=$1 AND producer=$2 AND sequence>$3 ORDER BY sequence LIMIT 100',
-          [p.tenant, p.id, after],
+          `SELECT e.sequence,e.record FROM haip_events e
+           JOIN haip_requests r ON r.tenant=e.tenant AND r.id=e.request_id AND r.producer=e.producer
+           WHERE e.tenant=$1 AND e.producer=$2 AND e.sequence>$3 AND r.data->'request'->>'audit_delete_at' > $4
+           ORDER BY e.sequence LIMIT 100`,
+          [p.tenant, p.id, after, iso(now)],
         )
       ).rows;
       return {
         items: rows.map((r) => r.record),
         next: rows.length ? Number(rows.at(-1)!.sequence) : after,
       };
+    });
+  }
+  async ledger(p: Principal, after: number) {
+    requireThat(p.kind === 'operator', 403, 'operator_required');
+    return this.store.read(async (tx, now) => {
+      await this.principal(tx, p);
+      const { rows } = await tx.query(
+        `SELECT a.tenant,a.sequence,a.request_id,a.previous_head,a.head,a.record_digest,
+          CASE WHEN a.created_at>$3 AND (a.request_id IS NULL OR r.data->'request'->>'audit_delete_at' > $4)
+          THEN a.record END AS record,a.created_at
+         FROM haip_audit a LEFT JOIN haip_requests r ON r.tenant=a.tenant AND r.id=a.request_id
+         WHERE a.tenant=$1 AND a.sequence>$2 ORDER BY a.sequence LIMIT 100`,
+        [p.tenant, after, iso(now, -DEFAULT_LIMITS.audit_seconds), iso(now)],
+      );
+      return rows;
     });
   }
   async export(p: Principal, id: string) {

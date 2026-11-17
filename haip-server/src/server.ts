@@ -339,18 +339,9 @@ export function createApp(
   app.put('/v2/admin/routes/:id', principalAdmission, async (req, res) =>
     res.json(await registerRoute(service, req.principal, pathId(req), req.body)),
   );
-  app.get('/v2/admin/ledger', principalAdmission, async (req, res) => {
-    requireThat(req.principal.kind === 'operator', 403, 'operator_required');
-    const ledger = await service.store.read(async (tx) => {
-      await service.principal(tx, req.principal);
-      const { rows } = await tx.query(
-        'SELECT * FROM haip_audit WHERE tenant=$1 AND sequence>$2 ORDER BY sequence LIMIT 100',
-        [req.principal.tenant, offset(req.query.after)],
-      );
-      return rows;
-    });
-    res.json(ledger);
-  });
+  app.get('/v2/admin/ledger', principalAdmission, async (req, res) =>
+    res.json(await service.ledger(req.principal, offset(req.query.after))),
+  );
   app.get('/v2/admin/metrics', principalAdmission, async (req, res) =>
     res.json(await metrics.snapshot(service, req.principal)),
   );
