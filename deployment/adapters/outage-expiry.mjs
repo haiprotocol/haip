@@ -1,13 +1,21 @@
-import { execFile } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { request } from 'node:https';
-import { isAbsolute, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
-import { EXECUTION_PROFILE, EXECUTION_VERSION, PROTOCOL_REVISION } from '@haip/protocol';
-import { digest, parseJson, verifyRecord } from '@haip/protocol/crypto';
+import { PROTOCOL_REVISION } from '@haip/protocol';
+import { digest } from '@haip/protocol/crypto';
+import {
+  callApi,
+  confirmedClaim,
+  confirmedPermit,
+  expect,
+  label,
+  operatorControl,
+  permitInput,
+  readCanary,
+  refused,
+  uuid,
+} from './authority-probes.mjs';
 import {
   privateDirectory,
   privateEvidence,
@@ -16,18 +24,10 @@ import {
   sha256,
 } from './evidence.mjs';
 
-const execute = promisify(execFile);
 const checkId = 'outage_expiry';
 const tokenName = 'HAIP_ACCEPTANCE_OUTAGE_PRODUCER_TOKEN';
-const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
-const label = /^[A-Za-z0-9_.:@/-]{1,160}$/;
 const maximumWait = 180_000;
 const restoreWindow = 60_000;
-const maximumResponse = 1024 * 1024;
-
-function expect(condition) {
-  if (!condition) throw new Error('Observation differs from the outage plan');
-}
 
 function readSettings(plan, planDigest, settings) {
   const origin = new URL(plan.deployment.trusted_origin);
@@ -55,212 +55,7 @@ function readSettings(plan, planDigest, settings) {
       settings.trust_manifest.keys.length > 0 &&
       settings.trust_manifest.keys.length <= 128,
   );
-  const { control_command: command, control_env: names } = settings;
-  expect(
-    Array.isArray(command) &&
-      command.length > 0 &&
-      command.length <= 40 &&
-      command.every(
-        (arg) =>
-          typeof arg === 'string' && arg.length > 0 && arg.length <= 2048 && !arg.includes('\0'),
-      ) &&
-      isAbsolute(command[0]) &&
-      Array.isArray(names) &&
-      names.length <= 24 &&
-      names.every(
-        (name) => typeof name === 'string' && /^[A-Z][A-Z0-9_]*$/.test(name) && name !== tokenName,
-      ),
-  );
   return origin;
-}
-
-function callApi(origin, token, fixtureCa) {
-  return (path, body, key) =>
-    new Promise((complete, reject) => {
-      const outgoing = request(
-        new URL(path, origin),
-        {
-          method: body === undefined ? 'GET' : 'POST',
-          agent: false,
-          rejectUnauthorized: true,
-          signal: AbortSignal.timeout(20_000),
-          ...(fixtureCa
-            ? {
-                ca: fixtureCa,
-                lookup: (_host, options, callback) =>
-                  options.all
-                    ? callback(null, [{ address: '127.0.0.1', family: 4 }])
-                    : callback(null, '127.0.0.1', 4),
-              }
-            : {}),
-          headers: {
-            Accept: 'application/json',
-            Authorization: 'Bearer ' + token,
-            ...(body === undefined
-              ? {}
-              : { 'Content-Type': 'application/json', 'Idempotency-Key': key ?? randomUUID() }),
-          },
-        },
-        (incoming) => {
-          const chunks = [];
-          let bytes = 0;
-          incoming.on('data', (chunk) => {
-            bytes += chunk.length;
-            if (bytes > maximumResponse) outgoing.destroy(new Error('Response exceeds limit'));
-            else chunks.push(chunk);
-          });
-          incoming.on('error', reject);
-          incoming.on('end', () => {
-            try {
-              complete({
-                status: incoming.statusCode,
-                body: parseJson(Buffer.concat(chunks).toString('utf8')),
-              });
-            } catch (error) {
-              reject(error);
-            }
-          });
-        },
-      );
-      outgoing.on('error', reject);
-      outgoing.end(body === undefined ? undefined : JSON.stringify(body));
-    });
-}
-
-function readCanary(result, id, name, settings, fixture) {
-  const { request: canary, receipt, anchor } = result.body;
-  const deadline = Date.parse(receipt?.payload?.grant_deadline);
-  expect(
-    result.status === 200 &&
-      result.body.decision_state === 'confirmed' &&
-      result.body.audit_state === 'anchored' &&
-      result.body.grant_state === 'available' &&
-      result.body.execution_state === 'unclaimed' &&
-      result.body.claim === null &&
-      result.body.outcome === null &&
-      canary?.id === id &&
-      canary.tenant === settings.tenant &&
-      canary.producer === settings.producer &&
-      canary.protocol_revision === PROTOCOL_REVISION &&
-      typeof canary.authority_namespace === 'string' &&
-      uuid.test(canary.authority_namespace) &&
-      canary.purpose === 'authorise_execution' &&
-      canary.profiles?.[EXECUTION_PROFILE] === EXECUTION_VERSION &&
-      canary.execution?.mode === 'fixed_mock' &&
-      canary.metadata?.haip_acceptance_fixture === checkId &&
-      canary.metadata.haip_acceptance_probe === settings.probe_id &&
-      canary.metadata.haip_acceptance_role === name &&
-      receipt?.payload?.request_id === id &&
-      receipt.payload.decision === 'authorise' &&
-      receipt.payload.purpose === canary.purpose &&
-      receipt.payload.request_digest === result.body.request_digest &&
-      receipt.payload.request_digest === digest(canary) &&
-      Number.isFinite(deadline) &&
-      deadline > Date.now() &&
-      receipt.protected.issued_at === receipt.payload.confirmed_at &&
-      deadline ===
-        Math.min(
-          Date.parse(receipt.payload.confirmed_at) + canary.limits.grant_seconds * 1000,
-          Date.parse(canary.execution.valid_until),
-        ) &&
-      anchor?.checkpoint?.payload?.generation === canary.authority_namespace &&
-      anchor.acceptance?.backend === (fixture ? 'test_filesystem' : 'azure_blob_locked_worm') &&
-      anchor.acceptance.digest === digest(anchor.checkpoint),
-  );
-  const context = {
-    issuer: settings.trust_manifest.issuer,
-    audience: canary.producer,
-    tenant: canary.tenant,
-    purpose: canary.purpose,
-  };
-  verifyRecord(
-    receipt,
-    settings.trust_manifest,
-    { ...context, type: 'DecisionReceipt' },
-    new Date(),
-  );
-  expect(digest(receipt.protected.profiles) === digest(canary.profiles));
-  const { ledger_id: ledger } = anchor.checkpoint.payload;
-  expect(typeof ledger === 'string' && uuid.test(ledger));
-  verifyRecord(
-    anchor.checkpoint,
-    settings.trust_manifest,
-    {
-      issuer: context.issuer,
-      audience: 'haip.audit',
-      tenant: ledger,
-      purpose: 'service',
-      type: 'AuditCheckpoint',
-    },
-    new Date(),
-  );
-  return {
-    context,
-    request: canary,
-    receipt,
-    receiptDigest: digest(receipt),
-    requestDigest: result.body.request_digest,
-    deadline,
-    path: '/v2/requests/' + id,
-    claimInput: {
-      execution_identity: 'outage-probe-' + randomUUID(),
-      execution_binding_digest: digest(canary.execution),
-    },
-    idempotencyKey: randomUUID(),
-  };
-}
-
-function confirmedClaim(result, canary, trust) {
-  const claim = result.body;
-  const fields = claim?.payload;
-  expect(
-    result.status === 201 &&
-      typeof fields?.id === 'string' &&
-      uuid.test(fields.id) &&
-      fields.request_id === canary.request.id &&
-      fields.request_digest === canary.requestDigest &&
-      fields.receipt_digest === canary.receiptDigest &&
-      fields.action_occurrence_id === canary.request.execution.action_occurrence_id &&
-      fields.execution_identity === canary.claimInput.execution_identity &&
-      fields.execution_binding_digest === canary.claimInput.execution_binding_digest &&
-      fields.execution_seconds === canary.request.execution.execution_seconds &&
-      Date.parse(fields.claimed_at) < canary.deadline &&
-      fields.dispatch_before === canary.receipt.payload.grant_deadline,
-  );
-  verifyRecord(claim, trust, { ...canary.context, type: 'ExecutionClaim' }, new Date());
-  expect(digest(claim.protected.profiles) === digest(canary.request.profiles));
-  return claim;
-}
-
-function permitInput(claim) {
-  return {
-    claim_id: claim.payload.id,
-    execution_identity: claim.payload.execution_identity,
-    nonce: randomBytes(24).toString('base64url'),
-  };
-}
-
-function confirmedPermit(result, canary, claim, input, trust) {
-  const record = result.body;
-  const data = record?.payload;
-  expect(
-    result.status === 200 &&
-      data?.request_id === canary.request.id &&
-      data.claim_id === claim.payload.id &&
-      data.claim_digest === digest(claim) &&
-      data.nonce === input.nonce &&
-      data.execution_identity === claim.payload.execution_identity &&
-      data.execution_binding_digest === claim.payload.execution_binding_digest &&
-      data.execution_seconds === claim.payload.execution_seconds &&
-      Date.parse(data.checked_at) < canary.deadline &&
-      data.dispatch_before === canary.receipt.payload.grant_deadline,
-  );
-  verifyRecord(record, trust, { ...canary.context, type: 'AdmissionStatus' }, new Date());
-  expect(digest(record.protected.profiles) === digest(canary.request.profiles));
-}
-
-function refused(result, status, error) {
-  expect(result.status === status && result.body?.error === error);
 }
 
 export async function collectOutageExpiry(
@@ -290,13 +85,8 @@ export async function collectOutageExpiry(
     const origin = readSettings(plan, planDigest, settings);
     const token = environment[tokenName];
     expect(typeof token === 'string' && /^[A-Za-z0-9_-]{32,200}$/.test(token));
-    const { control_command: command, control_env: names, trust_manifest: trust } = settings;
-    const controlEnv = Object.fromEntries(
-      [...new Set(['PATH', ...names])]
-        .filter((name) => typeof environment[name] === 'string')
-        .map((name) => [name, environment[name]]),
-    );
-    expect(![...command, ...Object.values(controlEnv)].some((value) => value.includes(token)));
+    const { trust_manifest: trust } = settings;
+    const controlFault = operatorControl(settings, environment, [tokenName]);
     const call = callApi(origin, token, fixtureCa);
     const claim = (canary) =>
       call(canary.path + '/claims', canary.claimInput, canary.idempotencyKey);
@@ -306,7 +96,14 @@ export async function collectOutageExpiry(
       namesOfCanaries.map(async (name) => {
         const id = settings.requests[name];
         const result = await call('/v2/requests/' + id);
-        return readCanary(result, id, name, settings, !!fixtureCa);
+        return readCanary(
+          result,
+          id,
+          name,
+          settings,
+          checkId,
+          fixtureCa ? 'test_filesystem' : 'azure_blob_locked_worm',
+        );
       }),
     );
     const expires = Math.max(fresh.deadline, preclaim.deadline);
@@ -347,11 +144,7 @@ export async function collectOutageExpiry(
     const waitUntil = performance.now() + remaining + 250;
     const leaseSeconds = Math.ceil((remaining + restoreWindow) / 1000);
     const setFault = (action) =>
-      execute(
-        command[0],
-        [...command.slice(1), action, settings.probe_id, planDigest, String(leaseSeconds)],
-        { env: controlEnv, timeout: 15_000, killSignal: 'SIGKILL', maxBuffer: 32 * 1024 },
-      );
+      controlFault(action, settings.probe_id, planDigest, String(leaseSeconds));
     try {
       stage = 'start_outage';
       await setFault('begin');

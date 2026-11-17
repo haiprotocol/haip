@@ -107,8 +107,8 @@
     {
       "id": "duplicate_conflict",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No independently supervised conflict injector is configured."
+      "timeout_ms": 720000,
+      "unrun_reason": "No disposable tenants, signed checkpoints or independently supervised conflict controller are configured."
     },
     {
       "id": "outage_expiry",

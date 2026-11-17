@@ -135,6 +135,22 @@ Configure `outage_expiry.command` and allow 360 seconds. Put the check first if 
 ]
 ```
 
+## Checkpoint conflicts
+
+Use a disposable installation with its own signing key, isolated checkpoint and safety storage, and four test tenants without executors. Prepare two confirmed, anchored `fixed_mock` grants in each tenant. Use different occurrences and wait for the first grant to anchor before confirming the second so the grants refer to different checkpoints. Set `metadata.haip_acceptance_fixture` to `duplicate_conflict`, set `metadata.haip_acceptance_probe` to a fresh UUID for that tenant, and set `metadata.haip_acceptance_role` to `fresh` or `preclaim`. Give both grants enough time to complete the drill.
+
+Set `plan_digest`, `storage_settings` (the absolute path to the reviewed Azure storage settings) and `storage_settings_digest` (the prefixed SHA-256 of those settings). In `cases`, provide `extra`, `missing`, `changed` and `deleted` objects. Each contains a distinct `tenant` and `probe_id`, the scoped `producer` ID, and the two UUIDs as `fresh_request` and `preclaim_request`. In `conflicting_checkpoint`, supply an `AuditCheckpoint` signed offline with the disposable installation's key for the `extra` case. Use the `fresh` request's checkpoint ledger, generation and sequence and replace its head with a different SHA-256 digest. Keep the signing key out of the settings and the adapter environment.
+
+Supply distinct producer and operator tokens for each tenant. Name them `HAIP_ACCEPTANCE_CONFLICT_<CASE>_PRODUCER_TOKEN` and `HAIP_ACCEPTANCE_CONFLICT_<CASE>_OPERATOR_TOKEN`, using the uppercase case name. Declare them in `adapter_env` and `secret_env`. Supply the storage runtime credential in the same way as for the immutable storage check.
+
+Configure `control_command` as the independently supervised fault controller's argument array with an absolute executable path. The adapter appends the case name, probe UUID, plan digest, storage origin, checkpoint container, blob key and pinned version ID. Give the controller separate credentials through `control_env`. Limit it to the reviewed key in the disposable namespace. It must make the specified condition visible to both the adapter and the service's checkpoint reader while leaving the preclaim checkpoint readable. The cases cover a new current version alongside the retained original, an empty listing, a single different current version and a listing that shows the pinned version without a current object. Use controlled responses where a real fault would require removing a retained version. Record any test versions the controller creates and their expected retention. [Azure versioning](https://learn.microsoft.com/en-us/azure/storage/blobs/versioning-overview)
+
+Configure `duplicate_conflict.command`, allow 720 seconds and schedule it after exercises that need the same installation's ordinary storage access. The adapter checks all four namespaces before mutation. It then replays the original signed publication, submits the conflicting head conditionally, exercises each version fault and checks for the new incident and the tenant-wide refusal of claims and permits. Each affected namespace remains fenced for inspection.
+
+```sh
+node deployment/adapters/checkpoint-conflict.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/conflict.json
+```
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.
@@ -159,4 +175,10 @@ The outage adapter test uses signed grants over loopback HTTPS. It exercises rec
 
 ```sh
 node --import tsx --test tests/outage-expiry-adapter.test.ts
+```
+
+The checkpoint conflict test uses the real checkpoint implementation, a fixture for versioned storage, and four tenants served over loopback HTTPS. It exercises the live adapter's approval check through the runner and the permitted scenarios through the collector.
+
+```sh
+node --import tsx --test tests/checkpoint-conflict-adapter.test.ts
 ```
