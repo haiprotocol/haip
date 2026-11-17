@@ -1,0 +1,31 @@
+haip-server/src/metrics.ts
+  s_08f73032aa8e41::t_defc9743e5b370 1,50,53,57,68-75,89-93,144-145
+OPERATIONS.md
+  s_08f73032aa8e41::t_defc9743e5b370 152
+  s_08f73032aa8e41::t_fd5ddbf1733127 151
+tests/metrics.test.ts
+  s_08f73032aa8e41::t_848aca75b697bf 137-140,163-166
+  s_08f73032aa8e41::t_fd5ddbf1733127 183-191
+  s_08f73032aa8e41::t_6c6059cb76b2a8 134-136,141-162,167-182,192-194
+  s_08f73032aa8e41::t_8d9f546b752800 132-133
+haip-server/src/service.ts
+  s_08f73032aa8e41::t_defc9743e5b370 139-144,670
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_fd5ddbf1733127 54-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2ad54ad970bc71993e146387cd21276cdeae086b",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
