@@ -290,6 +290,7 @@ export async function environment({
   });
   return {
     origin,
+    server,
     trust,
     service,
     store,

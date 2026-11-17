@@ -20,7 +20,7 @@ python3 conformance/python/haip_conformance.py vectors
 
 The `review-start` and `review-finish` commands run a plain review through public endpoints. Start checks discovery, unsupported-profile refusal and idempotency before returning a review link. A separate authenticated human must create and confirm the candidate through the trusted host. Finish verifies the receipt, request and response commitments, signed producer event, export and refusal of execution authority for review purpose.
 
-Configuration is read from standard input so bearer credentials do not appear in process arguments or evidence files. The repository integration test provisions an isolated tenant and passes short-lived local values to the client.
+Configuration is read from standard input so bearer credentials do not appear in process arguments or evidence files. The client connects directly to loopback origins even when the environment configures an HTTP proxy. The repository integration test provisions an isolated tenant and uses disposable credentials.
 
 The live fixture creates retained request data. Run it only against an isolated test tenant, preserve its original input and signed outputs when recording evidence, and keep credentials out of logs.
 
@@ -30,6 +30,8 @@ The separate `execution-start` and `execution-finish` commands exercise one fixe
 
 Before the first effect, finish verifies the exported request, material, candidate, receipt, claim, admission, profiles, identities, digest links, time bounds and checkpoint proof. The command also compares the checkpoint with an independently obtained record path. The integration test permits the loopback-only filesystem anchor and reads its stored record directly.
 
-The counter and its request fence share one SQLite transaction with full synchronous writes. A committed result therefore includes both the effect and its unique request fence. Re-running finish verifies the persisted signed request, receipt, claim, admission and checkpoint, then retries the same idempotent outcome report without incrementing the counter or depending on retained private review material.
+The counter and its request fence share one SQLite transaction with full synchronous writes. A committed result contains both the effect and its unique request fence. Re-running finish verifies the request and the original signed receipt, claim and admission retained with the fence, then sends the outcome with the original idempotency key. This works after private review material is discarded.
+
+The local test stops the client after the counter commits, then drops the next outcome response after HAIP records it. The following invocation verifies the original signed outcome. The test counts the actual SQLite effect and checks that the outcome retries obtain no new claims or admissions.
 
 This counter is a bounded local execution fixture rather than a general executor. For a deployed service, pass `anchor_record_path` for a separately retrieved checkpoint record. Validating a provider's retention controls remains deployment acceptance work outside this client.

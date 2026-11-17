@@ -1,8 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createHash, createPublicKey, verify } from 'node:crypto';
+import { once } from 'node:events';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -38,8 +42,9 @@ function digest(value: unknown): string {
   return 'sha256:' + createHash('sha256').update(canonicalise(value)).digest('hex');
 }
 
-async function pythonProcess(args: string[], input?: unknown) {
+async function pythonProcess(args: string[], input?: unknown, env = process.env) {
   const child = spawn(process.env.HAIP_TEST_PYTHON ?? 'python3', args, {
+    env,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let stdout = '';
@@ -129,6 +134,39 @@ test('Python refuses bearer credentials over non-loopback HTTP', async () => {
     await encodedRequestPath('tenant/request:1@producer'),
     '/v2/requests/tenant%2Frequest%3A1%40producer',
   );
+});
+
+test('Python sends the loopback bearer directly to HAIP even with a proxy configured', async () => {
+  const env = await environment({ singleTenant: true });
+  let proxyRequests = 0;
+  let receivedBearer = false;
+  const proxy = createServer((request, response) => {
+    proxyRequests++;
+    receivedBearer = request.headers.authorization === 'Bearer ' + env.credentials.producer;
+    response.writeHead(502, { 'Content-Type': 'application/json' }).end('{}');
+  });
+  try {
+    await once(proxy.listen(0, '127.0.0.1'), 'listening');
+    const proxyUrl = 'http://127.0.0.1:' + (proxy.address() as AddressInfo).port;
+    const result = await pythonProcess(
+      [script, 'review-start'],
+      { origin: env.origin, producer_token: env.credentials.producer, route: 'review' },
+      {
+        ...process.env,
+        HTTP_PROXY: proxyUrl,
+        http_proxy: proxyUrl,
+        NO_PROXY: 'other.test',
+        no_proxy: 'other.test',
+      },
+    );
+    assert.equal(receivedBearer, false, 'The proxy received the fixture bearer');
+    assert.equal(proxyRequests, 0);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).result, 'ready');
+  } finally {
+    await new Promise<void>((done) => proxy.close(() => done()));
+    await env.close();
+  }
 });
 
 test('Python verifies the frozen draft-3 wire and tamper vectors without HAIP packages', async () => {
@@ -238,7 +276,7 @@ test('Python completes a review through public HTTP endpoints and verifies signe
   }
 });
 
-test('Python verifies execution authority and fences one durable SQLite counter effect', async () => {
+test('Python verifies execution and keeps one effect through a lost outcome response', async () => {
   const env = await environment();
   const counterDirectory = await mkdtemp(join(tmpdir(), 'haip-python-counter-'));
   try {
@@ -248,7 +286,26 @@ test('Python verifies execution authority and fences one durable SQLite counter 
       route: 'review',
     });
     assert.equal(started.result, 'ready');
-    const stored = await env.api('/v2/requests/' + started.request_id);
+    const requestPath = '/v2/requests/' + started.request_id;
+    const stored = await env.api(requestPath);
+    const executionWrites: string[] = [];
+    const outcomeKeys: (string | undefined)[] = [];
+    let droppedOutcome = false;
+    env.server.prependListener('request', (request, response) => {
+      if (request.method !== 'POST' || !request.url?.startsWith(requestPath + '/')) return;
+      const operation = request.url.slice(requestPath.length);
+      if (['/claims', '/admission', '/outcomes'].includes(operation))
+        executionWrites.push(operation);
+      if (operation !== '/outcomes') return;
+      outcomeKeys.push(request.headers['idempotency-key'] as string | undefined);
+      if (droppedOutcome) return;
+      const end = response.end;
+      response.end = function (...args: unknown[]) {
+        if (this.statusCode !== 200) return Reflect.apply(end, this, args);
+        droppedOutcome = true;
+        return this.destroy();
+      };
+    });
     assert.equal(started.request_digest, digest(stored.body.request));
     assert.equal(started.execution_binding_digest, digest(stored.body.request.execution));
     assert.equal(
@@ -293,26 +350,63 @@ test('Python verifies execution authority and fences one durable SQLite counter 
       interrupted,
       /Stopped after the committed counter effect for a loopback replay test/,
     );
-    const discarded = await env.api('/v2/requests/' + started.request_id + '/discard', {});
+    const discarded = await env.api(requestPath + '/discard', {});
     assert.equal(discarded.status, 200);
-    assert.equal(
-      (await env.api('/v2/requests/' + started.request_id + '/export')).body.material,
-      null,
+    assert.equal((await env.api(requestPath + '/export')).body.material, null);
+    const disconnected = await pythonFailure('execution-finish', input);
+    assert.match(disconnected, /"error":"HAIP HTTP response was not received in full"/);
+    assert.equal(droppedOutcome, true);
+    assert.equal((await env.api(requestPath)).body.execution_state, 'completed');
+    const afterDisconnect = await env.api(requestPath + '/export');
+    assert.equal(afterDisconnect.status, 200);
+    const outcomes = afterDisconnect.body.records.filter(
+      (record: any) => record.protected.type === 'ExecutionOutcome',
     );
+    assert.equal(outcomes.length, 1);
+    const outcomeDigest = digest(outcomes[0]);
     const first = await python('execution-finish', {
       ...input,
       test_stop_after_effect_commit: true,
     });
     assert.equal(first.count, 1);
     assert.equal(first.replayed, true);
+    assert.equal(first.outcome_digest, outcomeDigest);
     const second = await python('execution-finish', input);
     assert.equal(second.count, 1);
     assert.equal(second.replayed, true);
     assert.equal(second.outcome_digest, first.outcome_digest);
-    assert.equal(
-      (await env.api('/v2/requests/' + started.request_id)).body.execution_state,
-      'completed',
-    );
+    assert.deepEqual(executionWrites, [
+      '/claims',
+      '/admission',
+      '/outcomes',
+      '/outcomes',
+      '/outcomes',
+    ]);
+    assert.match(outcomeKeys[0] ?? '', /^python-outcome-[a-f0-9]{64}$/);
+    assert.deepEqual(outcomeKeys, [outcomeKeys[0], outcomeKeys[0], outcomeKeys[0]]);
+    const database = new DatabaseSync(input.database, { readOnly: true });
+    try {
+      assert.equal(
+        database.prepare("SELECT value FROM counters WHERE name='default'").get()?.value,
+        1,
+      );
+      const fence = database
+        .prepare('SELECT request_id,state,result_count,outcome_digest FROM execution_fences')
+        .all();
+      assert.deepEqual(
+        fence.map((row) => ({ ...row })),
+        [
+          {
+            request_id: started.request_id,
+            state: 'completed',
+            result_count: 1,
+            outcome_digest: outcomeDigest,
+          },
+        ],
+      );
+    } finally {
+      database.close();
+    }
   } finally {
     await env.close();
     await rm(counterDirectory, { recursive: true, force: true });

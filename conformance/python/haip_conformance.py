@@ -7,6 +7,7 @@ import argparse
 import base64
 import copy
 import hashlib
+import http.client
 import json
 import math
 import os
@@ -23,6 +24,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 
 PROTOCOL_REVISION = "2.0.0-draft.3"
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 MAX_SAFE_INTEGER = 9007199254740991
 FIELD = 2**255 - 19
 ORDER = 2**252 + 27742317777372353535851937790883648493
@@ -392,14 +394,17 @@ class HaipClient:
             raise ConformanceError("Invalid HAIP origin") from error
         if parsed.scheme not in ("http", "https") or not parsed.netloc or not host or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
             raise ConformanceError("Origin must be an absolute origin without a trailing slash")
-        if parsed.scheme == "http" and host not in ("localhost", "127.0.0.1", "::1"):
+        if parsed.scheme == "http" and host not in LOOPBACK_HOSTS:
             raise ConformanceError("HAIP requires HTTPS outside exact loopback hosts")
         if not isinstance(token, str) or not token:
             raise ConformanceError("Bearer credential is required")
         self.origin = origin
         self.host = host
         self.token = token
-        self.opener = urllib.request.build_opener(_NoRedirect())
+        handlers = [_NoRedirect()]
+        if host in LOOPBACK_HOSTS:
+            handlers.append(urllib.request.ProxyHandler({}))
+        self.opener = urllib.request.build_opener(*handlers)
 
     def call(self, path: str, body: Any = None, idempotency: Optional[str] = None) -> Tuple[int, Any]:
         if not path.startswith("/") or path.startswith("//"):
@@ -414,14 +419,18 @@ class HaipClient:
             headers["Idempotency-Key"] = idempotency or secrets.token_urlsafe(24)
         request = urllib.request.Request(self.origin + path, data=data, headers=headers, method=method)
         try:
-            response = self.opener.open(request, timeout=15)
-        except urllib.error.HTTPError as error:
-            response = error
-        with response:
-            raw = response.read(32 * 1024 * 1024 + 1)
-            if len(raw) > 32 * 1024 * 1024:
-                raise ConformanceError("HTTP response exceeded the fixture limit")
-            return response.status, parse_json(raw.decode("utf-8"))
+            try:
+                response = self.opener.open(request, timeout=15)
+            except urllib.error.HTTPError as error:
+                response = error
+            with response:
+                status = response.status
+                raw = response.read(32 * 1024 * 1024 + 1)
+        except (OSError, http.client.HTTPException) as error:
+            raise ConformanceError("HAIP HTTP response was not received in full") from error
+        if len(raw) > 32 * 1024 * 1024:
+            raise ConformanceError("HTTP response exceeded the fixture limit")
+        return status, parse_json(raw.decode("utf-8"))
 
 
 def _request_path(request_id: str, suffix: str = "") -> str:
@@ -653,7 +662,7 @@ def _verify_anchor(anchor: Mapping[str, Any], receipt: Mapping[str, Any], trust:
     record_path = config.get("anchor_record_path")
     if record_path is None and config.get("allow_test_filesystem_anchor") is True:
         host = urllib.parse.urlsplit(config["origin"]).hostname
-        if acceptance.get("backend") != "test_filesystem" or host not in ("localhost", "127.0.0.1", "::1"):
+        if acceptance.get("backend") != "test_filesystem" or host not in LOOPBACK_HOSTS:
             raise ConformanceError("Test filesystem anchoring is limited to a loopback service")
         record_path = acceptance.get("key")
         if acceptance.get("version_id") != acceptance.get("digest"):
@@ -852,7 +861,7 @@ def execution_finish(config: Mapping[str, Any]) -> Dict[str, Any]:
     runtime_config = {**config, "execution_identity": execution_identity}
     request_path = _request_path(request_id)
     stop_after_effect = config.get("test_stop_after_effect_commit") is True
-    if stop_after_effect and client.host not in ("localhost", "127.0.0.1", "::1"):
+    if stop_after_effect and client.host not in LOOPBACK_HOSTS:
         raise ConformanceError("The post-effect test stop is limited to exact loopback hosts")
     connection = _open_counter(config["database"])
     try:
