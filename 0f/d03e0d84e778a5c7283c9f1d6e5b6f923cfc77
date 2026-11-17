@@ -1,0 +1,33 @@
+tests/authority.test.ts
+  s_08f73032aa8e41::t_849d45ccf9b972 6,10,151-171
+  s_08f73032aa8e41::t_0e7e2fc4e05f15 172-174
+IMPLEMENTATION.md
+  s_08f73032aa8e41::t_094d4ce3115ed5 58-59
+conformance/python/README.md
+  s_08f73032aa8e41::t_b35cff20ca4030 31,35
+conformance/python/haip_conformance.py
+  s_08f73032aa8e41::t_b35cff20ca4030 623-628,635-644,647,651,751,811
+haip-sdk/src/index.ts
+  s_08f73032aa8e41::t_b35cff20ca4030 17,256,261-269,273
+tests/python-conformance.test.ts
+  s_08f73032aa8e41::t_094d4ce3115ed5 380-384,390-394,397-400,402-412,434-442
+  s_08f73032aa8e41::t_849d45ccf9b972 2,378,385-389,395-396,401
+docs/sdk/execution.mdx
+  s_08f73032aa8e41::t_b35cff20ca4030 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0fd03e0d84e778a5c7283c9f1d6e5b6f923cfc77",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
