@@ -550,6 +550,9 @@
           "type": "string",
           "format": "date-time"
         },
+        "plan_digest": {
+          "$ref": "#/$defs/digest"
+        },
         "source": {
           "$ref": "#/$defs/reportSource"
         },

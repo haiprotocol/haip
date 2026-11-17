@@ -20,7 +20,11 @@ export async function readAcceptancePlan(path) {
     document.schema_version !== 'haip.deployment.acceptance.v1'
   )
     throw new Error('Expected an HAIP deployment acceptance plan');
-  return { plan: document, digest: sha256(bytes) };
+  const digest = sha256(bytes);
+  const expected = process.env.HAIP_ACCEPTANCE_PLAN_DIGEST;
+  if (expected !== undefined && expected !== digest)
+    throw new Error('Acceptance adapter read a different plan from the runner');
+  return { plan: document, digest };
 }
 
 export async function privateDirectory(directory) {

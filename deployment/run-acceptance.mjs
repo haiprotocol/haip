@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
 import { open, readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -8,6 +7,7 @@ import { promisify } from 'node:util';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { getDomain } from 'tldts';
+import { sha256 } from './adapters/evidence.mjs';
 
 const exec = promisify(execFile);
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -63,7 +63,7 @@ async function document(path) {
   const bytes = await readFile(path);
   if (bytes.byteLength > maximumDocumentBytes) throw new Error('Acceptance document exceeds 1 MiB');
   try {
-    return JSON.parse(bytes.toString('utf8'));
+    return { value: JSON.parse(bytes.toString('utf8')), bytes };
   } catch {
     throw new Error('Acceptance document is not valid JSON');
   }
@@ -179,8 +179,10 @@ function validateReport(report) {
 
 function adapterEnvironment(names) {
   const selected = {};
-  for (const name of new Set(['PATH', ...names]))
+  for (const name of new Set(['PATH', ...names])) {
+    if (name === 'HAIP_ACCEPTANCE_PLAN_DIGEST' || name === 'HAIP_ACCEPTANCE_CHECK_ID') continue;
     if (process.env[name] !== undefined) selected[name] = process.env[name];
+  }
   return selected;
 }
 
@@ -430,13 +432,13 @@ async function writeReport(path, report) {
   } finally {
     await handle.close();
   }
-  return `sha256:${createHash('sha256').update(body).digest('hex')}`;
+  return sha256(body);
 }
 
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === '--validate' && args.length === 2) {
-    const report = await document(resolve(args[1]));
+    const { value: report } = await document(resolve(args[1]));
     validateReport(report);
     console.log(JSON.stringify({ valid: true, accepted: report.summary.accepted }));
     return;
@@ -451,8 +453,9 @@ async function main() {
     process.exitCode = 64;
     return;
   }
-  const plan = await document(resolve(positional[0]));
+  const { value: plan, bytes: planBytes } = await document(resolve(positional[0]));
   validatePlan(plan);
+  const planDigest = sha256(planBytes);
   const requestedOutput = resolve(positional[1]);
   const outputPath = resolve(await realpath(dirname(requestedOutput)), basename(requestedOutput));
   if (within(root, outputPath)) throw new Error('Acceptance report must be outside the repository');
@@ -465,8 +468,9 @@ async function main() {
     throw new Error('Source tree is dirty');
   const environment = adapterEnvironment(plan.adapter_env);
   const redact = redactor(plan.secret_env, environment);
+  const adapterInputs = { ...environment, HAIP_ACCEPTANCE_PLAN_DIGEST: planDigest };
   const checks = [];
-  for (const check of plan.checks) checks.push(await checkResult(check, redact, environment));
+  for (const check of plan.checks) checks.push(await checkResult(check, redact, adapterInputs));
   const completedSource = await sourceState();
   if (completedSource.commit !== source.commit)
     throw new Error(`Source commit changed during acceptance from ${source.commit}`);
@@ -486,6 +490,7 @@ async function main() {
     document_type: 'report',
     schema_version: plan.schema_version,
     generated_at: new Date().toISOString(),
+    plan_digest: planDigest,
     source,
     deployment,
     adapter_env: Object.keys(environment).sort(),
