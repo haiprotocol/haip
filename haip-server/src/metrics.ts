@@ -1,4 +1,4 @@
-import type { ReviewService } from './service.js';
+import { reviewStateSql, type ReviewService } from './service.js';
 import type { Principal } from './config.js';
 import { requireThat } from './errors.js';
 import { isAnchorConflict } from './anchor.js';
@@ -47,13 +47,14 @@ export class Metrics {
   }
   async snapshot(service: ReviewService, principal: Principal) {
     requireThat(principal.kind === 'operator', 403, 'operator_required');
-    return service.store.read(async (tx) => {
+    return service.store.read(async (tx, now) => {
       await service.principal(tx, principal);
       const t = principal.tenant;
+      const { decision } = reviewStateSql('$2');
       const requests = (
         await tx.query(
           `SELECT count(*) AS retained,
-        count(*) FILTER(WHERE data->>'decision_state'='pending') AS pending,
+        count(*) FILTER(WHERE pending) AS pending,
         count(*) FILTER(WHERE data->>'execution_state'='uncertain' OR (
           data->>'execution_state' IN ('claimed','admitted') AND data->'outcome' IS NULL
         )) AS unresolved_execution,
@@ -64,9 +65,14 @@ export class Metrics {
               + make_interval(secs => (data#>>'{claim,payload,execution_seconds}')::double precision)
           END <= statement_timestamp()
         )) AS execution_reconciliation_due,
-        COALESCE(EXTRACT(EPOCH FROM clock_timestamp()-min(created_at) FILTER(WHERE data->>'decision_state'='pending')),0) AS oldest_pending_seconds,
-        COALESCE(sum(retained_bytes),0) AS retained_bytes FROM haip_requests WHERE tenant=$1`,
-          [t],
+        COALESCE(EXTRACT(EPOCH FROM $2::text::timestamptz-min(created_at) FILTER(WHERE pending)),0) AS oldest_pending_seconds,
+        COALESCE(sum(retained_bytes),0) AS retained_bytes
+        FROM (
+          SELECT data, created_at, retained_bytes,
+          (r.data->'request'->>'audit_delete_at' > $2 AND (${decision})='pending') AS pending
+          FROM haip_requests r WHERE r.tenant=$1
+        ) requests`,
+          [t, now.toISOString()],
         )
       ).rows[0];
       const jobs = (
@@ -80,8 +86,11 @@ export class Metrics {
       const reviewers = Number(
         (
           await tx.query(
-            `SELECT count(*) FROM haip_principals
-        WHERE tenant=$1 AND kind='human' AND config->>'enabled'='true'`,
+            `SELECT count(*) FROM haip_principals p
+        WHERE p.tenant=$1 AND p.kind='human' AND p.config->>'enabled'='true'
+          AND p.config->>'identity_certain' IS DISTINCT FROM 'false'
+          AND EXISTS (SELECT 1 FROM haip_routes route
+            WHERE route.tenant=p.tenant AND route.config->'reviewers' ? p.id)`,
             [t],
           )
         ).rows[0].count,
@@ -132,6 +141,8 @@ export function prometheus(
   metric('admission_fenced', Number(snapshot.admission_fenced));
   for (const [name, value] of Object.entries(snapshot.requests)) metric(name, value);
   metric('enabled_reviewers', snapshot.enabled_reviewers);
+  if (snapshot.pending_per_reviewer !== null)
+    metric('pending_per_reviewer', snapshot.pending_per_reviewer);
   for (const [name, value] of Object.entries(snapshot.http_since_process_start))
     metric('http_' + name + '_total', value, 'counter');
   for (const [name, value] of Object.entries(refusals)) metric(name + '_total', value, 'counter');

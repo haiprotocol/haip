@@ -131,6 +131,69 @@ test('Prometheus counts claim conflicts, authorisation refusals and evidence fai
   }
 });
 
+test('review pressure reflects the live inbox before cleanup', async () => {
+  const env = await environment({ singleTenant: true });
+  try {
+    await env.put('/v2/admin/routes/review', {
+      ...env.route,
+      reviewers: ['reviewer', 'reviewer2'],
+    });
+    await env.put('/v2/admin/routes/another-review', { ...env.route, reviewers: ['reviewer'] });
+    const active = await env.api('/v2/requests', env.request());
+    assert.equal(active.status, 201);
+    const expiredAt = new Date(Date.now() - 60_000).toISOString();
+    const expired = [
+      { field: ['request', 'review_deadline'], value: expiredAt },
+      { field: ['request', 'private_delete_at'], value: expiredAt },
+      { field: ['private_discard_at'], value: expiredAt },
+      { field: ['request', 'audit_delete_at'], value: expiredAt },
+      { field: ['material_deleted'], value: true },
+    ];
+    for (const { field, value } of expired) {
+      const created = await env.api('/v2/requests', env.request());
+      assert.equal(created.status, 201);
+      await env.store.pool.query(
+        `UPDATE haip_requests SET data=jsonb_set(data,$2::text[],$3::jsonb),
+         created_at=clock_timestamp()-interval '3 hours' WHERE id=$1`,
+        [created.body.request.id, field, JSON.stringify(value)],
+      );
+    }
+    const inbox = await env.api('/v2/requests?state=pending', undefined, env.credentials.operator);
+    assert.equal(inbox.status, 200);
+    assert.deepEqual(
+      inbox.body.items.map((item: { id: string }) => item.id),
+      [active.body.request.id],
+    );
+
+    const metrics = await env.api('/v2/admin/metrics', undefined, env.credentials.operator);
+    assert.equal(metrics.status, 200);
+    assert.equal(metrics.body.requests.retained, 6);
+    assert.equal(metrics.body.requests.pending, 1);
+    assert(metrics.body.requests.oldest_pending_seconds >= 0);
+    assert(metrics.body.requests.oldest_pending_seconds < 60);
+    assert.equal(metrics.body.enabled_reviewers, 2);
+    assert.equal(metrics.body.pending_per_reviewer, 0.5);
+    const response = await fetch(env.origin + '/v2/admin/metrics.prom', {
+      headers: { Authorization: 'Bearer ' + env.credentials.operator },
+    });
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.match(text, /^haip_pending 1$/m);
+    assert.match(text, /^haip_pending_per_reviewer 0\.5$/m);
+    await env.principal('reviewer2', 'human', {
+      enabled: true,
+      identity_certain: false,
+      oidc_issuer: env.service.config.oidc.issuer,
+      oidc_subject: 'reviewer2',
+    });
+    const reduced = await env.api('/v2/admin/metrics', undefined, env.credentials.operator);
+    assert.equal(reduced.body.enabled_reviewers, 1);
+    assert.equal(reduced.body.pending_per_reviewer, 1);
+  } finally {
+    await env.close();
+  }
+});
+
 test('execution metrics use captured deadlines and retain reported uncertainty until reconciliation', async () => {
   const env = await environment();
   try {

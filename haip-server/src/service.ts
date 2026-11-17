@@ -136,6 +136,12 @@ function reviewExpiry(data: RequestData) {
   const material = privateExpiry(data);
   return Number.isFinite(material) ? Math.min(deadline, material) : deadline;
 }
+export function reviewStateSql(now: '$2' | '$3') {
+  const privateDue = `(r.data->>'material_deleted'='true' OR LEAST(r.data->'request'->>'private_delete_at',r.data->>'private_discard_at') <= ${now})`;
+  const decision = `CASE WHEN r.data->>'decision_state'='pending' AND
+    (r.data->'request'->>'review_deadline' <= ${now} OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
+  return { privateDue, decision };
+}
 const checkpointBatchSeconds = 300;
 const checkpointBatchSize = 100;
 export class ReviewService {
@@ -661,10 +667,7 @@ export class ReviewService {
           : p.kind === 'human'
             ? "EXISTS (SELECT 1 FROM haip_routes route WHERE route.tenant=r.tenant AND route.id=r.route AND route.config->'reviewers' ? $2)"
             : '$2::text IS NOT NULL';
-      const privateDue =
-        "(r.data->>'material_deleted'='true' OR LEAST(r.data->'request'->>'private_delete_at',r.data->>'private_discard_at') <= $3)";
-      const decision = `CASE WHEN r.data->>'decision_state'='pending' AND
-        (r.data->'request'->>'review_deadline' <= $3 OR ${privateDue}) THEN 'expired' ELSE r.data->>'decision_state' END`;
+      const { privateDue, decision } = reviewStateSql('$3');
       const visible = `r.tenant=$1 AND ${access} AND r.data->'request'->>'audit_delete_at' > $3
         AND ($4::text IS NULL OR (${decision})=$4)`;
       const parameters = [p.tenant, p.id, iso(now), filter ?? null];

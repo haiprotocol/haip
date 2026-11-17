@@ -51,7 +51,9 @@ Credential tests hold claims and admission during checkpoint verification and ho
 
 Database timing tests block eligibility queries and occurrence updates after the tenant lock has been acquired. Confirmation, claim and admission refuse once their captured deadlines pass. The blocked claim leaves the occurrence unconsumed and the export contains only the records signed before the wait.
 
-The Prometheus test exercises a duplicate execution claim, prohibited self-review and altered stored material through HTTP. Each refusal increments the corresponding counter for its tenant.
+The Prometheus test exercises a duplicate execution claim, prohibited self-review and altered stored material through HTTP. Each refusal increments the corresponding counter for its tenant. A separate test checks that pressure metrics match the inbox while expired rows are still retained.
+
+The deployment runner supplies the exact plan digest to the acceptance adapters. A regression uses a different configuration and artefact in one adapter, then verifies that the runner rejects that check and continues with an adapter using the original bytes.
 
 HITL tests cover the v0.8 input handoff, completed review, expiry, cancellation and supersession through public HTTP. Polling checks the retained response against the signed receipt and exercises both requester status access and producer material access. Migration 013 recovers cancellation times from retained events or the matching namespace recovery record.
 
