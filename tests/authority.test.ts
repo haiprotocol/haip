@@ -364,6 +364,98 @@ test('checkpoint verification leaves the tenant unlocked and refuses a changed r
   assert.equal((await env.api(`/v2/requests/${review.id}`)).body.grant_state, 'available');
 });
 
+test('fresh execution authority requires the original response, anchored receipt and signed claim', async () => {
+  const fixture = await environment({ singleTenant: true });
+  try {
+    const review = await authorise({}, fixture);
+    await fixture.flush();
+    const path = `/v2/requests/${review.id}`;
+    const stored = async () =>
+      (
+        await fixture.store.pool.query('SELECT data FROM haip_requests WHERE tenant=$1 AND id=$2', [
+          'test-tenant',
+          review.id,
+        ])
+      ).rows[0].data;
+    const persist = (data: unknown) =>
+      fixture.store.pool.query('UPDATE haip_requests SET data=$1 WHERE tenant=$2 AND id=$3', [
+        JSON.stringify(data),
+        'test-tenant',
+        review.id,
+      ]);
+    const refuses = async (route: string, input: unknown) => {
+      const result = await fixture.api(path + route, input);
+      assert.equal(result.status, 409);
+      assert.equal(result.body.error, 'material_integrity_mismatch');
+    };
+    const original = await stored();
+    const input = {
+      execution_identity: 'original-claim',
+      execution_binding_digest: digest(review.body.execution),
+    };
+    await persist({
+      ...original,
+      candidate: { ...original.candidate, response: { choice: 'decline' } },
+    });
+    await refuses('/claims', input);
+
+    const later = new Date(Date.parse(review.receipt.payload.confirmed_at) + 50).toISOString();
+    const replacement = signRecord(
+      { ...review.receipt.payload, confirmed_at: later },
+      { ...review.receipt.protected, issued_at: later },
+      fixture.service.config.signingKey,
+    );
+    await persist({ ...original, receipt: replacement, records: [replacement] });
+    await refuses('/claims', input);
+    const corruptedProof = structuredClone(original.anchor);
+    corruptedProof.proof[0].head = digest('different chain node');
+    await persist({ ...original, anchor: corruptedProof });
+    await refuses('/claims', input);
+    assert.equal((await stored()).claim, undefined);
+
+    await persist(original);
+    const registered = await fixture.api(path + '/claims', input);
+    assert.equal(registered.status, 201);
+    const claimed = await stored();
+    const permit = {
+      claim_id: registered.body.payload.id,
+      execution_identity: input.execution_identity,
+      nonce: 'bound-retained-claim',
+    };
+    await persist({
+      ...claimed,
+      grant_deadline: new Date(Date.parse(claimed.grant_deadline) + 1000).toISOString(),
+    });
+    await refuses('/admission', permit);
+    const wrongClaim = {
+      ...claimed.claim,
+      payload: {
+        ...claimed.claim.payload,
+        execution_binding_digest: digest('different execution'),
+      },
+    };
+    await persist({ ...claimed, claim: wrongClaim });
+    await refuses('/admission', permit);
+    const outcome = {
+      status: 'completed',
+      execution_identity: input.execution_identity,
+      details: {},
+    };
+    await refuses('/outcomes', outcome);
+
+    await persist(claimed);
+    const admitted = await fixture.api(path + '/admission', permit);
+    assert.equal(admitted.status, 200);
+    assert.equal(admitted.body.payload.dispatch_before, review.receipt.payload.grant_deadline);
+    assert.equal((await fixture.api(path + '/discard', {})).status, 200);
+    const reported = await fixture.api(path + '/outcomes', outcome);
+    assert.equal(reported.status, 200);
+    assert.equal(reported.body.payload.claim_digest, digest(registered.body));
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('rotating a bearer stops claims and admissions already waiting for storage', async () => {
   const fixture = await environment({ singleTenant: true });
   const verify = fixture.anchor.verifyAcceptance.bind(fixture.anchor);

@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { canonicalise, digest, digestBytes, signRecord } from '@haip/protocol/crypto';
+import {
+  canonicalise,
+  digest,
+  digestBytes,
+  signRecord,
+  verifyCheckpointProof,
+  verifyRecord,
+} from '@haip/protocol/crypto';
 import {
   DEFAULT_LIMITS,
   EXECUTION_PROFILE,
@@ -14,10 +21,12 @@ import {
   type Signed,
   type DecisionReceipt,
   type ExecutionClaim,
+  type AdmissionStatus,
   type Limits,
   type ClaimInput,
   type ExecutionOutcome,
   type BundleRegistration,
+  type AnchorProof,
 } from '@haip/protocol';
 import type { Store, Tx } from './store.js';
 import {
@@ -26,7 +35,7 @@ import {
   type RouteConfig,
   type ServiceConfig,
 } from './config.js';
-import { isAnchorConflict, type AnchorAcceptance, type AnchorStore } from './anchor.js';
+import { isAnchorConflict, type AnchorStore } from './anchor.js';
 import { missing, ProtocolError, requireThat } from './errors.js';
 import { validate, validateResponseSchema } from './validation.js';
 import { requireBoundBundle } from './bundle.js';
@@ -84,10 +93,31 @@ interface PreparedRequest {
   document_digest: string;
 }
 function checkpointEvidence(data: RequestData) {
-  const anchor = data.anchor as
-    { checkpoint?: SignedRecord; acceptance?: AnchorAcceptance } | undefined;
-  if (anchor?.checkpoint && anchor.acceptance)
-    return { checkpoint: anchor.checkpoint, acceptance: anchor.acceptance };
+  const anchor = data.anchor as AnchorProof | undefined;
+  if (anchor?.checkpoint && anchor.acceptance) return anchor;
+}
+function checkStored<T>(check: () => T): T {
+  try {
+    return check();
+  } catch {
+    throw new ProtocolError(409, 'material_integrity_mismatch');
+  }
+}
+function requireOriginalRecord(record: SignedRecord, original: SignedRecord | undefined) {
+  checkStored(() =>
+    requireThat(
+      original && digest(record) === digest(original),
+      409,
+      'material_integrity_mismatch',
+    ),
+  );
+}
+function checkpointBinding(
+  evidence: AnchorProof,
+  receipt: Signed<DecisionReceipt>,
+  decisionSequence?: number,
+) {
+  return checkStored(() => digest({ evidence, receipt, decisionSequence }));
 }
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
@@ -543,6 +573,7 @@ export class ReviewService {
     if (readOnly) this.project(row, now);
     else await this.refresh(tx, p, row, now);
     const d = row.data;
+    const { receipt, claim, outcome } = this.statusEvidence(row, readOnly);
     const deliveries = (
       await tx.query(
         'SELECT id,kind,state,attempts,error FROM haip_outbox WHERE tenant=$1 AND request_id=$2 ORDER BY created_at DESC LIMIT 30',
@@ -557,10 +588,10 @@ export class ReviewService {
       grant_state: d.grant_state,
       execution_state: d.execution_state,
       revision: d.revision,
-      receipt: d.receipt ?? null,
-      claim: d.claim ?? null,
-      outcome: d.outcome ?? null,
-      anchor: d.anchor ?? null,
+      receipt: receipt ?? null,
+      claim: claim ?? null,
+      outcome: outcome ?? null,
+      anchor: receipt ? (d.anchor ?? null) : null,
       delivery: deliveries,
       review_link: `${this.config.origin}/review/${row.id}`,
       polling_link: `${this.config.origin}/v2/requests/${row.id}`,
@@ -580,17 +611,7 @@ export class ReviewService {
       requireThat(d.request.purpose === 'review', 409, 'hitl_review_only');
       this.requireStoredIntegrity(row);
       this.project(row, now);
-      const receipt = d.receipt;
-      if (d.decision_state === 'confirmed')
-        requireThat(
-          receipt?.payload?.request_id === row.id &&
-            receipt.payload.request_digest === d.request_digest &&
-            receipt.payload.purpose === 'review' &&
-            receipt.protected?.tenant === row.tenant &&
-            receipt.protected.audience === row.producer,
-          409,
-          'material_integrity_mismatch',
-        );
+      const receipt = this.requireBoundReceipt(row);
       let candidate: DecisionCandidate | undefined;
       if (
         d.decision_state === 'confirmed' &&
@@ -603,17 +624,7 @@ export class ReviewService {
           'SELECT 1 FROM haip_requests WHERE tenant=$1 AND id=$2 AND material IS NOT NULL',
           [p.tenant, row.id],
         );
-        if (material.rowCount) {
-          candidate = d.candidate;
-          requireThat(
-            candidate &&
-              receipt &&
-              digest(candidate) === receipt.payload.candidate_digest &&
-              digest(candidate.response) === receipt.payload.response_digest,
-            409,
-            'material_integrity_mismatch',
-          );
-        }
+        if (material.rowCount) candidate = this.requireBoundCandidate(row, receipt);
       }
       return {
         request: d.request,
@@ -1264,16 +1275,222 @@ export class ReviewService {
     }
     requireThat(valid, 409, 'material_integrity_mismatch');
   }
+  private recordInScope(row: RequestRow, record: SignedRecord | undefined, ...types: string[]) {
+    const header = record?.protected;
+    const payload = record?.payload as { request_id?: string } | undefined;
+    return (
+      !!header &&
+      types.includes(header.type) &&
+      header.tenant === row.tenant &&
+      header.audience === row.producer &&
+      payload?.request_id === row.id
+    );
+  }
+  private requireStoredRecord(row: RequestRow, record: SignedRecord, ...types: string[]) {
+    checkStored(() => {
+      validate('SignedRecord', record);
+      const request = row.data.request;
+      requireThat(
+        this.recordInScope(row, record, ...types) &&
+          digest(record.protected.profiles) === digest(request.profiles),
+        409,
+        'material_integrity_mismatch',
+      );
+      verifyRecord(record, this.config.trust, {
+        issuer: this.config.issuer,
+        tenant: row.tenant,
+        audience: row.producer,
+        type: record.protected.type,
+        purpose: request.purpose,
+      });
+    });
+  }
+  private requireBoundReceipt(row: RequestRow) {
+    const d = row.data;
+    const receipt = d.receipt;
+    if (!receipt && d.decision_state !== 'confirmed') return;
+    requireThat(receipt, 409, 'material_integrity_mismatch');
+    return checkStored(() => {
+      this.requireStoredRecord(row, receipt, 'DecisionReceipt');
+      const payload = receipt.payload;
+      validate('DecisionReceipt', payload);
+      requireThat(
+        payload.request_digest === d.request_digest &&
+          payload.requester === d.request.requester.subject &&
+          payload.purpose === d.request.purpose &&
+          payload.confirmed_at === receipt.protected.issued_at &&
+          Date.parse(payload.confirmed_at) >= Date.parse(d.request.accepted_at) &&
+          Date.parse(payload.confirmed_at) < Date.parse(d.request.review_deadline),
+        409,
+        'material_integrity_mismatch',
+      );
+      return receipt;
+    });
+  }
+  private requireBoundCandidate(
+    row: RequestRow,
+    receipt?: Signed<DecisionReceipt>,
+    candidate = row.data.candidate,
+  ) {
+    if (!candidate && !receipt) return;
+    requireThat(candidate, 409, 'material_integrity_mismatch');
+    return checkStored(() => {
+      validate('DecisionCandidate', candidate);
+      const response = canonicalise(candidate.response);
+      const execution = row.data.request.purpose === 'authorise_execution';
+      requireThat(
+        candidate.request_id === row.id &&
+          candidate.request_digest === row.data.request_digest &&
+          candidate.response_canonical === response &&
+          candidate.response_digest === digestBytes(response) &&
+          (execution ? ['authorise', 'refuse'] : ['answer', 'approve', 'reject']).includes(
+            candidate.decision,
+          ),
+        409,
+        'material_integrity_mismatch',
+      );
+      if (receipt)
+        requireThat(
+          receipt.payload.candidate_id === candidate.id &&
+            receipt.payload.candidate_digest === digest(candidate) &&
+            receipt.payload.response_digest === candidate.response_digest &&
+            receipt.payload.reviewer === candidate.reviewer &&
+            receipt.payload.decision === candidate.decision &&
+            Date.parse(candidate.created_at) <= Date.parse(receipt.payload.confirmed_at),
+          409,
+          'material_integrity_mismatch',
+        );
+      return candidate;
+    });
+  }
+  private requireBoundClaim(row: RequestRow, receipt: Signed<DecisionReceipt> | undefined) {
+    const d = row.data;
+    const claim = d.claim;
+    if (!claim) return;
+    return checkStored(() => {
+      this.requireStoredRecord(row, claim, 'ExecutionClaim');
+      const payload = claim.payload;
+      const execution = d.request.execution;
+      validate('ExecutionClaim', payload);
+      requireThat(
+        receipt?.payload.decision === 'authorise' &&
+          execution &&
+          payload.request_digest === d.request_digest &&
+          payload.receipt_digest === digest(receipt) &&
+          payload.execution_binding_digest === digest(execution) &&
+          payload.action_occurrence_id === execution.action_occurrence_id &&
+          payload.execution_seconds === execution.execution_seconds &&
+          payload.dispatch_before === receipt.payload.grant_deadline &&
+          payload.claimed_at === claim.protected.issued_at &&
+          Date.parse(payload.claimed_at) >= Date.parse(receipt.payload.confirmed_at) &&
+          Date.parse(payload.claimed_at) < Date.parse(payload.dispatch_before),
+        409,
+        'material_integrity_mismatch',
+      );
+      return claim;
+    });
+  }
+  private requireBoundOutcome(
+    row: RequestRow,
+    claim: Signed<ExecutionClaim> | undefined,
+    outcome = row.data.outcome,
+  ) {
+    if (!outcome) return;
+    return checkStored(() => {
+      this.requireStoredRecord(row, outcome, 'ExecutionOutcome', 'ExecutionReconciliation');
+      validate('ExecutionOutcome', outcome.payload.outcome);
+      requireThat(
+        claim &&
+          outcome.payload.claim_digest === digest(claim) &&
+          outcome.payload.outcome.execution_identity === claim.payload.execution_identity &&
+          outcome.payload.recorded_at === outcome.protected.issued_at,
+        409,
+        'material_integrity_mismatch',
+      );
+      return outcome;
+    });
+  }
+  private requireExportRecords(row: RequestRow, receipt: Signed<DecisionReceipt> | undefined) {
+    checkStored(() => {
+      const claim = this.requireBoundClaim(row, receipt);
+      const outcome = this.requireBoundOutcome(row, claim);
+      const pending = new Set(
+        [receipt, claim, outcome].filter((record) => record !== undefined).map(digest),
+      );
+      requireThat(Array.isArray(row.data.records), 409, 'material_integrity_mismatch');
+      for (const record of row.data.records) {
+        switch (record.protected?.type) {
+          case 'DecisionReceipt':
+            requireOriginalRecord(record, receipt);
+            break;
+          case 'ExecutionClaim':
+            requireOriginalRecord(record, claim);
+            break;
+          case 'AdmissionStatus': {
+            this.requireStoredRecord(row, record, 'AdmissionStatus');
+            const payload = record.payload as AdmissionStatus;
+            validate('AdmissionStatus', payload);
+            requireThat(
+              claim &&
+                payload.claim_digest === digest(claim) &&
+                payload.claim_id === claim.payload.id &&
+                payload.execution_identity === claim.payload.execution_identity &&
+                payload.execution_binding_digest === claim.payload.execution_binding_digest &&
+                payload.dispatch_before === claim.payload.dispatch_before &&
+                payload.execution_seconds === claim.payload.execution_seconds &&
+                payload.checked_at === record.protected.issued_at,
+              409,
+              'material_integrity_mismatch',
+            );
+            continue;
+          }
+          case 'ExecutionOutcome':
+          case 'ExecutionReconciliation':
+            this.requireBoundOutcome(row, claim, record as RequestData['outcome']);
+            break;
+          default:
+            throw new ProtocolError(409, 'material_integrity_mismatch');
+        }
+        pending.delete(digest(record));
+      }
+      requireThat(pending.size === 0, 409, 'material_integrity_mismatch');
+    });
+  }
+  private statusEvidence(row: RequestRow, readOnly: boolean) {
+    const d = row.data;
+    if (d.request.protocol_revision !== PROTOCOL_REVISION)
+      return {
+        receipt: this.recordInScope(row, d.receipt, 'DecisionReceipt') ? d.receipt : undefined,
+        claim: this.recordInScope(row, d.claim, 'ExecutionClaim') ? d.claim : undefined,
+        outcome: this.recordInScope(row, d.outcome, 'ExecutionOutcome', 'ExecutionReconciliation')
+          ? d.outcome
+          : undefined,
+      };
+    try {
+      const receipt = this.requireBoundReceipt(row);
+      if (receipt)
+        checkStored(() =>
+          requireThat(digest(d.request) === d.request_digest, 409, 'material_integrity_mismatch'),
+        );
+      const claim = this.requireBoundClaim(row, receipt);
+      return { receipt, claim, outcome: this.requireBoundOutcome(row, claim) };
+    } catch (error) {
+      if (readOnly) throw error;
+      // Allow revocation and deletion to commit even when the signed evidence is damaged.
+      return {};
+    }
+  }
   private async readMaterial(tx: Tx, p: Principal, id: string, now: Date) {
     const row = await this.owned(tx, await this.principal(tx, p), id);
     this.requireStoredIntegrity(row);
     this.project(row, now);
     requireThat(row.material, 410, 'material_deleted');
+    const candidate = this.requireBoundCandidate(row, this.requireBoundReceipt(row));
     return {
       request: row.data.request,
       request_digest: row.data.request_digest,
       ...row.material,
-      candidate: row.data.candidate ?? null,
+      candidate: candidate ?? null,
     };
   }
   async material(p: Principal, id: string) {
@@ -1398,7 +1615,7 @@ export class ReviewService {
       const row = await this.owned(tx, p, id);
       await this.eligible(tx, p, row);
       this.pending(row, now);
-      return this.idempotent(
+      const candidate = await this.idempotent(
         tx,
         p,
         'decision.propose:' + id,
@@ -1472,6 +1689,8 @@ export class ReviewService {
         },
         proposalDigest,
       );
+      if (candidate !== row.data.candidate) this.requireBoundCandidate(row, undefined, candidate);
+      return candidate;
     });
   }
   async confirm(
@@ -1485,7 +1704,7 @@ export class ReviewService {
       p = await this.principal(tx, p);
       const row = await this.owned(tx, p, id);
       await this.eligible(tx, p, row);
-      return this.idempotent(
+      const receipt = await this.idempotent(
         tx,
         p,
         'decision.confirm:' + id,
@@ -1494,7 +1713,7 @@ export class ReviewService {
         async () => {
           this.pending(row, now);
           const d = row.data;
-          const c = d.candidate;
+          const c = this.requireBoundCandidate(row);
           requireThat(
             c && c.id === candidateId && c.reviewer === p.id && digest(c) === candidateDigest,
             409,
@@ -1563,6 +1782,13 @@ export class ReviewService {
           return receipt;
         },
       );
+      if (receipt !== row.data.receipt) {
+        const original = this.requireBoundReceipt(row);
+        if (row.material && !row.data.material_deleted && now.getTime() < privateExpiry(row.data))
+          this.requireBoundCandidate(row, original);
+        requireOriginalRecord(receipt, original);
+      }
+      return receipt;
     });
   }
   closePendingReview(row: RequestRow, now: Date, state: 'cancelled' | 'superseded') {
@@ -1637,7 +1863,8 @@ export class ReviewService {
     const snapshot = await this.store.read(async (tx, now) => {
       const producer = await this.principal(tx, p);
       requireThat(producer.kind === 'producer', 403, 'producer_required');
-      const { data } = await this.owned(tx, producer, id, false);
+      const row = await this.owned(tx, producer, id, false);
+      const { data } = row;
       if (
         data.request.purpose !== 'authorise_execution' ||
         data.invalidated ||
@@ -1655,10 +1882,14 @@ export class ReviewService {
       ).rows[0];
       if (!tenant || tenant.fenced || data.request.authority_namespace !== tenant.generation)
         return;
+      this.requireCurrentRequest(row);
+      const receipt = this.requireBoundReceipt(row);
+      requireThat(receipt, 409, 'material_integrity_mismatch');
       return {
         tenant,
         evidence: checkpointEvidence(data),
         decisionSequence: data.decision_sequence,
+        receipt,
       };
     });
     if (!snapshot) return;
@@ -1677,8 +1908,24 @@ export class ReviewService {
         503,
         'anchor_history_invalid',
       );
+      checkStored(() => {
+        validate('AnchorProof', evidence);
+        verifyRecord(evidence.checkpoint, this.config.trust, {
+          issuer: this.config.issuer,
+          tenant: tenant.ledger_id,
+          audience: 'haip.audit',
+          type: 'AuditCheckpoint',
+          purpose: 'service',
+        });
+        requireThat(
+          evidence.proof[0]?.sequence === snapshot.decisionSequence,
+          409,
+          'material_integrity_mismatch',
+        );
+        verifyCheckpointProof(evidence, digest(snapshot.receipt));
+      });
       await this.anchor.verifyAcceptance(evidence.checkpoint, evidence.acceptance);
-      return digest(evidence);
+      return checkpointBinding(evidence, snapshot.receipt, snapshot.decisionSequence);
     } catch (error) {
       if (error instanceof ProtocolError && isAnchorConflict(error.code)) {
         await this.store.transaction(p.tenant, async (tx) => {
@@ -1729,11 +1976,9 @@ export class ReviewService {
     const tenant = (await tx.query('SELECT fenced FROM haip_tenants WHERE id=$1', [p.tenant]))
       .rows[0];
     requireThat(!tenant.fenced, 503, 'admission_fenced');
-    requireThat(
-      !d.invalidated && d.receipt?.payload.decision === 'authorise',
-      409,
-      'authority_revoked',
-    );
+    requireThat(!d.invalidated, 409, 'authority_revoked');
+    const receipt = this.requireBoundReceipt(row);
+    requireThat(receipt?.payload.decision === 'authorise', 409, 'authority_revoked');
     requireThat(d.audit_state === 'anchored', 409, 'pending_anchor');
     requireThat(
       d.grant_deadline && now.getTime() < Date.parse(d.grant_deadline),
@@ -1745,10 +1990,21 @@ export class ReviewService {
       409,
       'grant_unavailable',
     );
+    requireThat(
+      row.material && !d.material_deleted && now.getTime() < privateExpiry(d),
+      409,
+      'authority_revoked',
+    );
+    requireThat(
+      d.grant_deadline === receipt.payload.grant_deadline,
+      409,
+      'material_integrity_mismatch',
+    );
+    this.requireBoundCandidate(row, receipt);
     if (this.anchor) {
       const evidence = checkpointEvidence(d);
       requireThat(
-        evidence && checkpointDigest === digest(evidence),
+        evidence && checkpointDigest === checkpointBinding(evidence, receipt, d.decision_sequence),
         409,
         'anchor_recheck_required',
       );
@@ -1756,11 +2012,12 @@ export class ReviewService {
     const reviewer = (
       await tx.query('SELECT * FROM haip_principals WHERE tenant=$1 AND id=$2', [
         p.tenant,
-        d.receipt.payload.reviewer,
+        receipt.payload.reviewer,
       ])
     ).rows[0] as Principal | undefined;
     requireThat(reviewer?.config.enabled, 409, 'reviewer_ineligible');
     await this.eligible(tx, reviewer, row);
+    return receipt;
   }
   async claim(p: Principal, id: string, input: ClaimInput, key?: string) {
     validate('ClaimInput', input);
@@ -1775,7 +2032,7 @@ export class ReviewService {
         now.setTime((await tx.query('SELECT clock_timestamp() AS now')).rows[0].now.getTime());
         this.requireRetainedAudit(row.data.request, now);
       }
-      return this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
+      const claim = await this.idempotent(tx, p, 'execution.claim:' + id, key, input, async () => {
         await this.authority(tx, p, row, now, false, checkpointDigest);
         const d = row.data;
         const execution = d.request.execution!;
@@ -1827,6 +2084,13 @@ export class ReviewService {
         await this.save(tx, row);
         return claim;
       });
+      if (claim !== row.data.claim) {
+        const receipt = this.requireBoundReceipt(row);
+        if (row.material && !row.data.material_deleted && now.getTime() < privateExpiry(row.data))
+          this.requireBoundCandidate(row, receipt);
+        requireOriginalRecord(claim, this.requireBoundClaim(row, receipt));
+      }
+      return claim;
     });
   }
   async admission(
@@ -1845,9 +2109,9 @@ export class ReviewService {
       p = await this.principal(tx, p);
       requireThat(p.kind === 'producer', 403, 'producer_required');
       const row = await this.owned(tx, p, id);
-      await this.authority(tx, p, row, now, true, checkpointDigest);
+      const receipt = await this.authority(tx, p, row, now, true, checkpointDigest);
       const d = row.data,
-        claim = d.claim;
+        claim = this.requireBoundClaim(row, receipt);
       requireThat(
         claim &&
           claim.payload.id === input.claim_id &&
@@ -1908,7 +2172,9 @@ export class ReviewService {
       requireThat(p.kind === (reconcile ? 'operator' : 'producer'), 403, 'forbidden');
       const row = await this.owned(tx, p, id);
       this.requireStoredIntegrity(row);
-      return this.idempotent(
+      const claim = this.requireBoundClaim(row, this.requireBoundReceipt(row));
+      const prior = this.requireBoundOutcome(row, claim);
+      const report = await this.idempotent(
         tx,
         p,
         (reconcile ? 'reconcile:' : 'outcome:') + id,
@@ -1917,7 +2183,7 @@ export class ReviewService {
         async () => {
           const d = row.data;
           requireThat(
-            d.claim && d.claim.payload.execution_identity === input.execution_identity,
+            claim && claim.payload.execution_identity === input.execution_identity,
             409,
             'claim_unavailable',
           );
@@ -1927,13 +2193,9 @@ export class ReviewService {
               400,
               'reconciliation_evidence_required',
             );
-          if (d.outcome && !reconcile) {
-            requireThat(
-              digest(d.outcome.payload.outcome) === digest(input),
-              409,
-              'outcome_conflict',
-            );
-            return d.outcome;
+          if (prior && !reconcile) {
+            requireThat(digest(prior.payload.outcome) === digest(input), 409, 'outcome_conflict');
+            return prior;
           }
           requireThat(
             reconcile || input.status !== 'abandoned',
@@ -1944,7 +2206,7 @@ export class ReviewService {
             reconcile ? 'ExecutionReconciliation' : 'ExecutionOutcome',
             {
               request_id: id,
-              claim_digest: digest(d.claim),
+              claim_digest: digest(claim),
               outcome: input,
               recorded_at: iso(now),
               recorded_by: { kind: p.kind, subject: p.id },
@@ -1976,6 +2238,8 @@ export class ReviewService {
           return record;
         },
       );
+      if (report !== row.data.outcome) this.requireBoundOutcome(row, claim, report);
+      return report;
     });
   }
   async events(p: Principal, after = 0) {
@@ -2018,12 +2282,24 @@ export class ReviewService {
       const row = await this.owned(tx, p, id);
       this.requireStoredIntegrity(row);
       this.project(row, now);
+      const receipt = this.requireBoundReceipt(row);
+      const candidate = row.material ? this.requireBoundCandidate(row, receipt) : undefined;
+      this.requireExportRecords(row, receipt);
       const audit = (
         await tx.query(
           'SELECT sequence,previous_head,head,record_digest,record FROM haip_audit WHERE tenant=$1 AND request_id=$2 ORDER BY sequence',
           [p.tenant, id],
         )
       ).rows;
+      requireThat(
+        audit.every(
+          ({ record, record_digest }) =>
+            record === null ||
+            (typeof record === 'string' && digestBytes(record) === record_digest),
+        ),
+        409,
+        'material_integrity_mismatch',
+      );
       const binding = row.data.request.review.bundle;
       const bundle =
         row.material && binding
@@ -2044,7 +2320,7 @@ export class ReviewService {
         material: row.material
           ? {
               ...row.material,
-              candidate: row.data.candidate ?? null,
+              candidate: candidate ?? null,
               ...(bundle ? { bundle } : {}),
             }
           : null,
