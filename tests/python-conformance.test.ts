@@ -43,7 +43,7 @@ function digest(value: unknown): string {
 }
 
 async function pythonProcess(args: string[], input?: unknown, env = process.env) {
-  const child = spawn(process.env.HAIP_TEST_PYTHON ?? 'python3', args, {
+  const child = spawn(process.env.HAIP_TEST_PYTHON ?? 'python3', ['-B', ...args], {
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
