@@ -65,7 +65,7 @@ The schema limits report size and field lengths. Evidence references should be o
 | Duplicate conflict | An identical checkpoint retry recovers the original version. Changed content at one sequence refuses. Missing, changed, extra or deleted versions fence admission.                                                  | Local conflict adapter tested. Live run pending.         |
 | Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local outage adapter tested. Live run pending.           |
 | Backup recovery    | An encrypted dump of the isolated tenant restores to an empty database. Independent records remain outside the backup. Recovery retires the generation and reapplies deletion and revocation before listeners open. | Local packaged adapter and CLI. Live run pending.         |
-| Notifications      | A test recipient receives an ordinary link after its prior session ends. The receiver persists and deduplicates events, fetches authoritative status, and refuses expired delivery and redirects.                   | Local SMTP, TLS and status refresh. Live run pending.     |
+| Notifications      | A test recipient receives an ordinary link after its prior session ends. The receiver persists and deduplicates events, fetches authoritative status, and refuses expired delivery and redirects.                   | Local notification adapter tested. Live run pending.      |
 | Operations         | Independent keys and trust, encrypted disk, private backup storage, deletion within 30 days, worker and retention alerts, and incident routing.                                                                     | Local alert routing tested. Live run pending.             |
 | Restart rollback   | A previously activated generation cannot open production listeners. Recovery needs fresh provisioning and review. Rollback cannot enable automatic execution.                                                       | Local packaged runtime checks. Live run pending.          |
 
@@ -73,11 +73,7 @@ The local suite runs both [backup recovery](adapters/README.md#backup-recovery) 
 
 The [outage adapter](adapters/README.md#outage-expiry) checks both short grants during a checkpoint outage, holds the outage through their expiry, then checks their refusal after recovery. A separate grant still in its dispatch window verifies that checkpoint access recovered.
 
-## Notification evidence
-
-Use a disposable producer, requester and reviewer on the isolated deployment. Open the requester session, end it, then confirm the test request as the reviewer. Record the test mailbox receipt and follow its review link through sign-in. Retain redacted evidence of the authenticated status and receipt.
-
-Have the test webhook receiver commit the signed event before acknowledging it, then replay and reorder deliveries through the receiver. Fetch current status with the scoped producer credential. Record the resulting revision, the refusal of an expired delivery and the receiver's record that a redirect target received no request. Record visible delivery failures from the service and keep mail bodies, cookies and credentials out of the shared report.
+The [notification adapter](adapters/README.md#notifications) uses a disposable mailbox and observer for the deployment's test receiver. It records sign-in from the received email link, the receiver's committed signed events, replay and expiry outcomes, and the visible delivery error when the receiver redirects.
 
 ## Azure boundary
 

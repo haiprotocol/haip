@@ -76,7 +76,7 @@ export function callApi(origin, token, fixtureCa) {
             : {}),
           headers: {
             Accept: 'application/json',
-            Authorization: 'Bearer ' + token,
+            ...(token ? { Authorization: 'Bearer ' + token } : {}),
             ...(body === undefined
               ? {}
               : { 'Content-Type': 'application/json', 'Idempotency-Key': key ?? randomUUID() }),
@@ -95,7 +95,7 @@ export function callApi(origin, token, fixtureCa) {
             try {
               complete({
                 status: incoming.statusCode,
-                body: parseJson(Buffer.concat(chunks).toString('utf8')),
+                body: bytes > 0 ? parseJson(Buffer.concat(chunks).toString('utf8')) : null,
               });
             } catch (error) {
               reject(error);

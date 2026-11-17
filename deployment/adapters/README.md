@@ -151,6 +151,32 @@ Configure `duplicate_conflict.command`, allow 720 seconds and schedule it after 
 node deployment/adapters/checkpoint-conflict.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/conflict.json
 ```
 
+## Notifications
+
+Use an isolated review route, producer, requester and reviewer with a disposable mailbox, an HTTPS delivery receiver and an empty replay inbox. Map the two human accounts to distinct HAIP directory entries and give the requester the verified test mailbox address. Create a pending review without execution authority and set `metadata.haip_acceptance_fixture` to `notifications` and `metadata.haip_acceptance_probe` to a fresh UUID. Start soon enough that its creation webhook remains within the five-minute replay window when the confirmation webhook arrives. Retain an earlier, now expired, signed delivery for a different review owned by the same test producer.
+
+Set `plan_digest`, `probe_id`, `tenant`, `producer`, `requester`, `reviewer`, `recipient`, `review_id`, `expired_request_id`, `trust_manifest`, `replay_endpoint` and `redirect_target` in the private settings. The endpoints are exact HTTPS URLs. The replay endpoint runs the same receiver implementation with its own inbox. Provide the scoped token in `HAIP_ACCEPTANCE_NOTIFICATION_PRODUCER_TOKEN` and declare it in `adapter_env` and `secret_env`.
+
+Set `control_command` to the observer argument array starting with an absolute executable path. List its environment in `control_env` and `adapter_env` and declare its credentials in `secret_env`. The adapter appends the action, probe UUID, plan digest and action argument where specified. The observer should verify these bindings and return one JSON document on stdout. Return `null` for a mail, delivery or redirect observation that has yet to arrive.
+
+| Action | Argument | Observation |
+| --- | --- | --- |
+| `mail` | Review UUID | The actual mailbox receipt as `recipient`, `review_link`, `received_at` and `message_digest` over the original message bytes |
+| `deliveries` | Review UUID | The `created` and `decision` deliveries, each with its signed `envelope`, `committed_at` and `acknowledged_at` |
+| `replay_state` | Review UUID | The durable inbox `rows` as `event_id`, `event_digest` and `revision`, plus `pending_revision` |
+| `expired` | Earlier review UUID | The original signed envelope whose delivery timestamp is at least five minutes old |
+| `arm_redirect` | Exact target URL | Switch the disposable delivery receiver to return a redirect to the monitored target |
+| `redirect` | Redirect test request UUID | The signed `envelope`, `location`, `response_status` and `target_hits` for the monitored target |
+| `restore_redirect` | None | Return the receiver to its normal delivery mode |
+
+Record mailbox, commit and acknowledgement times in UTC. The replay endpoint acknowledges valid deliveries with a 2xx response after its transaction commits and refuses expired deliveries with a 4xx response. Use an empty response or JSON. Keep the redirected endpoint isolated and restore normal delivery when the controller lease expires, even if the adapter exits. The adapter also requests restoration when it finishes.
+
+Configure `notifications.command`, allow 900 seconds and use a desktop session with Chromium installed. Sign in in this order when the tabs open. Use the requester, then the reviewer who confirms the disposable review in the trusted host, and then the requester again from the received link. The adapter verifies the browser and receipt, compares signed deliveries with the producer event stream, and checks replay, expiry and the redirect failure. It retains digests and observations without message bodies, cookies or tokens.
+
+```sh
+node deployment/adapters/notifications.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/notifications.json
+```
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.
@@ -181,4 +207,10 @@ The checkpoint conflict test uses the real checkpoint implementation, a fixture 
 
 ```sh
 node --import tsx --test tests/checkpoint-conflict-adapter.test.ts
+```
+
+The notification check runs through the acceptance runner with Chromium, a local mailbox and a dedicated PostgreSQL receiver database. It exercises opening the received link, commit before acknowledgement, replay, the five-minute cutoff and the visible redirect error.
+
+```sh
+node --import tsx --test tests/notification-acceptance.test.ts
 ```

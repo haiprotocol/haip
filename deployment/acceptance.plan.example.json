@@ -125,8 +125,8 @@
     {
       "id": "notifications",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No test recipient or persistent webhook receiver is configured."
+      "timeout_ms": 900000,
+      "unrun_reason": "No disposable review, mailbox or webhook observer is configured."
     },
     {
       "id": "operations",
