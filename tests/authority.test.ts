@@ -428,8 +428,12 @@ test('a different version in Azure listing after a checkpoint upload fences exis
   });
   const worker = new OutboxWorker(env.service, anchor);
   assert.equal((await env.api('/v2/requests', env.request())).status, 201);
+  const due = await env.store.pool.query(
+    "UPDATE haip_outbox SET next_at=clock_timestamp() WHERE tenant='test-tenant' AND checkpoint_batch_count IS NOT NULL",
+  );
+  assert.equal(due.rowCount, 1);
   await worker.tick();
-  assert.ok(puts.size > 0);
+  assert.equal(puts.size, 1);
   assert.deepEqual(listings, puts);
   const incidents = await env.store.pool.query(
     'SELECT code FROM haip_incidents WHERE tenant=$1 AND code=$2',
