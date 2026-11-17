@@ -1,0 +1,20 @@
+examples/http/README.md
+  s_08f73032aa8e41::t_c25b8d7f6f6f8b 3-24,26-28,30-31
+  s_08f73032aa8e41::t_a7b3dd1574eb97 25,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e8825226034d8fe3491622f627981fc00aa26585",
+  "prompts": {},
+  "sessions": {
+    "s_08f73032aa8e41": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0532e-8fbb-7e51-851f-8c60a49f87d4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Lee Crossley <leee@hotmail.co.uk>"
+    }
+  }
+}
