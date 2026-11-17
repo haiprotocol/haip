@@ -68,7 +68,7 @@ Run encrypted backup creation and pruning through an approved scheduler at least
 
 Prometheus needs an operator credential for each tenant's `/v2/admin/metrics.prom` endpoint. Use `haip` or an `haip-` prefix for each scrape job so the scrape outage rule can identify its targets. Keep credentials in private files and use `authorization.credentials_file` in the scrape configuration. Install the deployment's alert routing and test receipt before recording the operations check as passed. [Alert rules](alerts.yml)
 
-With `promtool`, `prometheus` and `alertmanager` in `PATH`, run the rule tests and the loopback delivery rehearsal. The rehearsal sends alerts to a disposable receiver and verifies that worker alerts resolve after the workers complete successful cycles.
+With `promtool`, `prometheus` and `alertmanager` in `PATH`, run the rule tests and the loopback [operations rehearsal](adapters/README.md#operations). It sends alerts to a disposable receiver and verifies that the worker and scrape alerts resolve after successful worker cycles and recovery of the canary target.
 
 ```sh
 promtool test rules deployment/alerts.test.yml

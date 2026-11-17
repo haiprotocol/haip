@@ -177,6 +177,38 @@ Configure `notifications.command`, allow 900 seconds and use a desktop session w
 node deployment/adapters/notifications.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/notifications.json
 ```
 
+## Operations
+
+Use one isolated test tenant and two disposable monitoring targets. The runtime target scrapes the trusted origin at `/v2/admin/metrics.prom`. The canary target has its own HTTPS scrape URL and can fail without interrupting the runtime. Give both targets stable `job` and `instance` labels, using `haip` or a job name starting with `haip-`. Load the bundled alert rules and route their critical alerts to a dedicated receiver with resolved notifications enabled. [Alert rules](../alerts.yml)
+
+Set `plan_digest`, a fresh UUID as `probe_id`, the exact HTTPS `prometheus_origin`, and the Alertmanager `receiver` name in the private settings. Set `targets.runtime` and `targets.canary` to objects with `job`, `instance` and the exact `scrape_url`. The Prometheus endpoint must expose the native targets, rules and alerts API. Give the adapter a scoped HAIP operator token in `HAIP_ACCEPTANCE_OPERATIONS_OPERATOR_TOKEN` and, if Prometheus needs one, a separate read-only bearer token in `HAIP_ACCEPTANCE_OPERATIONS_MONITOR_TOKEN`. Declare both credentials used in `adapter_env` and `secret_env`. [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/)
+
+Set `control_command` to the separately administered controller's argument array starting with an absolute executable path. Declare its environment in `control_env` and `adapter_env` and its credentials in `secret_env`. The adapter appends the action, probe UUID and plan digest. The controller should verify those bindings and manage a temporary fault that expires even if the adapter exits.
+
+| Action | Operation |
+| --- | --- |
+| `receipts` | Print a JSON array of the receiver's observations for this probe, starting empty. Include the `receiver`, `status`, `labels` with `alertname`, `job` and `instance`, `fingerprint`, `starts_at` and `ends_at` from the original alert, and `received_at` from the receiver's clock. |
+| `stall` | Make the isolated tenant's outbox and retention workers report overdue success timestamps and make only the disposable canary scrape fail. |
+| `recover` | Restore the canary and run successful outbox and retention cycles to advance both timestamps. |
+
+Keep the Prometheus and receiver clocks synchronised. Return at most 100 observations for the probe and keep the controller output within 32 KiB. The drill checks that Prometheus reports all three alerts firing, and that the receiver reports a resolution with the same fingerprint and start time as each firing alert. It requests restoration even if the controller reports failure starting the fault. [Alertmanager webhook](https://prometheus.io/docs/alerting/latest/configuration/#webhook_config)
+
+Set `control_observations.plan_digest` to the plan digest and `control_observations.observer` to the reviewing operator's label. Put the reviewed custody, disk and backup records in the private evidence directory as separate mode 0600 files. Each `evidence` object includes its base `file` name, prefixed SHA-256 `digest` and UTC `recorded_at`. Retain the underlying observations for independent review.
+
+| Observation | Settings |
+| --- | --- |
+| `keys` | `custodian`, `trust_out_of_band`, `historical_keys_retained`, `backup_key_separate`, `trust_manifest_digest` and `evidence` |
+| `disks` | `runtime_encrypted`, `database_encrypted`, `scratch_encrypted` and `evidence` |
+| `backups` | `private`, `encrypted`, `prune_observed`, `maximum_age_days`, `interval_hours` and `evidence` |
+
+Set the observed boolean controls to `true` only after verification. Set `maximum_age_days` to the observed retention limit up to 30, and `interval_hours` to the observed backup interval up to 24. Compute `trust_manifest_digest` using the HAIP canonical digest of the separately obtained trust manifest. The adapter checks it against the live discovery document, checks the three retained file digests and records the monitored transitions.
+
+Configure `operations.command` and allow 600 seconds.
+
+```sh
+node deployment/adapters/operations.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/evidence /private/haip-acceptance/operations.json
+```
+
 ## Local fixtures
 
 Tests use a generated certificate authority and reserved `.test` names routed to loopback. `--fixture-ca CA_FILE` labels the evidence `local_fixture`. With `--review-id`, headless Chromium uses the public keys first verified by the TLS probes and signs in through the local identity fixture. A successful fixture exercise reports `blocked` for deployment acceptance.
@@ -213,4 +245,10 @@ The notification check runs through the acceptance runner with Chromium, a local
 
 ```sh
 node --import tsx --test tests/notification-acceptance.test.ts
+```
+
+The operations check runs through the acceptance runner with loopback HTTPS, Prometheus, Alertmanager and an incident receiver. It checks the retained control records and matches all three firing alerts to their resolutions. The control records are fixtures and the report remains `blocked` for deployment acceptance.
+
+```sh
+node --import tsx --test tests/alerts.integration.ts
 ```

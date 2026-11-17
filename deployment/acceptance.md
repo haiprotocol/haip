@@ -14,6 +14,8 @@ Live adapters require POSIX process groups. Each adapter receives its own group,
 
 Copy [`acceptance.plan.example.json`](acceptance.plan.example.json) to a private working directory, replace every placeholder and add reviewed adapter commands. List every parent environment variable an adapter needs in `adapter_env`, and include each credential name in both `adapter_env` and `secret_env`. The runner also supplies `PATH` when it is set and the current `HAIP_ACCEPTANCE_CHECK_ID`. It withholds other parent variables. Supply secret values only through the process environment, and do not place one in the plan or a command argument. The report path must remain outside the repository.
 
+The runner executes checks in plan order. Prepare short grants and notification reviews close to their respective checks so the controlled expiry and replay windows remain measurable. Use separate test namespaces for checks that fence a generation or retire it during recovery.
+
 ```sh
 node deployment/run-acceptance.mjs /private/haip-acceptance/plan.json /private/haip-acceptance/report.json
 node deployment/run-acceptance.mjs --validate /private/haip-acceptance/report.json
@@ -66,7 +68,7 @@ The schema limits report size and field lengths. Evidence references should be o
 | Outage and expiry  | A storage outage blocks new claims and permits. Retries cannot move a grant deadline. Recovery after expiry cannot revive authority.                                                                                | Local outage adapter tested. Live run pending.           |
 | Backup recovery    | An encrypted dump of the isolated tenant restores to an empty database. Independent records remain outside the backup. Recovery retires the generation and reapplies deletion and revocation before listeners open. | Local packaged adapter and CLI. Live run pending.         |
 | Notifications      | A test recipient receives an ordinary link after its prior session ends. The receiver persists and deduplicates events, fetches authoritative status, and refuses expired delivery and redirects.                   | Local notification adapter tested. Live run pending.      |
-| Operations         | Independent keys and trust, encrypted disk, private backup storage, deletion within 30 days, worker and retention alerts, and incident routing.                                                                     | Local alert routing tested. Live run pending.             |
+| Operations         | Independent keys and trust, encrypted disk, private backup storage, deletion within 30 days, worker and retention alerts, and incident routing.                                                                     | Local operations adapter tested. Live run pending.        |
 | Restart rollback   | A previously activated generation cannot open production listeners. Recovery needs fresh provisioning and review. Rollback cannot enable automatic execution.                                                       | Local packaged runtime checks. Live run pending.          |
 
 The local suite runs both [backup recovery](adapters/README.md#backup-recovery) and [restart and rollback](adapters/README.md#restart-rollback) against the same locally packed server. The runner validates the resulting report with its fixture checks marked `blocked` for production acceptance.
@@ -74,6 +76,8 @@ The local suite runs both [backup recovery](adapters/README.md#backup-recovery) 
 The [outage adapter](adapters/README.md#outage-expiry) checks both short grants during a checkpoint outage, holds the outage through their expiry, then checks their refusal after recovery. A separate grant still in its dispatch window verifies that checkpoint access recovered.
 
 The [notification adapter](adapters/README.md#notifications) uses a disposable mailbox and observer for the deployment's test receiver. It records sign-in from the received email link, the receiver's committed signed events, replay and expiry outcomes, and the visible delivery error when the receiver redirects.
+
+The [operations adapter](adapters/README.md#operations) verifies retained records for custody, disk encryption and backup retention, compares the out-of-band trust digest with discovery, and matches firing and resolved alerts at the incident receiver.
 
 ## Azure boundary
 

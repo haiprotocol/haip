@@ -131,8 +131,8 @@
     {
       "id": "operations",
       "command": null,
-      "timeout_ms": 60000,
-      "unrun_reason": "No installed metrics scrape or incident route is configured."
+      "timeout_ms": 600000,
+      "unrun_reason": "No reviewed custody, disk and backup evidence, disposable monitoring targets or incident receiver is configured."
     },
     {
       "id": "restart_rollback",
