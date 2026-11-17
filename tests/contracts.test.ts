@@ -25,6 +25,9 @@ test('public discovery, directory, review, assignment, events and metrics match 
     );
     check('RequestStatus', created.body);
     const id = created.body.request.id;
+    const handoff = await env.api(`/v2/hitl/${id}`);
+    assert.equal(handoff.status, 202);
+    check('HitlHandoff', handoff.body);
     check('Material', (await env.api(`/v2/requests/${id}/material`)).body);
     check('RequestList', (await env.api('/v2/requests')).body);
     const human = await env.login();
@@ -56,6 +59,15 @@ test('public discovery, directory, review, assignment, events and metrics match 
     );
     check('HitlPoll', (await env.api(`/v2/hitl/${id}/poll`)).body);
     const spec = JSON.parse(await readFile('protocol/draft-2.0.0-3/openapi.json', 'utf8'));
+    const handoffResponses = spec.paths['/v2/hitl/{id}'].get.responses;
+    assert.equal(
+      handoffResponses['202'].content['application/json'].schema.$ref,
+      '#/components/schemas/HitlHandoff',
+    );
+    assert.equal(
+      handoffResponses['200'].content['application/json'].schema.$ref,
+      '#/components/schemas/HitlPoll',
+    );
     for (const path of Object.values(spec.paths) as any[])
       for (const operation of Object.values(path) as any[]) {
         assert.ok(operation.responses['200']?.content || operation.responses['201']?.content);

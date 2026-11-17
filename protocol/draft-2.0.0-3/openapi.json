@@ -833,7 +833,7 @@
     "/v2/hitl/{id}": {
       "get": {
         "operationId": "get__v2_hitl__id_",
-        "summary": "HITL v0.8 browser review handoff; pending uses HTTP 202",
+        "summary": "HITL v0.8 browser review handoff",
         "security": [{ "producerBearer": [] }, { "humanSession": [] }],
         "parameters": [
           { "in": "path", "name": "id", "required": true, "schema": { "type": "string" } }
@@ -842,10 +842,15 @@
           "200": {
             "description": "Success",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/HitlStatus" } }
+              "application/json": { "schema": { "$ref": "#/components/schemas/HitlPoll" } }
             }
           },
-          "202": { "description": "Human review pending" },
+          "202": {
+            "description": "Human review pending",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HitlHandoff" } }
+            }
+          },
           "400": { "description": "Invalid or ambiguous input" },
           "401": { "description": "Authentication required" },
           "403": { "description": "Operation not permitted" },
@@ -2434,7 +2439,7 @@
             "additionalProperties": false,
             "properties": {
               "case_id": { "type": "string", "format": "uuid" },
-              "status": { "enum": ["pending", "cancelled", "expired"] },
+              "status": { "const": "pending" },
               "created_at": { "type": "string", "format": "date-time" },
               "expires_at": { "type": "string", "format": "date-time" }
             },
@@ -2445,13 +2450,46 @@
             "additionalProperties": false,
             "properties": {
               "case_id": { "type": "string", "format": "uuid" },
+              "status": { "const": "expired" },
+              "created_at": { "type": "string", "format": "date-time" },
+              "expires_at": { "type": "string", "format": "date-time" },
+              "expired_at": { "type": "string", "format": "date-time" },
+              "default_action": { "const": "abort" }
+            },
+            "required": [
+              "case_id",
+              "status",
+              "created_at",
+              "expires_at",
+              "expired_at",
+              "default_action"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "case_id": { "type": "string", "format": "uuid" },
+              "status": { "const": "cancelled" },
+              "created_at": { "type": "string", "format": "date-time" },
+              "expires_at": { "type": "string", "format": "date-time" },
+              "cancelled_at": { "type": "string", "format": "date-time" }
+            },
+            "required": ["case_id", "status", "created_at", "expires_at", "cancelled_at"]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "case_id": { "type": "string", "format": "uuid" },
               "status": { "const": "completed" },
+              "created_at": { "type": "string", "format": "date-time" },
               "completed_at": { "type": "string", "format": "date-time" },
               "result": {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
-                  "action": { "type": "string" },
+                  "action": { "const": "submit" },
                   "data": {
                     "type": "object",
                     "additionalProperties": false,
@@ -2467,49 +2505,50 @@
                 "required": ["action", "data"]
               }
             },
-            "required": ["case_id", "status", "completed_at", "result"]
+            "required": ["case_id", "status", "created_at", "completed_at", "result"]
           }
         ]
+      },
+      "HitlHandoff": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": { "const": "human_input_required" },
+          "hitl": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "spec_version": { "const": "0.8" },
+              "case_id": { "type": "string", "format": "uuid" },
+              "review_url": { "type": "string", "format": "uri" },
+              "poll_url": { "type": "string", "format": "uri" },
+              "type": { "const": "input" },
+              "prompt": { "type": "string", "maxLength": 500 },
+              "timeout": { "type": "string", "pattern": "^PT[1-9][0-9]*S$" },
+              "default_action": { "const": "abort" },
+              "created_at": { "type": "string", "format": "date-time" },
+              "expires_at": { "type": "string", "format": "date-time" }
+            },
+            "required": [
+              "spec_version",
+              "case_id",
+              "review_url",
+              "poll_url",
+              "type",
+              "prompt",
+              "timeout",
+              "default_action",
+              "created_at",
+              "expires_at"
+            ]
+          }
+        },
+        "required": ["status", "hitl"]
       },
       "HitlStatus": {
         "oneOf": [
           { "$ref": "#/components/schemas/HitlPoll" },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "status": { "const": "human_input_required" },
-              "hitl": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "spec_version": { "const": "0.8" },
-                  "case_id": { "type": "string", "format": "uuid" },
-                  "review_url": { "type": "string" },
-                  "poll_url": { "type": "string" },
-                  "type": { "const": "input" },
-                  "prompt": { "type": "string" },
-                  "timeout": { "type": "string" },
-                  "default_action": { "const": "cancel" },
-                  "created_at": { "type": "string", "format": "date-time" },
-                  "expires_at": { "type": "string", "format": "date-time" }
-                },
-                "required": [
-                  "spec_version",
-                  "case_id",
-                  "review_url",
-                  "poll_url",
-                  "type",
-                  "prompt",
-                  "timeout",
-                  "default_action",
-                  "created_at",
-                  "expires_at"
-                ]
-              }
-            },
-            "required": ["status", "hitl"]
-          }
+          { "$ref": "#/components/schemas/HitlHandoff" }
         ]
       },
       "MetricsSnapshot": {

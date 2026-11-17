@@ -55,6 +55,7 @@ export interface RequestData {
   anchor?: unknown;
   invalidated?: string;
   material_deleted?: boolean;
+  review_cancelled_at?: string;
   response_storage_bytes?: number;
   last_candidate_revision?: number;
   private_discard_at?: string;
@@ -90,6 +91,16 @@ function checkpointEvidence(data: RequestData) {
 }
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
+const privateExpiry = (data: RequestData) =>
+  Math.min(
+    Date.parse(data.request.private_delete_at),
+    Date.parse(data.private_discard_at ?? data.request.private_delete_at),
+  );
+function reviewExpiry(data: RequestData) {
+  const deadline = Date.parse(data.request.review_deadline);
+  const material = privateExpiry(data);
+  return Number.isFinite(material) ? Math.min(deadline, material) : deadline;
+}
 const checkpointBatchSeconds = 300;
 const checkpointBatchSize = 100;
 export class ReviewService {
@@ -412,7 +423,7 @@ export class ReviewService {
   private project(row: RequestRow, now: Date): { reason?: string; materialDiscarded: boolean } {
     const d = row.data;
     let reason: string | undefined;
-    if (d.decision_state === 'pending' && now.getTime() >= Date.parse(d.request.review_deadline)) {
+    if (d.decision_state === 'pending' && now.getTime() >= reviewExpiry(d)) {
       d.decision_state = 'expired';
       delete d.candidate;
       reason = 'expiry';
@@ -426,13 +437,7 @@ export class ReviewService {
       d.grant_state = 'expired';
       reason = 'expiry';
     }
-    const materialDiscarded =
-      !d.material_deleted &&
-      now.getTime() >=
-        Math.min(
-          Date.parse(d.request.private_delete_at),
-          Date.parse(d.private_discard_at ?? d.request.private_delete_at),
-        );
+    const materialDiscarded = !d.material_deleted && now.getTime() >= privateExpiry(d);
     if (materialDiscarded) {
       row.material = null;
       d.material_deleted = true;
@@ -558,6 +563,60 @@ export class ReviewService {
     return this.store.read(async (tx, now) => {
       p = await this.principal(tx, p);
       return this.statusIn(tx, p, await this.owned(tx, p, id, 'status'), now, true);
+    });
+  }
+  async hitlReview(p: Principal, id: string) {
+    return this.store.read(async (tx, now) => {
+      p = await this.principal(tx, p);
+      const row = await this.owned(tx, p, id, 'status');
+      const d = row.data;
+      requireThat(d.request.purpose === 'review', 409, 'hitl_review_only');
+      this.requireStoredIntegrity(row);
+      this.project(row, now);
+      const receipt = d.receipt;
+      if (d.decision_state === 'confirmed')
+        requireThat(
+          receipt?.payload?.request_id === row.id &&
+            receipt.payload.request_digest === d.request_digest &&
+            receipt.payload.purpose === 'review' &&
+            receipt.protected?.tenant === row.tenant &&
+            receipt.protected.audience === row.producer,
+          409,
+          'material_integrity_mismatch',
+        );
+      let candidate: DecisionCandidate | undefined;
+      if (
+        d.decision_state === 'confirmed' &&
+        !d.material_deleted &&
+        (p.kind !== 'human' ||
+          p.id !== d.request.requester.subject ||
+          (await this.route(tx, p, row.route)).config.reviewers.includes(p.id))
+      ) {
+        const material = await tx.query(
+          'SELECT 1 FROM haip_requests WHERE tenant=$1 AND id=$2 AND material IS NOT NULL',
+          [p.tenant, row.id],
+        );
+        if (material.rowCount) {
+          candidate = d.candidate;
+          requireThat(
+            candidate &&
+              receipt &&
+              digest(candidate) === receipt.payload.candidate_digest &&
+              digest(candidate.response) === receipt.payload.response_digest,
+            409,
+            'material_integrity_mismatch',
+          );
+        }
+      }
+      return {
+        request: d.request,
+        decisionState: d.decision_state,
+        auditState: d.audit_state,
+        receipt,
+        candidate,
+        expiredAt: d.decision_state === 'expired' ? iso(new Date(reviewExpiry(d))) : undefined,
+        cancelledAt: d.review_cancelled_at,
+      };
     });
   }
   async list(p: Principal, filter: string | undefined, offset = 0) {
@@ -1488,6 +1547,16 @@ export class ReviewService {
       );
     });
   }
+  closePendingReview(row: RequestRow, now: Date, state: 'cancelled' | 'superseded') {
+    const d = row.data;
+    if (d.decision_state !== 'pending') return;
+    if (now.getTime() >= reviewExpiry(d)) {
+      d.decision_state = 'expired';
+      return;
+    }
+    d.decision_state = state;
+    d.review_cancelled_at = iso(now);
+  }
   async invalidate(p: Principal, id: string, reason: 'cancelled' | 'revoked', key?: string) {
     return this.store.transaction(p.tenant, async (tx, now) => {
       p = await this.principal(tx, p);
@@ -1496,7 +1565,7 @@ export class ReviewService {
       return this.idempotent(tx, p, reason + ':' + id, key, {}, async () => {
         row.data.invalidated = reason;
         if (!row.data.receipt) delete row.data.candidate;
-        if (row.data.decision_state === 'pending') row.data.decision_state = 'cancelled';
+        this.closePendingReview(row, now, 'cancelled');
         if (['available', 'pending_anchor'].includes(row.data.grant_state))
           row.data.grant_state = 'revoked';
         await this.event(tx, p, row, now, reason);
@@ -1525,7 +1594,7 @@ export class ReviewService {
           requireThat(creation.prepared, 409, 'idempotency_changed');
           const created = await this.createIn(tx, p, now, input, creation.prepared, old);
           old.data.invalidated = 'superseded';
-          if (old.data.decision_state === 'pending') old.data.decision_state = 'superseded';
+          this.closePendingReview(old, now, 'superseded');
           if (!old.data.receipt) delete old.data.candidate;
           if (['available', 'pending_anchor'].includes(old.data.grant_state))
             old.data.grant_state = 'revoked';

@@ -142,7 +142,7 @@ export async function registerPrincipal(
           continue;
         row.data.invalidated = 'producer_authorisation_changed';
         if (!row.data.receipt) delete row.data.candidate;
-        if (row.data.decision_state === 'pending') row.data.decision_state = 'cancelled';
+        service.closePendingReview(row, now, 'cancelled');
         if (['pending_anchor', 'available'].includes(row.data.grant_state))
           row.data.grant_state = 'revoked';
         await service.event(tx, p, row, now, 'producer_authorisation_changed');
@@ -222,7 +222,7 @@ export async function registerRoute(
             : producerRemoved
               ? 'producer_removed'
               : 'reviewer_removed';
-          if (row.data.decision_state === 'pending') row.data.decision_state = 'cancelled';
+          service.closePendingReview(row, now, 'cancelled');
           if (!row.data.receipt) delete row.data.candidate;
           if (['available', 'pending_anchor'].includes(row.data.grant_state))
             row.data.grant_state = 'revoked';

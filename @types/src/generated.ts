@@ -8,16 +8,32 @@ export type LedgerPage = LedgerEntry[];
 export type HitlPoll =
   | {
       case_id: string;
-      status: 'pending' | 'cancelled' | 'expired';
+      status: 'pending';
       created_at: string;
       expires_at: string;
     }
   | {
       case_id: string;
+      status: 'expired';
+      created_at: string;
+      expires_at: string;
+      expired_at: string;
+      default_action: 'abort';
+    }
+  | {
+      case_id: string;
+      status: 'cancelled';
+      created_at: string;
+      expires_at: string;
+      cancelled_at: string;
+    }
+  | {
+      case_id: string;
       status: 'completed';
+      created_at: string;
       completed_at: string;
       result: {
-        action: string;
+        action: 'submit';
         data: {
           response: unknown;
           haip_receipt: SignedRecord;
@@ -26,23 +42,7 @@ export type HitlPoll =
         };
       };
     };
-export type HitlStatus =
-  | HitlPoll
-  | {
-      status: 'human_input_required';
-      hitl: {
-        spec_version: '0.8';
-        case_id: string;
-        review_url: string;
-        poll_url: string;
-        type: 'input';
-        prompt: string;
-        timeout: string;
-        default_action: 'cancel';
-        created_at: string;
-        expires_at: string;
-      };
-    };
+export type HitlStatus = HitlPoll | HitlHandoff;
 export type AgentUiErrorCode = -32600 | -32601 | -32602 | -32000;
 export type AgentUiId = string | number;
 export type AgentUiRequest =
@@ -129,6 +129,7 @@ export interface ProtocolTypes {
   LedgerEntry?: LedgerEntry;
   LedgerPage?: LedgerPage;
   HitlPoll?: HitlPoll;
+  HitlHandoff?: HitlHandoff;
   HitlStatus?: HitlStatus;
   MetricsSnapshot?: MetricsSnapshot;
   AgentUiRequestIdentity?: AgentUiRequestIdentity;
@@ -691,6 +692,21 @@ export interface LedgerEntry {
   record_digest: string;
   record: string | null;
   created_at: string;
+}
+export interface HitlHandoff {
+  status: 'human_input_required';
+  hitl: {
+    spec_version: '0.8';
+    case_id: string;
+    review_url: string;
+    poll_url: string;
+    type: 'input';
+    prompt: string;
+    timeout: string;
+    default_action: 'abort';
+    created_at: string;
+    expires_at: string;
+  };
 }
 export interface MetricsSnapshot {
   admission_fenced: boolean;

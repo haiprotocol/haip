@@ -173,11 +173,11 @@ export async function recoverTenant(
     for (const row of (await tx.query('SELECT * FROM haip_requests WHERE tenant=$1', [tenant]))
       .rows as RequestRow[]) {
       const d = row.data;
+      service.closePendingReview(row, now, 'cancelled');
       d.invalidated = 'namespace_retired';
       d.material_deleted = true;
       delete d.candidate;
       delete d.review_claim;
-      if (d.decision_state === 'pending') d.decision_state = 'cancelled';
       if (d.request.execution) {
         if (d.grant_state !== 'consumed') d.grant_state = 'revoked';
         // A restored outcome may omit later reconciliation. Do not assert completion from it.
