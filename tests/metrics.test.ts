@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { digest } from '@haip/protocol/crypto';
 import { environment } from './environment.js';
 test('operator metrics expose own pressure, failures, uncertainty and checkpoint lag without other tenant contents', async () => {
   const env = await environment();
@@ -55,6 +56,76 @@ test('operator metrics expose own pressure, failures, uncertainty and checkpoint
     assert(
       unaffected.body.operations.some((o: any) => o.name === 'foreign_recovery' && o.failed_at),
     );
+  } finally {
+    await env.close();
+  }
+});
+
+test('Prometheus counts claim conflicts, authorisation refusals and evidence failures per tenant', async () => {
+  const env = await environment();
+  try {
+    const created = await env.api('/v2/requests', env.request(true));
+    assert.equal(created.status, 201);
+    const request = created.body.request;
+    const path = `/v2/requests/${request.id}`;
+    const proposal = { decision: 'authorise', response: { choice: 'accept' } };
+    const requester = await env.login('requester');
+    const selfReview = await requester.call(path + '/candidates', proposal);
+    assert.equal(selfReview.body.error, 'separation_of_duties');
+    const reviewer = await env.login();
+    const candidate = await reviewer.call(path + '/candidates', proposal);
+    assert.equal(candidate.status, 201);
+    const receipt = await reviewer.call(path + '/confirm', {
+      candidate_id: candidate.body.id,
+      candidate_digest: digest(candidate.body),
+    });
+    assert.equal(receipt.status, 200);
+    await env.flush();
+
+    const claim = {
+      execution_identity: 'first-claim',
+      execution_binding_digest: digest(request.execution),
+    };
+    assert.equal((await env.api(path + '/claims', claim)).status, 201);
+    const conflict = await env.api(path + '/claims', {
+      ...claim,
+      execution_identity: 'second-claim',
+    });
+    assert.equal(conflict.status, 409);
+    assert.equal(conflict.body.error, 'grant_unavailable');
+
+    await env.store.pool.query(
+      "UPDATE haip_requests SET data=jsonb_set(data,'{request_digest}',to_jsonb($2::text)) WHERE id=$1",
+      [request.id, digest('altered request')],
+    );
+    const altered = await env.api(path + '/material');
+    assert.equal(altered.status, 409);
+    assert.equal(altered.body.error, 'material_integrity_mismatch');
+
+    const scrape = async (credential: string) => {
+      const response = await fetch(env.origin + '/v2/admin/metrics.prom', {
+        headers: { Authorization: 'Bearer ' + credential },
+      });
+      assert.equal(response.status, 200);
+      return response.text();
+    };
+    const own = await scrape(env.credentials.operator);
+    const foreign = await scrape(env.credentials.foreignOperator);
+    for (const metric of [
+      'execution_claim_conflicts',
+      'authorisation_refusals',
+      'evidence_failures',
+    ]) {
+      assert.match(own, new RegExp(`^haip_${metric}_total 1$`, 'm'));
+      assert.match(foreign, new RegExp(`^haip_${metric}_total 0$`, 'm'));
+    }
+    assert.match(own, /^haip_http_conflicts_total 2$/m);
+    const json = await env.api('/v2/admin/metrics', undefined, env.credentials.operator);
+    assert.deepEqual(Object.keys(json.body.http_since_process_start).sort(), [
+      'conflicts',
+      'failures',
+      'total',
+    ]);
   } finally {
     await env.close();
   }

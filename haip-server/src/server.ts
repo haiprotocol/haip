@@ -19,6 +19,7 @@ import { createViewBootstrap } from './sandbox-app.js';
 const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = (name: string) =>
   readFileSync(new URL('../public/' + name, import.meta.url), 'utf8');
+const executionClaimPath = '/v2/requests/:id/claims';
 const hostPolicy = (frameOrigin = "'none'") =>
   `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-src ${frameOrigin}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`;
 const bundleScope = (tenant: string, bundle: { publisher: string; digest: string }) =>
@@ -78,7 +79,13 @@ export function createApp(
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.once('finish', () => {
-      if (req.principal?.tenant) metrics.observe(req.principal.tenant, res.statusCode);
+      if (req.principal?.tenant)
+        metrics.observe(
+          req.principal.tenant,
+          res.statusCode,
+          req.route?.path === executionClaimPath,
+          res.locals.protocolErrorCode,
+        );
     });
     res.set({
       'Cache-Control': 'no-store',
@@ -184,7 +191,7 @@ export function createApp(
     ...jsonBody(64 * 1024),
   );
   app.post(
-    ['/v2/requests/:id/claims', '/v2/requests/:id/admission'],
+    [executionClaimPath, '/v2/requests/:id/admission'],
     role('producer'),
     ...jsonBody(64 * 1024),
   );
@@ -307,7 +314,7 @@ export function createApp(
   app.post('/v2/requests/:id/supersede', principalAdmission, async (req, res) =>
     res.status(201).json(await service.supersede(req.principal, pathId(req), req.body, key(req))),
   );
-  app.post('/v2/requests/:id/claims', principalAdmission, async (req, res) =>
+  app.post(executionClaimPath, principalAdmission, async (req, res) =>
     res.status(201).json(await service.claim(req.principal, pathId(req), req.body, key(req))),
   );
   app.post('/v2/requests/:id/admission', principalAdmission, async (req, res) =>
@@ -345,13 +352,16 @@ export function createApp(
   app.get('/v2/admin/metrics', principalAdmission, async (req, res) =>
     res.json(await metrics.snapshot(service, req.principal)),
   );
-  app.get('/v2/admin/metrics.prom', principalAdmission, async (req, res) =>
-    res.type('text/plain').send(prometheus(await metrics.snapshot(service, req.principal))),
-  );
+  app.get('/v2/admin/metrics.prom', principalAdmission, async (req, res) => {
+    const snapshot = await metrics.snapshot(service, req.principal);
+    res.type('text/plain').send(prometheus(snapshot, metrics.refusals(req.principal.tenant)));
+  });
   app.use((_req, _res, next) => next(new ProtocolError(404, 'not_found')));
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (error instanceof ProtocolError) res.status(error.status).json({ error: error.code });
-    else if ((error as { type?: string })?.type === 'entity.too.large')
+    if (error instanceof ProtocolError) {
+      res.locals.protocolErrorCode = error.code;
+      res.status(error.status).json({ error: error.code });
+    } else if ((error as { type?: string })?.type === 'entity.too.large')
       res.status(413).json({ error: 'body_too_large' });
     else if ((error as { code?: string })?.code === '23505')
       res.status(409).json({ error: 'identity_conflict' });
