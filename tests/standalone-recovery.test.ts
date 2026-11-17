@@ -180,6 +180,10 @@ test(
           ),
           200,
         );
+        await source.pool.query(
+          'UPDATE haip_outbox SET next_at=clock_timestamp() WHERE tenant=$1 AND checkpoint_batch_count IS NOT NULL',
+          [tenant],
+        );
         async function hasCheckpoint() {
           const { rowCount } = await source.pool.query(
             "SELECT 1 FROM haip_outbox WHERE kind='checkpoint' AND state='accepted' LIMIT 1",

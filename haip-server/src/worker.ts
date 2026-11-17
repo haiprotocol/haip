@@ -348,7 +348,7 @@ export class OutboxWorker {
       const claimed = (
         await tx.query(
           `UPDATE haip_outbox SET attempts=attempts+1,claim_generation=claim_generation+1,
-           claim_until=clock_timestamp()+($2::text||' seconds')::interval,claim_revision=$3
+           claim_until=clock_timestamp()+($2::text||' seconds')::interval,claim_revision=$3,checkpoint_batch_count=NULL
            WHERE id=$1 RETURNING claim_generation`,
           [item.id, deliveryClaimSeconds, destination.revision],
         )
@@ -501,7 +501,7 @@ export class OutboxWorker {
     const attempt = item.attempts + (item.claim_until ? 0 : 1);
     await tx.query(
       `UPDATE haip_outbox SET state=$2,attempts=CASE WHEN claim_until IS NULL THEN attempts+1 ELSE attempts END,
-       error=$3,next_at=$4,claim_until=NULL,claim_revision=NULL WHERE id=$1`,
+       error=$3,next_at=$4,claim_until=NULL,claim_revision=NULL,checkpoint_batch_count=NULL WHERE id=$1`,
       [
         item.id,
         expired ? 'failed' : 'pending',

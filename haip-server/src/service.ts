@@ -85,6 +85,8 @@ function checkpointEvidence(data: RequestData) {
 }
 const iso = (now: Date, seconds = 0) => new Date(now.getTime() + seconds * 1000).toISOString();
 const bytes = (v: unknown) => Buffer.byteLength(canonicalise(v));
+const checkpointBatchSeconds = 300;
+const checkpointBatchSize = 100;
 export class ReviewService {
   recovery?: import('./recovery.js').RecoveryGuard;
   constructor(
@@ -242,15 +244,66 @@ export class ReviewService {
       { ...p, id: 'haip.audit', tenant: t.ledger_id },
       now,
     );
-    // Every event gets a checkpoint; this is stricter than the five-minute/100-event bound.
-    const job = randomUUID();
-    await tx.query(
-      "INSERT INTO haip_outbox(id,tenant,request_id,kind,body) VALUES($1,$2,$3,'checkpoint',$4)",
-      [job, p.tenant, request?.id ?? null, JSON.stringify(checkpoint)],
+    await this.queueCheckpoint(
+      tx,
+      p.tenant,
+      now,
+      checkpoint,
+      type === 'DecisionReceipt' ? request?.id : undefined,
     );
-    this.store.noteOutboxJob(tx, job);
     return seq;
   }
+
+  private async queueCheckpoint(
+    tx: Tx,
+    tenant: string,
+    now: Date,
+    checkpoint: SignedRecord,
+    confirmation?: string,
+  ): Promise<void> {
+    const immediate = confirmation !== undefined;
+    const {
+      rows: [batch],
+    } = await tx.query<{
+      id: string;
+      checkpoint_batch_count: number;
+      collecting: boolean;
+    }>(
+      `SELECT id,checkpoint_batch_count,next_at>clock_timestamp() AS collecting
+       FROM haip_outbox WHERE tenant=$1 AND checkpoint_batch_count IS NOT NULL FOR UPDATE`,
+      [tenant],
+    );
+    const body = JSON.stringify(checkpoint);
+    if (batch?.collecting) {
+      const count = batch.checkpoint_batch_count + 1;
+      const due = immediate || count === checkpointBatchSize;
+      await tx.query(
+        `UPDATE haip_outbox SET body=$2,request_id=$3,checkpoint_batch_count=$4,
+         next_at=CASE WHEN $4::smallint IS NULL THEN $5 ELSE next_at END WHERE id=$1`,
+        [batch.id, body, confirmation ?? null, due ? null : count, now],
+      );
+      if (due) this.store.noteOutboxJob(tx, batch.id);
+      return;
+    }
+    if (batch)
+      await tx.query('UPDATE haip_outbox SET checkpoint_batch_count=NULL WHERE id=$1', [batch.id]);
+    const id = randomUUID();
+    await tx.query(
+      `INSERT INTO haip_outbox(id,tenant,request_id,kind,body,created_at,next_at,checkpoint_batch_count)
+       VALUES($1,$2,$3,'checkpoint',$4,$5,$6,$7)`,
+      [
+        id,
+        tenant,
+        confirmation ?? null,
+        body,
+        now,
+        immediate ? now : iso(now, checkpointBatchSeconds),
+        immediate ? null : 1,
+      ],
+    );
+    this.store.noteOutboxJob(tx, id);
+  }
+
   async event(tx: Tx, p: Principal, row: RequestRow, now: Date, reason: string): Promise<void> {
     const d = row.data;
     d.revision++;

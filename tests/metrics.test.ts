@@ -5,6 +5,9 @@ test('operator metrics expose own pressure, failures, uncertainty and checkpoint
   const env = await environment();
   try {
     await env.api('/v2/requests', env.request());
+    await env.store.pool.query(
+      "UPDATE haip_outbox SET next_at=clock_timestamp() WHERE tenant='test-tenant' AND checkpoint_batch_count IS NOT NULL",
+    );
     await env.flush();
     await env.worker.cleanup();
     assert.equal((await env.api('/v2/admin/metrics')).status, 403);

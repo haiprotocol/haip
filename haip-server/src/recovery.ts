@@ -195,7 +195,7 @@ export async function recoverTenant(
     await tx.query(
       `UPDATE haip_outbox SET body='{}',destination=NULL,claim_until=NULL,claim_revision=NULL,
          state=CASE WHEN state='pending' THEN 'expired' ELSE state END,
-         accepted=CASE WHEN kind='smtp' THEN NULL ELSE accepted END
+         accepted=CASE WHEN kind='smtp' THEN NULL ELSE accepted END,checkpoint_batch_count=NULL
        WHERE tenant=$1 AND (state='pending' OR kind='smtp')`,
       [tenant],
     );
